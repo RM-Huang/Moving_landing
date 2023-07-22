@@ -103,6 +103,20 @@ public:
           mapInitialized(false),
           visualizer(nh)
     {
+        mapInit();
+
+        mapSub = nh.subscribe(config.mapTopic, 1, &GlobalPlanner::mapCallBack, this,
+                              ros::TransportHints().tcpNoDelay());
+
+        if(config.setpointTag)
+        {
+            targetSub = nh.subscribe(config.targetTopic, 1, &GlobalPlanner::targetCallBack, this,
+                                    ros::TransportHints().tcpNoDelay());
+        }
+    }
+
+    inline void mapInit()
+    {
         const Eigen::Vector3i xyz((config.mapBound[1] - config.mapBound[0]) / config.voxelWidth,
                                   (config.mapBound[3] - config.mapBound[2]) / config.voxelWidth,
                                   (config.mapBound[5] - config.mapBound[4]) / config.voxelWidth);
@@ -110,12 +124,6 @@ public:
         const Eigen::Vector3d offset(config.mapBound[0], config.mapBound[2], config.mapBound[4]);
 
         voxelMap = voxel_map::VoxelMap(xyz, offset, config.voxelWidth); //根据地图的长宽高、偏置，构建体素地图
-
-        mapSub = nh.subscribe(config.mapTopic, 1, &GlobalPlanner::mapCallBack, this,
-                              ros::TransportHints().tcpNoDelay());
-
-        targetSub = nh.subscribe(config.targetTopic, 1, &GlobalPlanner::targetCallBack, this,
-                                 ros::TransportHints().tcpNoDelay());
     }
 
     //加载地图
@@ -368,12 +376,17 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "global_planning_node");
     ros::NodeHandle nh_;
+    Config config;
 
     GlobalPlanner global_planner(Config(ros::NodeHandle("~")), nh_); //全局规划器
 
     ros::Rate lr(1000);
     while (ros::ok())
     {
+        if(!config.setpointTag)
+        {
+            global_planner.targetSetting();
+        }
         global_planner.process(); //根据微分平坦特性，计算总推力，姿态四元数，机体角速率
         ros::spinOnce();//调用ROS主题
         lr.sleep();//睡眠1s
