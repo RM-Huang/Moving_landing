@@ -1,0 +1,16 @@
+# 忽略项目根目录下所有以 .a 结尾的文件
+*.a
+
+# lib.a 除外
+!lib.a
+
+# 目录下的所有文件
+build/
+
+devel/
+
+.vscode/
+
+# 忽略项目根目录下的 doc 目录下的所有以 .txt 结尾的文件，但不包括 doc/server/*.txt
+doc/*.txt
+
