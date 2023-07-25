@@ -2,6 +2,8 @@ SetpointTag:                0
 
 MapTopic:                   '/voxel_map'
 
+PoseTopic:                 'local_position/pose'
+
 TargetTopic:                '/move_base_simple/goal'
 
 DilateRadius:               0.5
@@ -43,3 +45,11 @@ SmoothingEps:               1.0e-2
 IntegralIntervs:            16
 
 RelCostTol:                 1.0e-5
+
+X_Wide:                     4.0
+
+Y_Wide:                     3.0
+
+Z_Wide:                     2.5
+
+Z_min:                      0.5

@@ -24,8 +24,9 @@
 //从外部获取模型的参数
 struct Config
 {
-    bool setpointTag; //1:setpoint,0:traj_follow
+    int setpointTag; //1:setpoint,0:traj_follow
     std::string mapTopic;//地图话题
+    std::string poseTopic;
     std::string targetTopic;//起点和终点目标话题
     double dilateRadius;//膨胀半径.物理意义是啥？
     double voxelWidth;//体素宽度.物理意义是啥？
@@ -48,11 +49,17 @@ struct Config
     int integralIntervs;
     double relCostTol;
 
+    double x_wide;
+    double y_wide;
+    double z_wide;
+    double z_min;
+
     //从yaml文件获取变量取值
     Config(const ros::NodeHandle &nh_priv)
     {
         nh_priv.getParam("SetpointTag",setpointTag);
         nh_priv.getParam("MapTopic", mapTopic);//voxel_map
+        nh_priv.getParam("PoseTopic",poseTopic);
         nh_priv.getParam("TargetTopic", targetTopic);///move_base_simple/goal
         nh_priv.getParam("DilateRadius", dilateRadius);//膨胀半径0.5
         nh_priv.getParam("VoxelWidth", voxelWidth);//体素宽度
@@ -74,7 +81,29 @@ struct Config
         nh_priv.getParam("SmoothingEps", smoothingEps);
         nh_priv.getParam("IntegralIntervs", integralIntervs);
         nh_priv.getParam("RelCostTol", relCostTol);
+        nh_priv.getParam("X_Wide",x_wide);
+        nh_priv.getParam("Y_Wide",y_wide);
+        nh_priv.getParam("Z_Wide",z_wide);
+        nh_priv.getParam("Z_min",z_min);
     }
+};
+
+class TypeTransform
+{
+public:
+    TypeTransform();
+    ~TypeTransform();
+    template<typename T>
+    static inline Eigen::Vector3d RosMsg2Eigen(const T& p)
+    {
+        Eigen::Vector3d ev3(p.x, p.y, p.z);
+        return ev3;
+    }
+    static inline void Eigen2RosMsg(const Eigen::Vector3d& ev3, geometry_msgs::Vector3& gv3)
+    {
+        gv3.x = ev3[0], gv3.y = ev3[1], gv3.z = ev3[2];
+    }
+private:
 };
 
 //全局规划器
@@ -85,13 +114,15 @@ private:
 
     ros::NodeHandle nh;
     ros::Subscriber mapSub;    //订阅地图
+    ros::Subscriber poseSub;   
     ros::Subscriber targetSub; //订阅终点
 
     bool mapInitialized;
     voxel_map::VoxelMap voxelMap; //体素地图
     Visualizer visualizer;
-    std::vector<Eigen::Vector3d> startGoal; //起点+终点点
-
+    geometry_msgs::PoseStamped current_pose;
+    std::vector<Eigen::Vector3d> startGoal; //起点+终点
+    
     Trajectory<5> traj; //5条子轨迹
     double trajStamp;   //轨迹的时间戳
 
@@ -103,15 +134,20 @@ public:
           mapInitialized(false),
           visualizer(nh)
     {
-        mapInit();
-
-        mapSub = nh.subscribe(config.mapTopic, 1, &GlobalPlanner::mapCallBack, this,
-                              ros::TransportHints().tcpNoDelay());
-
+        // std::cout<<"setpointTag = "<< config.setpointTag <<std::endl;
         if(config.setpointTag)
         {
+            mapInit();
+
+            mapSub = nh.subscribe(config.mapTopic, 1, &GlobalPlanner::mapCallBack, this,
+                              ros::TransportHints().tcpNoDelay());
+
             targetSub = nh.subscribe(config.targetTopic, 1, &GlobalPlanner::targetCallBack, this,
                                     ros::TransportHints().tcpNoDelay());
+        }
+        else if (config.setpointTag == 0)
+        {
+            targetSetting();
         }
     }
 
@@ -155,13 +191,18 @@ public:
         }
     }
 
+    inline void stateCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
+    {
+        current_pose = *msg;
+    }
+
     //轨迹最优化计算
     inline void plan()
     {
-        if (startGoal.size() == 2)//满足两个点
+        std::vector<Eigen::Vector3d> route;//默认三维列向量
+        if (startGoal.size() == 2 && config.setpointTag)//满足两个点且模式为1
         {
             //前端路径
-            std::vector<Eigen::Vector3d> route;//默认三维列向量
             sfc_gen::planPath<voxel_map::VoxelMap>(startGoal[0],
                                                    startGoal[1],
                                                    voxelMap.getOrigin(),
@@ -235,7 +276,7 @@ public:
 
                 //轨迹优化参数设置
                 //设置：设置时间正则系数，初始状态，终止状态，凸多面体序列，空，平滑系数，数值积分分辨率，物理参数极限，惩罚权重，物理参数
-                if (!gcopter.setup(config.weightT,
+                if (!gcopter.setup_setpoints(config.weightT,
                                    iniState, finState,
                                    hPolys, INFINITY,
                                    config.smoothingEps,
@@ -261,33 +302,110 @@ public:
                 }
             }
         }
+        else if (config.setpointTag == 0)
+        {
+            // std::cout<<"traj_fol plan entry"<<std::endl;
+
+            Eigen::Matrix3Xd route_M;
+            Eigen::Matrix3d iniState;
+            Eigen::Matrix3d finState;//元素类型为double大小为3*3的矩阵变量
+
+            double x_h = config.x_wide / 2;
+            double y_h = config.y_wide / 2;
+            double z_min = config.z_min;
+            double z_wide = config.z_wide;
+
+            // route_M.col(0) = TypeTransform::RosMsg2Eigen(current_pose.pose.position);
+            route_M.resize(3,9);
+            route_M.col(0) = Eigen::Vector3d(0,0,0);
+            route_M.col(1) = Eigen::Vector3d(x_h, y_h, z_min);
+            route_M.col(2) = Eigen::Vector3d(x_h, -y_h, z_min + z_wide / 8);
+            route_M.col(3) = Eigen::Vector3d(-x_h, y_h, z_min + z_wide / 4);
+            route_M.col(4) = Eigen::Vector3d(-x_h, -y_h, z_min + 3 * z_wide / 8);
+
+            route_M.col(5) = Eigen::Vector3d(x_h, y_h, z_min + z_wide / 2);
+            route_M.col(6) = Eigen::Vector3d(x_h, -y_h, z_min + 5 * z_wide / 8);
+            route_M.col(7) = Eigen::Vector3d(-x_h, y_h, z_min + 6 * z_wide / 8);
+            route_M.col(8) = Eigen::Vector3d(-x_h, -y_h, z_min + 7 * z_wide / 8);
+            
+            // std::cout<<"setpoint suc"<<std::endl;
+
+            iniState << route_M.leftCols(1), Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero();//[粗路径的起点，0,0]
+            finState << route_M.rightCols(1),  Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero();//[粗路径的终点，0,0]
+
+            gcopter::GCOPTER_PolytopeSFC gcopter;
+
+            // magnitudeBounds = [v_max, omg_max, theta_max, thrust_min, thrust_max]^T
+            // penvisualizealtyWeights = [pos_weight, vel_weight, omg_weight, theta_weight, thrust_weight]^T
+            // physicalParams = [vehicle_mass, gravitational_acceleration, horitonral_drag_coeff,
+            //                   vertical_drag_coeff, parasitic_drag_coeff, speed_smooth_factor]^T
+            // initialize some constraint parameters
+            //初始化约束参数
+            Eigen::VectorXd magnitudeBounds(5);//物理参数限制
+            Eigen::VectorXd penaltyWeights(5);//惩罚项权重
+            Eigen::VectorXd physicalParams(6);//物理参数
+
+            magnitudeBounds(0) = config.maxVelMag;//最大速度
+            magnitudeBounds(1) = config.maxBdrMag;//最大机体角速率
+            magnitudeBounds(2) = config.maxTiltAngle;//最大倾斜角
+            magnitudeBounds(3) = config.minThrust;//最小推力
+            magnitudeBounds(4) = config.maxThrust;//最大推力
+
+            penaltyWeights(0) = (config.chiVec)[0];
+            penaltyWeights(1) = (config.chiVec)[1];
+            penaltyWeights(2) = (config.chiVec)[2];
+            penaltyWeights(3) = (config.chiVec)[3];
+            penaltyWeights(4) = (config.chiVec)[4];
+
+            physicalParams(0) = config.vehicleMass;//质量
+            physicalParams(1) = config.gravAcc;    //重力加速度
+            physicalParams(2) = config.horizDrag;//水平阻力系数
+            physicalParams(3) = config.vertDrag;//垂直阻力系数
+            physicalParams(4) = config.parasDrag;//附加阻力系数
+            physicalParams(5) = config.speedEps;//速度平滑因子
+            const int quadratureRes = config.integralIntervs;//数值积分分辨率
+
+            traj.clear(); //删除轨迹
+
+
+            //轨迹优化参数设置
+            //设置：设置时间正则系数，路径，初始状态，最终状态，空，平滑系数，数值积分分辨率，物理参数极限，惩罚权重，物理参数
+            if (!gcopter.setup(config.weightT,
+                               route_M,iniState,
+                               finState,INFINITY,
+                               config.smoothingEps,
+                               quadratureRes,
+                               magnitudeBounds,
+                               penaltyWeights,
+                               physicalParams))
+            {
+                return;
+            }
+
+            //计算最优化的轨迹
+            if (std::isinf(gcopter.optimize(traj, config.relCostTol)))
+            {
+                return;
+            }               
+
+            // //带时间戳的轨迹显示
+            // if (traj.getPieceNum() > 0)
+            // {
+            //     for (int i = 0; i < route_M.cols(); i++)
+            //         route[i] = route_M.col(i);
+                
+            trajStamp = ros::Time::now().toSec();
+                visualizer.visualize(traj, route);//可视化轨迹和路径
+            // }
+        }
     }
 
     inline void targetSetting() // traj following exc
     {
-        if (mapInitialized)
-        {
-            if (startGoal.size() >= 2)
-            {
-                startGoal.clear();
-            }
+        poseSub = nh.subscribe(config.poseTopic, 1, &GlobalPlanner::stateCallBack, this,
+                               ros::TransportHints().tcpNoDelay());
 
-            // const double zGoal = msg->pose.position.z; //traj following exc
-
-            const Eigen::Vector3d goal(msg->pose.position.x, msg->pose.position.y, zGoal);//目标点的坐标
-
-            if (voxelMap.query(goal) == 0)
-            {
-                visualizer.visualizeStartGoal(goal, 0.5, startGoal.size());//可视化显示
-                startGoal.emplace_back(goal);
-            }
-            else
-            {
-                ROS_WARN("Infeasible Position Selected !!!\n");
-            }
-
-            plan(); //轨迹规划
-        }
+        plan(); //轨迹规划
     }
 
     inline void targetCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
@@ -324,6 +442,8 @@ public:
     //计算总推力，姿态四元数，机体角速率
     inline void process()
     {
+        // std::cout<<"planning process entry"<<std::endl;
+        
         Eigen::VectorXd physicalParams(6); //物理参数
         physicalParams(0) = config.vehicleMass;//质量
         physicalParams(1) = config.gravAcc;//重力加速度
@@ -338,6 +458,8 @@ public:
 
         if (traj.getPieceNum() > 0)
         {
+            // std::cout<<"flap count start"<<std::endl;
+
             const double delta = ros::Time::now().toSec() - trajStamp;//delta=当前时科-上一次规划的时刻
             if (delta > 0.0 && delta < traj.getTotalDuration())//delta小于轨迹的总时长
             {
@@ -376,17 +498,13 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "global_planning_node");
     ros::NodeHandle nh_;
-    Config config;
+    Config config(ros::NodeHandle("~"));
 
     GlobalPlanner global_planner(Config(ros::NodeHandle("~")), nh_); //全局规划器
 
     ros::Rate lr(1000);
     while (ros::ok())
     {
-        if(!config.setpointTag)
-        {
-            global_planner.targetSetting();
-        }
         global_planner.process(); //根据微分平坦特性，计算总推力，姿态四元数，机体角速率
         ros::spinOnce();//调用ROS主题
         lr.sleep();//睡眠1s

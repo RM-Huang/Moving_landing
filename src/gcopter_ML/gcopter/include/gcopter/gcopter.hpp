@@ -52,8 +52,8 @@ namespace gcopter
         flatness::FlatnessMap flatmap;//微分平坦
 
         double rho;//时间正则项系数
-        Eigen::Matrix3d headPVA;//起点状态
-        Eigen::Matrix3d tailPVA;//终点状态
+        Eigen::Matrix3d headPVA;
+        Eigen::Matrix3d tailPVA;
 
         PolyhedraV vPolytopes;//顶点表示的凸多面体向量
         PolyhedraH hPolytopes;//半空间表示的凸多面体向量
@@ -63,7 +63,7 @@ namespace gcopter
         Eigen::VectorXi vPolyIdx;//顶点表示
         Eigen::VectorXi hPolyIdx;
 
-        int polyN;//凸多面体的数量
+        int polyN;//航点数量
         int pieceN;//多项式曲线的数量
         int spatialDim;//空间决策变量的维度
         int temporalDim;//时间决策变量的维度
@@ -354,8 +354,8 @@ namespace gcopter
         //惩罚泛函项
         static inline void attachPenaltyFunctional(const Eigen::VectorXd &T,
                                                    const Eigen::MatrixX3d &coeffs,
-                                                   const Eigen::VectorXi &hIdx,
-                                                   const PolyhedraH &hPolys,
+                                                //    const Eigen::VectorXi &hIdx,
+                                                //    const PolyhedraH &hPolys,
                                                    const double &smoothFactor,
                                                    const int &integralResolution,
                                                    const Eigen::VectorXd &magnitudeBounds,
@@ -439,18 +439,18 @@ namespace gcopter
                     pena = 0.0;//
 
 
-                    L = hIdx(i);//
-                    K = hPolys[L].rows();//凸多面体L的行数
-                    for (int k = 0; k < K; k++)
-                    {
-                        outerNormal = hPolys[L].block<1, 3>(k, 0);//凸多面体L的1*3块
-                        violaPos = outerNormal.dot(pos) + hPolys[L](k, 3);
-                        if (smoothedL1(violaPos, smoothFactor, violaPosPena, violaPosPenaD))//位置的平滑函数
-                        {
-                            gradPos += weightPos * violaPosPenaD * outerNormal;//位置的梯度
-                            pena += weightPos * violaPosPena;//位置的惩罚项
-                        }
-                    }
+                    // L = hIdx(i);//
+                    // K = hPolys[L].rows();//凸多面体L的行数
+                    // for (int k = 0; k < K; k++)
+                    // {
+                    //     outerNormal = hPolys[L].block<1, 3>(k, 0);//凸多面体L的1*3块
+                    //     violaPos = outerNormal.dot(pos) + hPolys[L](k, 3);
+                    //     if (smoothedL1(violaPos, smoothFactor, violaPosPena, violaPosPenaD))//位置的平滑函数
+                    //     {
+                    //         gradPos += weightPos * violaPosPenaD * outerNormal;//位置的梯度
+                    //         pena += weightPos * violaPosPena;//位置的惩罚项
+                    //     }
+                    // }
 
                     if (smoothedL1(violaVel, smoothFactor, violaVelPena, violaVelPenaD))//速度平滑函数
                     {
@@ -523,7 +523,7 @@ namespace gcopter
             
             //进入欧拉空间处理决策变量
             forwardT(tau, obj.times);//消除时间约束的变换，欧拉空间t
-            forwardP(xi, obj.vPolyIdx, obj.vPolytopes, obj.points);//消除几何约束的变换，欧拉空间的航点
+            // forwardP(xi, obj.vPolyIdx, obj.vPolytopes, obj.points);//消除几何约束的变换，欧拉空间的航点
 
             double cost;//损失
             obj.minco.setParameters(obj.points, obj.times);//参数设置
@@ -532,7 +532,7 @@ namespace gcopter
             obj.minco.getEnergyPartialGradByCoeffs(obj.partialGradByCoeffs);//能量泛函对空间参数的偏导数
             obj.minco.getEnergyPartialGradByTimes(obj.partialGradByTimes);  //能量泛函对时间参数的偏导数
             attachPenaltyFunctional(obj.times, obj.minco.getCoeffs(),
-                                    obj.hPolyIdx, obj.hPolytopes,
+                                    // obj.hPolyIdx, obj.hPolytopes,
                                     obj.smoothEps, obj.integralRes,
                                     obj.magnitudeBd, obj.penaltyWt, obj.flatmap,
                                     cost, obj.partialGradByTimes, obj.partialGradByCoeffs);//损失函数=弯曲能+惩罚泛函项
@@ -544,8 +544,8 @@ namespace gcopter
 
            //得到平坦空间的花费和梯度
             backwardGradT(tau, obj.gradByTimes, gradTau);//任务泛函对T的梯度
-            backwardGradP(xi, obj.vPolyIdx, obj.vPolytopes, obj.gradByPoints, gradXi);//任务泛函对航点的梯度
-            normRetrictionLayer(xi, obj.vPolyIdx, obj.vPolytopes, cost, gradXi);//计算任务泛函的花费和梯度
+            // backwardGradP(xi, obj.vPolyIdx, obj.vPolytopes, obj.gradByPoints, gradXi);//任务泛函对航点的梯度
+            // normRetrictionLayer(xi, obj.vPolyIdx, obj.vPolytopes, cost, gradXi);//计算任务泛函的花费和梯度
 
             return cost;//损失函数
         }
@@ -755,7 +755,7 @@ namespace gcopter
         //设置初始化函数
         //输入：获得飞行走廊内的最短路径,速度极限*3，
         //输出：内点，时长
-        static inline void setInitial(const Eigen::Matrix3Xd &path,
+        static inline void setInitial_setpoints(const Eigen::Matrix3Xd &path,
                                       const double &speed,
                                       const Eigen::VectorXi &intervalNs,
                                       Eigen::Matrix3Xd &innerPoints,
@@ -771,8 +771,11 @@ namespace gcopter
             {
                 l = intervalNs(i);
                 a = path.col(i);//最短路径的第i列
+                std::cout<<"a("<<i<<") = "<<a.transpose()<<std::endl;
                 b = path.col(i + 1);//最短路径的第i+1列
+                std::cout<<"b("<<i<<") = "<<b.transpose()<<std::endl;
                 c = (b - a) / l;
+                std::cout<<"c("<<i<<") = "<<c.transpose()<<std::endl;
                 timeAlloc.segment(j, l).setConstant(c.norm() / speed);//第j到j+l块=c范数/速度极限*3
                 j += l;
                 for (int m = 0; m < l; m++)
@@ -780,9 +783,51 @@ namespace gcopter
                     if (i > 0 || m > 0)
                     {
                         innerPoints.col(k++) = a + c * m;//内点的每一列=a+(b-a)/l*m;
+                        std::cout<<"a + c * m = "<<(a + c * m).transpose()<<std::endl;
+                        std::cout<<"innerPoints.col("<<k<<") = "<<innerPoints.col(k).transpose()<<std::endl;
                     }
                 }
+                std::cout<<"i = "<<i<<std::endl;
+                std::cout<<"timeAlloc_i = "<<timeAlloc.transpose()<<std::endl;
             }
+            std::cout<<"innerPoints = "<<innerPoints<<std::endl;
+        }
+
+        //设置初始化函数
+        //输入：获得飞行走廊内的最短路径,速度极限*3，
+        //输出：内点，时长
+        static inline void setInitial(const Eigen::Matrix3Xd &path,
+                                      const double &speed,
+                                      const Eigen::VectorXi &intervalNs,
+                                      Eigen::Matrix3Xd &innerPoints,
+                                      Eigen::VectorXd &timeAlloc)
+        {
+            const int sizeM = intervalNs.size();//c节点数量
+            const int sizeN = intervalNs.sum();//
+            // innerPoints.resize(3, sizeN - 1);//
+            innerPoints = path;
+            timeAlloc.resize(sizeN);//时长
+
+            Eigen::Vector3d a, b, c;
+            for (int i = 0, j = 0, k = 0, l; i < sizeM; i++)
+            {
+                l = intervalNs(i);
+                a = path.col(i);//最短路径的第i列
+                b = path.col(i + 1);//最短路径的第i+1列
+                c = (b - a) / l;
+                timeAlloc.segment(j, l).setConstant(c.norm() / speed);//第j到j+l块=c范数/速度极限*3
+                j += l;
+                // for (int m = 0; m < l; m++)
+                // {
+                //     if (i > 0 || m > 0)
+                //     {
+                //         innerPoints.col(k++) = a + c * m;//内点的每一列=a+(b-a)/l*m;
+                //         std::cout<<"a + c * m = "<<(a + c * m).transpose()<<std::endl;
+                //         std::cout<<"innerPoints.col("<<k<<") = "<<innerPoints.col(k).transpose()<<std::endl;
+                //     }
+                // }
+            }
+            // std::cout<<"innerPoints = "<<innerPoints<<std::endl;
         }
 
     public:
@@ -792,8 +837,85 @@ namespace gcopter
         //                   vertical_drag_coeff, parasitic_drag_coeff, speed_smooth_factor]^T
         //优化参数设置
         //时间权重
-        //设置参数：路径起点元素,路径起点元素,安全飞行走廊，光滑因子，积分分辨率，物理参数的极限，惩罚权重，物理参数
+        //设置参数：路径元素,光滑因子，积分分辨率，物理参数的极限，惩罚权重，物理参数
         inline bool setup(const double &timeWeight,
+                          const Eigen::Matrix3Xd &setPoint,
+                          const Eigen::Matrix3d &initialState,
+                          const Eigen::Matrix3d &finalState,
+                          const double &lengthPerPiece,
+                          const double &smoothingFactor,
+                          const int &integralResolution,
+                          const Eigen::VectorXd &magnitudeBounds,
+                          const Eigen::VectorXd &penaltyWeights,
+                          const Eigen::VectorXd &physicalParams)
+        {   
+            rho = timeWeight;     ////时间正则项系数
+            shortPath = setPoint; //路径元素，三维数据
+            headPVA = initialState;
+            tailPVA = finalState;
+
+            // polyN = hPolytopes.size();//凸多面体的数量
+            polyN = shortPath.cols() - 1;
+
+            smoothEps = smoothingFactor;//光滑因子
+            integralRes = integralResolution;//积分分辨率
+            magnitudeBd = magnitudeBounds;//物理参数的幅值边界
+            penaltyWt = penaltyWeights;//惩罚权重
+            physicalPm = physicalParams;//物理参数
+            allocSpeed = magnitudeBd(0) * 3.0;//速度极限*3
+
+
+            // getShortestPath(headPVA.col(0), tailPVA.col(0), vPolytopes, smoothEps, shortPath);//获得飞行走廊内的最短路径
+
+            const Eigen::Matrix3Xd deltas = shortPath.rightCols(polyN) - shortPath.leftCols(polyN);//三维中间点，航点的数量=凸多面体的数量
+            pieceIdx = (deltas.colwise().norm() / lengthPerPiece).cast<int>().transpose();//向量列的二范数/每个子段长度,取整
+            pieceIdx.array() += 1;//数组检索序号要+1
+            pieceN = pieceIdx.sum();//维度求和
+
+            temporalDim = pieceN;//时间维度
+            spatialDim = 0;//空间维度
+            vPolyIdx.resize(pieceN - 1);//
+            hPolyIdx.resize(pieceN);
+
+            // for (int i = 0, j = 0, k; i < polyN; i++)
+            // {
+            //     k = pieceIdx(i);
+            //     for (int l = 0; l < k; l++, j++)
+            //     {
+            //         if (l < k - 1)
+            //         {
+            //             vPolyIdx(j) = 2 * i;
+            //             spatialDim += vPolytopes[2 * i].cols();//空间维度
+            //         }
+            //         else if (i < polyN - 1)
+            //         {
+            //             vPolyIdx(j) = 2 * i + 1;
+            //             spatialDim += vPolytopes[2 * i + 1].cols();//空间维度
+            //         }
+            //         hPolyIdx(j) = i;
+            //     }
+            // }
+
+            // Setup for MINCO_S3NU, FlatnessMap, and L-BFGS solver
+            minco.setConditions(headPVA, tailPVA, pieceN); //路径起点元素三维数据，路径终点元素三维数据，多项式数量
+
+            flatmap.reset(physicalPm(0), physicalPm(1), physicalPm(2),
+                          physicalPm(3), physicalPm(4), physicalPm(5));//微分平坦计算用到的飞机物理参数
+
+            // Allocate temp variables
+            points.resize(3, pieceN - 1);//航点=3*多项式的数量
+            points.setZero(); 
+            times.resize(pieceN);//多项式的时长
+
+            gradByPoints.resize(3, pieceN - 1);//对航点的导数
+            gradByTimes.resize(pieceN);//对时长的导数
+
+            partialGradByCoeffs.resize(6 * pieceN, 3);//任务泛函对空间参数的偏导数
+            partialGradByTimes.resize(pieceN);//任务泛函对时长参数的偏导数
+            return true;
+        }
+
+        inline bool setup_setpoints(const double &timeWeight,
                           const Eigen::Matrix3d &initialPVA,
                           const Eigen::Matrix3d &terminalPVA,
                           const PolyhedraH &safeCorridor,
@@ -882,8 +1004,6 @@ namespace gcopter
             partialGradByTimes.resize(pieceN);//任务泛函对时长参数的偏导数
             return true;
         }
-        
-
 
         //优化计算
         inline double optimize(Trajectory<5> &traj,
@@ -893,11 +1013,19 @@ namespace gcopter
             Eigen::Map<Eigen::VectorXd> tau(x.data(), temporalDim);//映射x现有数据数组的前时间维度元素
             Eigen::Map<Eigen::VectorXd> xi(x.data() + temporalDim, spatialDim);//映射x现有数据数组的前后面的元素
 
+            std::cout<<"traj_fol setInitial start"<<std::endl;
+            std::cout<<"allocSpeed = "<<allocSpeed<<" "<<"pieceIdx = "<<pieceIdx.transpose()<<std::endl;
+            std::cout<<"shortpath:"<<std::endl;
+            std::cout<<shortPath<<std::endl;
+
             //初始化
             setInitial(shortPath, allocSpeed, pieceIdx, points, times);
 
+            std::cout<<"point:"<<std::endl;
+            std::cout<<points<<std::endl;
+
             backwardT(times, tau);//将时间向量times变换到欧式空间的时间向量代理变量tau
-            backwardP(points, vPolyIdx, vPolytopes, xi);//将航点向量points变换到欧式空间的航点向量代理变量xi
+            // backwardP(points, vPolyIdx, vPolytopes, xi);//将航点向量points变换到欧式空间的航点向量代理变量xi
 
             //最优化算法的参数设置
             double minCostFunctional;//输出结果
@@ -918,7 +1046,7 @@ namespace gcopter
             if (ret >= 0)
             {
                 forwardT(tau, times);//将欧式空间的时间向量代理变量tau变换到平坦空间times
-                forwardP(xi, vPolyIdx, vPolytopes, points);//将欧式空间的航点向量代理变量xi变换到平坦空间points
+                // forwardP(xi, vPolyIdx, vPolytopes, points);//将欧式空间的航点向量代理变量xi变换到平坦空间points
 
                 minco.setParameters(points, times);//欧式空间(表征的(P，T)
                 minco.getTrajectory(traj);//轨迹

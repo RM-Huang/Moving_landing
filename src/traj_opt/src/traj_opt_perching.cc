@@ -361,10 +361,10 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     do {
       T_bvp += 1.0;
       bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
-      bvp(T_bvp, bvp_i, bvp_f, coeffMat);
+      bvp(T_bvp, bvp_i, bvp_f, coeffMat); //得到中间路径点
       std::vector<double> durs{T_bvp};
       std::vector<CoefficientMat> coeffs{coeffMat};
-      Trajectory traj(durs, coeffs);
+      Trajectory traj(durs, coeffs); //获得轨迹
       max_omega = getMaxOmega(traj);
     } while (max_omega > 1.5 * omega_max_);
     Eigen::VectorXd tt(8);

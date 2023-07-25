@@ -23,10 +23,10 @@
     <param name="attenuation"   type="double" value="0.1"/>
     <remap from="/mock_map" to="/voxel_map"/>
   </node> -->
-  <node pkg="mockamap" type="mockamap_node" name="mockamap_node" output="screen">
+  <!-- <node pkg="mockamap" type="mockamap_node" name="mockamap_node" output="screen">
       <rosparam file="$(find mockamap)/config/mockamap.yaml"/>
       <remap from="/mock_map" to="/voxel_map"/>
-  </node>
+  </node> -->
   <node pkg="gcopter" type="global_planning" name="global_planning_node" output="screen">
   <rosparam file="$(find gcopter)/config/global_planning.yaml" command="load" />
   </node>
