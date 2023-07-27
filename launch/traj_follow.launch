@@ -1,0 +1,22 @@
+<launch>
+
+  <group ns="drone">
+    <!-- rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" output="screen"
+            args="-d $(find gcopter)/config/global_planning.rviz"> 
+    </node>
+
+    <node pkg="gcopter" type="global_planning" name="global_planning_node" output="screen">
+            <!-- 话题在参数文件中修改 -->
+            <rosparam file="$(find gcopter)/config/global_planning.yaml" command="load" />
+    </node>
+
+    <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl" output="screen">
+        	<!-- <remap from="~odom" to="/vicon_imu_ekf_odom" /> -->
+			<remap from="~odom" to="/mavros/odometry/in" />
+		    <remap from="~cmd" to="/drone/planning/traj_follow" />
+            <rosparam command="load" file="$(find px4ctrl)/config/ctrl_param_fpv.yaml" />
+	</node>
+
+  </group>
+</launch>

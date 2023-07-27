@@ -2,7 +2,11 @@ SetpointTag:                0
 
 MapTopic:                   '/voxel_map'
 
-PoseTopic:                 'local_position/pose'
+PoseTopic:                  '/drone/local_position/pose'
+
+CtrlTopic:                  '/mavros/setpoint_raw/attitude'
+
+CmdTopic:                   '/drone/planning/traj_follow'
 
 TargetTopic:                '/move_base_simple/goal'
 

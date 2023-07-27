@@ -33,10 +33,10 @@ void RC_Data_t::feed(mavros_msgs::RCInConstPtr pMsg)
             ch[i] = (ch[i] + DEAD_ZONE) / (1 - DEAD_ZONE);
         else
             ch[i] = 0.0;
-    }
+    } 
 
-    mode = ((double)msg.channels[4] - 1000.0) / 1000.0;
-    gear = ((double)msg.channels[5] - 1000.0) / 1000.0;
+    mode = ((double)msg.channels[4] - 1000.0) / 1000.0; //5通道
+    gear = ((double)msg.channels[5] - 1000.0) / 1000.0; //6通道
     reboot_cmd = ((double)msg.channels[7] - 1000.0) / 1000.0;
 
     check_validity();

@@ -10,7 +10,9 @@
 #include <ros/console.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <mavros_msgs/AttitudeTarget.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <quadrotor_msgs/PositionCommand.h>
 
 #include <cmath>
 #include <iostream>
@@ -20,13 +22,15 @@
 #include <chrono>
 #include <random>
 
-
+namespace gcopter {
 //从外部获取模型的参数
 struct Config
 {
     int setpointTag; //1:setpoint,0:traj_follow
     std::string mapTopic;//地图话题
     std::string poseTopic;
+    std::string ctrlTopic;
+    std::string cmdTopic;
     std::string targetTopic;//起点和终点目标话题
     double dilateRadius;//膨胀半径.物理意义是啥？
     double voxelWidth;//体素宽度.物理意义是啥？
@@ -60,6 +64,8 @@ struct Config
         nh_priv.getParam("SetpointTag",setpointTag);
         nh_priv.getParam("MapTopic", mapTopic);//voxel_map
         nh_priv.getParam("PoseTopic",poseTopic);
+        nh_priv.getParam("CtrlTopic",ctrlTopic);
+        nh_priv.getParam("CmdTopic",cmdTopic);
         nh_priv.getParam("TargetTopic", targetTopic);///move_base_simple/goal
         nh_priv.getParam("DilateRadius", dilateRadius);//膨胀半径0.5
         nh_priv.getParam("VoxelWidth", voxelWidth);//体素宽度
@@ -115,12 +121,16 @@ private:
     ros::NodeHandle nh;
     ros::Subscriber mapSub;    //订阅地图
     ros::Subscriber poseSub;   
+    ros::Subscriber ctrlSub;
     ros::Subscriber targetSub; //订阅终点
+
+    ros::Publisher cmdPub;
 
     bool mapInitialized;
     voxel_map::VoxelMap voxelMap; //体素地图
     Visualizer visualizer;
     geometry_msgs::PoseStamped current_pose;
+    mavros_msgs::AttitudeTarget ctrl_last;
     std::vector<Eigen::Vector3d> startGoal; //起点+终点
     
     Trajectory<5> traj; //5条子轨迹
@@ -189,11 +199,6 @@ public:
 
             mapInitialized = true;
         }
-    }
-
-    inline void stateCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
-    {
-        current_pose = *msg;
     }
 
     //轨迹最优化计算
@@ -315,9 +320,13 @@ public:
             double z_min = config.z_min;
             double z_wide = config.z_wide;
 
-            // route_M.col(0) = TypeTransform::RosMsg2Eigen(current_pose.pose.position);
             route_M.resize(3,9);
-            route_M.col(0) = Eigen::Vector3d(0,0,0);
+            // route_M.col(0) = Eigen::Vector3d(0,0,0);
+            route_M.col(0) = TypeTransform::RosMsg2Eigen(current_pose.pose.position);
+
+            std::cout<<"position = "<<std::endl;
+            std::cout<<current_pose.pose.position<<std::endl;
+
             route_M.col(1) = Eigen::Vector3d(x_h, y_h, z_min);
             route_M.col(2) = Eigen::Vector3d(x_h, -y_h, z_min + z_wide / 8);
             route_M.col(3) = Eigen::Vector3d(-x_h, y_h, z_min + z_wide / 4);
@@ -400,12 +409,15 @@ public:
         }
     }
 
-    inline void targetSetting() // traj following exc
+    inline void stateCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
     {
-        poseSub = nh.subscribe(config.poseTopic, 1, &GlobalPlanner::stateCallBack, this,
-                               ros::TransportHints().tcpNoDelay());
+        current_pose = *msg;
+    }
 
-        plan(); //轨迹规划
+    inline void ctrlCallback(const mavros_msgs::AttitudeTarget::ConstPtr &msg)
+    {
+        ctrl_last = *msg;
+        // trajStamp = ctrl_last.header.stamp;
     }
 
     inline void targetCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
@@ -439,6 +451,47 @@ public:
         return;
     }
 
+    inline void targetSetting()
+    {
+        poseSub = nh.subscribe(config.poseTopic, 1, &GlobalPlanner::stateCallBack, this,
+                               ros::TransportHints().tcpNoDelay());
+            
+        ctrlSub = nh.subscribe(config.ctrlTopic, 1, &GlobalPlanner::ctrlCallback, this,
+                                   ros::TransportHints().tcpNoDelay());
+
+        cmdPub = nh.advertise<quadrotor_msgs::PositionCommand>(config.cmdTopic,10);
+
+        plan(); //轨迹规划
+    }
+
+    inline void cmdPublish(const Eigen::Vector4d &quat, const Eigen::Vector3d &omg, const Eigen::Vector3d &pos,
+                            const Eigen::Vector3d &vel, const Eigen::Vector3d &acc, const Eigen::Vector3d &jer)
+    {
+        quadrotor_msgs::PositionCommand cmdMsg;
+        cmdMsg.position.x = pos(0);
+        cmdMsg.position.y = pos(1);
+        cmdMsg.position.z = pos(2);
+        cmdMsg.velocity.x = vel(0);
+        cmdMsg.velocity.y = vel(1);
+        cmdMsg.velocity.z = vel(2);
+        cmdMsg.acceleration.x = acc(0);
+        cmdMsg.acceleration.y = acc(1);
+        cmdMsg.acceleration.z = acc(2);
+        cmdMsg.jerk.x = jer(0);
+        cmdMsg.jerk.y = jer(1);
+        cmdMsg.jerk.z = jer(2);
+        cmdMsg.yaw = atan2(2.0*(quat(2)*quat(3) + quat(0)*quat(1)), quat(0)*quat(0) - quat(1)*quat(1) - quat(2)*quat(2) + quat(3)*quat(3));
+        cmdMsg.yaw_dot = 0;
+
+        cmdPub.publish(cmdMsg);
+
+        // std::cout<<"quat = "<<quat.transpose()<<std::endl;
+        // std::cout<<"yaw = "<<cmdMsg.yaw<<std::endl;
+        // std::cout<<"omg.x = "<<omg(0)<<std::endl;
+        // std::cout<<"omg.y = "<<omg(1)<<std::endl;
+        // std::cout<<"omg.z = "<<omg(2)<<std::endl;
+    }
+
     //计算总推力，姿态四元数，机体角速率
     inline void process()
     {
@@ -466,12 +519,23 @@ public:
                 double thr;//总推力
                 Eigen::Vector4d quat;//四元数
                 Eigen::Vector3d omg;//角速率
+                Eigen::Vector3d pos;
+                Eigen::Vector3d vel;
+                Eigen::Vector3d acc;
+                Eigen::Vector3d jer;
 
-                flatmap.forward(traj.getVel(delta),
-                                traj.getAcc(delta),
-                                traj.getJer(delta),
+                pos = traj.getPos(delta);
+                vel = traj.getVel(delta);
+                acc = traj.getAcc(delta);
+                jer = traj.getJer(delta);
+
+                flatmap.forward(vel,
+                                acc,
+                                jer,
                                 0.0, 0.0,
                                 thr, quat, omg); //利用微分平坦特性计算出总推力，姿态四元数，机体角速率
+
+                cmdPublish(quat, omg, pos, vel, acc, jer);
 
                 double speed = traj.getVel(delta).norm(); //航点的速度二范数
                 double bodyratemag = omg.norm();//姿态角的二范数
@@ -512,3 +576,4 @@ int main(int argc, char **argv)
 
     return 0;
 }
+} //namespace

@@ -98,6 +98,7 @@ private:
 
 	void publish_bodyrate_ctrl(const Controller_Output_t &u, const ros::Time &stamp);
 	void publish_attitude_ctrl(const Controller_Output_t &u, const ros::Time &stamp);
+	void publish_traj_ctrl_tri(bool &triger, const ros::Time &stamp);
 	void publish_trigger(const nav_msgs::Odometry &odom_msg);
 };
 

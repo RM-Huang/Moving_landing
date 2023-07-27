@@ -39,6 +39,8 @@ void PX4CtrlFSM::process()
 {
 
 	ros::Time now_time = ros::Time::now();
+	// ros::Time traj_ctrl_start_t; //记录轨迹控制开始时间
+	bool traj_ctrl_start = false;
 	Controller_Output_t u;
 	Desired_State_t des(odom_data);
 	bool rotor_low_speed_during_land = false;
@@ -181,7 +183,7 @@ void PX4CtrlFSM::process()
 				takeoff_land.delay_trigger.first = false;
 				publish_trigger(odom_data.msg);
 				ROS_INFO("\033[32m[px4ctrl] TRIGGER sent, allow user command.\033[32m");
-			}
+			} 	//外部控制
 
 			// cout << "des.p=" << des.p.transpose() << endl;
 		}
@@ -327,6 +329,8 @@ void PX4CtrlFSM::process()
 	else
 	{
 		publish_attitude_ctrl(u, now_time);
+		traj_ctrl_start = true;
+		publish_traj_ctrl_tri(traj_ctrl_start, now_time);
 	}
 
 	// STEP5: Detect if the drone has landed
@@ -579,6 +583,7 @@ void PX4CtrlFSM::publish_attitude_ctrl(const Controller_Output_t &u, const ros::
 void PX4CtrlFSM::publish_trigger(const nav_msgs::Odometry &odom_msg)
 {
 	geometry_msgs::PoseStamped msg;
+	// msg.header.stamp = ros::Time::now().toSec();
 	msg.header.frame_id = "world";
 	msg.pose = odom_msg.pose.pose;
 
