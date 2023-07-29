@@ -1,0 +1,5 @@
+<library path="lib/librcin_remap">
+      <class name="rcinRemap/rcRemap" type="rcinRemap::rcRemap" base_class_type="nodelet::Nodelet">
+        <description></description>
+      </class>
+</library>

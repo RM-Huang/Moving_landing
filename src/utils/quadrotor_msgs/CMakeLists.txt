@@ -42,6 +42,9 @@ add_message_files(
   SwarmInfo.msg
   Px4ctrlDebug.msg
   TakeoffLand.msg
+  TrajctrlTrigger.msg
+  TrajcurDesire.msg
+  RcinRemap.msg
 )
 
 generate_messages(

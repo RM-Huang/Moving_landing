@@ -9,6 +9,7 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/CommandLong.h>
 #include <mavros_msgs/CommandBool.h>
+#include <quadrotor_msgs/TrajctrlTrigger.h>
 
 #include "input.h"
 // #include "ThrustCurve.h"
@@ -42,6 +43,7 @@ public:
 	LinearControl &controller;
 
 	ros::Publisher traj_start_trigger_pub;
+	ros::Publisher traj_ctrl_start_trigger_pub; //首条轨迹控制发送时触发
 	ros::Publisher ctrl_FCU_pub;
 	ros::Publisher debug_pub; //debug
 	ros::ServiceClient set_FCU_mode_srv;
@@ -98,7 +100,7 @@ private:
 
 	void publish_bodyrate_ctrl(const Controller_Output_t &u, const ros::Time &stamp);
 	void publish_attitude_ctrl(const Controller_Output_t &u, const ros::Time &stamp);
-	void publish_traj_ctrl_tri(bool &triger, const ros::Time &stamp);
+	void publish_traj_ctrl_tri(bool &trigger, const ros::Time &stamp);
 	void publish_trigger(const nav_msgs::Odometry &odom_msg);
 };
 

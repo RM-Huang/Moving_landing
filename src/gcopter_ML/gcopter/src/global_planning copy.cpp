@@ -8,14 +8,11 @@
 
 #include <ros/ros.h>
 #include <ros/console.h>
-#include <nodelet/nodelet.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <quadrotor_msgs/PositionCommand.h>
-#include <quadrotor_msgs/TrajctrlTrigger.h>
-#include <quadrotor_msgs/TrajcurDesire.h>
 
 #include <cmath>
 #include <iostream>
@@ -24,9 +21,78 @@
 #include <memory>
 #include <chrono>
 #include <random>
-#include <thread>
 
 namespace gcopter {
+//从外部获取模型的参数
+struct Config
+{
+    int setpointTag; //1:setpoint,0:traj_follow
+    std::string mapTopic;//地图话题
+    std::string poseTopic;
+    std::string ctrlTopic;
+    std::string cmdTopic;
+    std::string targetTopic;//起点和终点目标话题
+    double dilateRadius;//膨胀半径.物理意义是啥？
+    double voxelWidth;//体素宽度.物理意义是啥？
+    std::vector<double> mapBound;//地图边界
+    double timeoutRRT;//一种经典路径规划算法
+    double maxVelMag;
+    double maxBdrMag;
+    double maxTiltAngle;
+    double minThrust;
+    double maxThrust;
+    double vehicleMass;
+    double gravAcc;
+    double horizDrag;
+    double vertDrag;
+    double parasDrag;
+    double speedEps;
+    double weightT;
+    std::vector<double> chiVec;
+    double smoothingEps;
+    int integralIntervs;
+    double relCostTol;
+
+    double x_wide;
+    double y_wide;
+    double z_wide;
+    double z_min;
+
+    //从yaml文件获取变量取值
+    Config(const ros::NodeHandle &nh)
+    {
+        nh.getParam("SetpointTag",setpointTag);
+        nh.getParam("MapTopic", mapTopic);//voxel_map
+        nh.getParam("PoseTopic",poseTopic);
+        nh.getParam("CtrlTopic",ctrlTopic);
+        nh.getParam("CmdTopic",cmdTopic);
+        nh.getParam("TargetTopic", targetTopic);///move_base_simple/goal
+        nh.getParam("DilateRadius", dilateRadius);//膨胀半径0.5
+        nh.getParam("VoxelWidth", voxelWidth);//体素宽度
+        nh.getParam("MapBound", mapBound);
+        nh.getParam("TimeoutRRT", timeoutRRT);
+        nh.getParam("MaxVelMag", maxVelMag);
+        nh.getParam("MaxBdrMag", maxBdrMag);//
+        nh.getParam("MaxTiltAngle", maxTiltAngle);
+        nh.getParam("MinThrust", minThrust);
+        nh.getParam("MaxThrust", maxThrust);
+        nh.getParam("VehicleMass", vehicleMass);
+        nh.getParam("GravAcc", gravAcc);
+        nh.getParam("HorizDrag", horizDrag);
+        nh.getParam("VertDrag", vertDrag);
+        nh.getParam("ParasDrag", parasDrag);
+        nh.getParam("SpeedEps", speedEps);
+        nh.getParam("WeightT", weightT);
+        nh.getParam("ChiVec", chiVec);
+        nh.getParam("SmoothingEps", smoothingEps);
+        nh.getParam("IntegralIntervs", integralIntervs);
+        nh.getParam("RelCostTol", relCostTol);
+        nh.getParam("X_Wide",x_wide);
+        nh.getParam("Y_Wide",y_wide);
+        nh.getParam("Z_Wide",z_wide);
+        nh.getParam("Z_min",z_min);
+    }
+};
 
 class TypeTransform
 {
@@ -47,12 +113,9 @@ private:
 };
 
 //全局规划器
-class GlobalPlanner : public nodelet::Nodelet
+class GlobalPlanner
 {
 private:
-    std::thread initThread_;
-    ros::Timer process_timer;
-
     int setpointTag; //1:setpoint,0:traj_follow
     std::string mapTopic;//地图话题
     std::string poseTopic;
@@ -89,27 +152,28 @@ private:
     ros::NodeHandle nh;
     ros::Subscriber mapSub;    //订阅地图
     ros::Subscriber poseSub;   
-    ros::Subscriber ctrltriSub;
+    ros::Subscriber ctrlSub;
     ros::Subscriber targetSub; //订阅终点
 
     ros::Publisher cmdPub;
-    ros::Publisher desPub;
 
     bool mapInitialized;
     voxel_map::VoxelMap voxelMap; //体素地图
     Visualizer visualizer;
     geometry_msgs::PoseStamped current_pose;
-    quadrotor_msgs::TrajctrlTrigger::trigger ctrl_start_trigger = false;
+    mavros_msgs::AttitudeTarget ctrl_last;
     std::vector<Eigen::Vector3d> startGoal; //起点+终点
     
     Trajectory<5> traj; //5条子轨迹
     double trajStamp;   //轨迹的时间戳
-    double traj_start_stamp;
 
 public:
-    void init(ros::NodeHandle &nh)
-                mapInitialized(false),
-                 visualizer(nh)
+    GlobalPlanner(const Config &conf,
+                  ros::NodeHandle &nh_)
+        : config(conf),
+          nh(nh_),
+          mapInitialized(false),
+          visualizer(nh)
     {
         nh.getParam("SetpointTag",setpointTag);
         nh.getParam("MapTopic", mapTopic);//voxel_map
@@ -142,33 +206,32 @@ public:
         nh.getParam("Z_Wide",z_wide);
         nh.getParam("Z_min",z_min);
 
-        // std::cout<<"setpointTag = "<< setpointTag <<std::endl;
-        if(setpointTag == 1)
+        // std::cout<<"setpointTag = "<< config.setpointTag <<std::endl;
+        if(config.setpointTag)
         {
             mapInit();
 
-            mapSub = nh.subscribe(mapTopic, 1, &GlobalPlanner::mapCallBack, this,
+            mapSub = nh.subscribe(config.mapTopic, 1, &GlobalPlanner::mapCallBack, this,
                               ros::TransportHints().tcpNoDelay());
 
-            targetSub = nh.subscribe(targetTopic, 1, &GlobalPlanner::targetCallBack, this,
+            targetSub = nh.subscribe(config.targetTopic, 1, &GlobalPlanner::targetCallBack, this,
                                     ros::TransportHints().tcpNoDelay());
         }
-        else if (setpointTag == 0)
+        else if (config.setpointTag == 0)
         {
             targetSetting();
         }
-        process_timer = nh.createTimer(ros::Duration(0.2), process);
     }
 
     inline void mapInit()
     {
-        const Eigen::Vector3i xyz((mapBound[1] - mapBound[0]) / voxelWidth,
-                                  (mapBound[3] - mapBound[2]) / voxelWidth,
-                                  (mapBound[5] - mapBound[4]) / voxelWidth);
+        const Eigen::Vector3i xyz((config.mapBound[1] - config.mapBound[0]) / config.voxelWidth,
+                                  (config.mapBound[3] - config.mapBound[2]) / config.voxelWidth,
+                                  (config.mapBound[5] - config.mapBound[4]) / config.voxelWidth);
 
-        const Eigen::Vector3d offset(mapBound[0], mapBound[2], mapBound[4]);
+        const Eigen::Vector3d offset(config.mapBound[0], config.mapBound[2], config.mapBound[4]);
 
-        voxelMap = voxel_map::VoxelMap(xyz, offset, voxelWidth); //根据地图的长宽高、偏置，构建体素地图
+        voxelMap = voxel_map::VoxelMap(xyz, offset, config.voxelWidth); //根据地图的长宽高、偏置，构建体素地图
     }
 
     //加载地图
@@ -194,7 +257,7 @@ public:
                                                      fdata[cur + 2]));//实际上是将每组点的坐标输入到函数
             }
 
-            voxelMap.dilate(std::ceil(dilateRadius / voxelMap.getScale()));
+            voxelMap.dilate(std::ceil(config.dilateRadius / voxelMap.getScale()));
 
             mapInitialized = true;
         }
@@ -204,7 +267,7 @@ public:
     inline void plan()
     {
         std::vector<Eigen::Vector3d> route;//默认三维列向量
-        if (startGoal.size() == 2 && setpointTag)//满足两个点且模式为1
+        if (startGoal.size() == 2 && config.setpointTag)//满足两个点且模式为1
         {
             //前端路径
             sfc_gen::planPath<voxel_map::VoxelMap>(startGoal[0],
@@ -255,35 +318,35 @@ public:
                 Eigen::VectorXd penaltyWeights(5);//惩罚项权重
                 Eigen::VectorXd physicalParams(6);//物理参数
 
-                magnitudeBounds(0) = maxVelMag;//最大速度
-                magnitudeBounds(1) = maxBdrMag;//最大机体角速率
-                magnitudeBounds(2) = maxTiltAngle;//最大倾斜角
-                magnitudeBounds(3) = minThrust;//最小推力
-                magnitudeBounds(4) = maxThrust;//最大推力
+                magnitudeBounds(0) = config.maxVelMag;//最大速度
+                magnitudeBounds(1) = config.maxBdrMag;//最大机体角速率
+                magnitudeBounds(2) = config.maxTiltAngle;//最大倾斜角
+                magnitudeBounds(3) = config.minThrust;//最小推力
+                magnitudeBounds(4) = config.maxThrust;//最大推力
 
-                penaltyWeights(0) = (chiVec)[0];
-                penaltyWeights(1) = (chiVec)[1];
-                penaltyWeights(2) = (chiVec)[2];
-                penaltyWeights(3) = (chiVec)[3];
-                penaltyWeights(4) = (chiVec)[4];
+                penaltyWeights(0) = (config.chiVec)[0];
+                penaltyWeights(1) = (config.chiVec)[1];
+                penaltyWeights(2) = (config.chiVec)[2];
+                penaltyWeights(3) = (config.chiVec)[3];
+                penaltyWeights(4) = (config.chiVec)[4];
 
-                physicalParams(0) = vehicleMass;//质量
-                physicalParams(1) = gravAcc;    //重力加速度
-                physicalParams(2) = horizDrag;//水平阻力系数
-                physicalParams(3) = vertDrag;//垂直阻力系数
-                physicalParams(4) = parasDrag;//附加阻力系数
-                physicalParams(5) = speedEps;//速度平滑因子
-                const int quadratureRes = integralIntervs;//数值积分分辨率
+                physicalParams(0) = config.vehicleMass;//质量
+                physicalParams(1) = config.gravAcc;    //重力加速度
+                physicalParams(2) = config.horizDrag;//水平阻力系数
+                physicalParams(3) = config.vertDrag;//垂直阻力系数
+                physicalParams(4) = config.parasDrag;//附加阻力系数
+                physicalParams(5) = config.speedEps;//速度平滑因子
+                const int quadratureRes = config.integralIntervs;//数值积分分辨率
 
                 traj.clear(); //删除轨迹
 
 
                 //轨迹优化参数设置
                 //设置：设置时间正则系数，初始状态，终止状态，凸多面体序列，空，平滑系数，数值积分分辨率，物理参数极限，惩罚权重，物理参数
-                if (!gcopter.setup_setpoints(weightT,
+                if (!gcopter.setup_setpoints(config.weightT,
                                    iniState, finState,
                                    hPolys, INFINITY,
-                                   smoothingEps,
+                                   config.smoothingEps,
                                    quadratureRes,
                                    magnitudeBounds,
                                    penaltyWeights,
@@ -293,7 +356,7 @@ public:
                 }
 
                 //计算最优化的轨迹
-                if (std::isinf(gcopter.optimize(traj, relCostTol)))
+                if (std::isinf(gcopter.optimize(traj, config.relCostTol)))
                 {
                     return;
                 }               
@@ -306,7 +369,7 @@ public:
                 }
             }
         }
-        else if (setpointTag == 0)
+        else if (config.setpointTag == 0)
         {
             // std::cout<<"traj_fol plan entry"<<std::endl;
 
@@ -314,10 +377,10 @@ public:
             Eigen::Matrix3d iniState;
             Eigen::Matrix3d finState;//元素类型为double大小为3*3的矩阵变量
 
-            double x_h = x_wide / 2;
-            double y_h = y_wide / 2;
-            double z_min = z_min;
-            double z_wide = z_wide;
+            double x_h = config.x_wide / 2;
+            double y_h = config.y_wide / 2;
+            double z_min = config.z_min;
+            double z_wide = config.z_wide;
 
             route_M.resize(3,9);
             // route_M.col(0) = Eigen::Vector3d(0,0,0);
@@ -353,35 +416,35 @@ public:
             Eigen::VectorXd penaltyWeights(5);//惩罚项权重
             Eigen::VectorXd physicalParams(6);//物理参数
 
-            magnitudeBounds(0) = maxVelMag;//最大速度
-            magnitudeBounds(1) = maxBdrMag;//最大机体角速率
-            magnitudeBounds(2) = maxTiltAngle;//最大倾斜角
-            magnitudeBounds(3) = minThrust;//最小推力
-            magnitudeBounds(4) = maxThrust;//最大推力
+            magnitudeBounds(0) = config.maxVelMag;//最大速度
+            magnitudeBounds(1) = config.maxBdrMag;//最大机体角速率
+            magnitudeBounds(2) = config.maxTiltAngle;//最大倾斜角
+            magnitudeBounds(3) = config.minThrust;//最小推力
+            magnitudeBounds(4) = config.maxThrust;//最大推力
 
-            penaltyWeights(0) = (chiVec)[0];
-            penaltyWeights(1) = (chiVec)[1];
-            penaltyWeights(2) = (chiVec)[2];
-            penaltyWeights(3) = (chiVec)[3];
-            penaltyWeights(4) = (chiVec)[4];
+            penaltyWeights(0) = (config.chiVec)[0];
+            penaltyWeights(1) = (config.chiVec)[1];
+            penaltyWeights(2) = (config.chiVec)[2];
+            penaltyWeights(3) = (config.chiVec)[3];
+            penaltyWeights(4) = (config.chiVec)[4];
 
-            physicalParams(0) = vehicleMass;//质量
-            physicalParams(1) = gravAcc;    //重力加速度
-            physicalParams(2) = horizDrag;//水平阻力系数
-            physicalParams(3) = vertDrag;//垂直阻力系数
-            physicalParams(4) = parasDrag;//附加阻力系数
-            physicalParams(5) = speedEps;//速度平滑因子
-            const int quadratureRes = integralIntervs;//数值积分分辨率
+            physicalParams(0) = config.vehicleMass;//质量
+            physicalParams(1) = config.gravAcc;    //重力加速度
+            physicalParams(2) = config.horizDrag;//水平阻力系数
+            physicalParams(3) = config.vertDrag;//垂直阻力系数
+            physicalParams(4) = config.parasDrag;//附加阻力系数
+            physicalParams(5) = config.speedEps;//速度平滑因子
+            const int quadratureRes = config.integralIntervs;//数值积分分辨率
 
             traj.clear(); //删除轨迹
 
 
             //轨迹优化参数设置
             //设置：设置时间正则系数，路径，初始状态，最终状态，空，平滑系数，数值积分分辨率，物理参数极限，惩罚权重，物理参数
-            if (!gcopter.setup(weightT,
+            if (!gcopter.setup(config.weightT,
                                route_M,iniState,
                                finState,INFINITY,
-                               smoothingEps,
+                               config.smoothingEps,
                                quadratureRes,
                                magnitudeBounds,
                                penaltyWeights,
@@ -391,7 +454,7 @@ public:
             }
 
             //计算最优化的轨迹
-            if (std::isinf(gcopter.optimize(traj, relCostTol)))
+            if (std::isinf(gcopter.optimize(traj, config.relCostTol)))
             {
                 return;
             }               
@@ -413,18 +476,10 @@ public:
         current_pose = *msg;
     }
 
-    inline void ctrltriCallback(const quadrotor_msgs::TrajctrlTrigger::ConstPtr &msg)
+    inline void ctrlCallback(const mavros_msgs::AttitudeTarget::ConstPtr &msg)
     {
-        if (!ctrl_start_trigger && msg->trigger)
-        {
-            ctrl_start_trigger = msg->trigger;
-            traj_start_stamp = msg->header.stamp.toSec();
-            ROS_INFO("Traj_follow: ctrl trigger recive!");
-        }
-        else
-        {
-            ROS_INFO("Traj_follow: ctrl trigger haven't recived, please rerun");
-        }
+        ctrl_last = *msg;
+        // trajStamp = ctrl_last.header.stamp;
     }
 
     inline void targetCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
@@ -436,9 +491,9 @@ public:
                 startGoal.clear();
             }
 
-            const double zGoal = mapBound[4] + dilateRadius +
+            const double zGoal = config.mapBound[4] + config.dilateRadius +
                                  fabs(msg->pose.orientation.z) *
-                                     (mapBound[5] - mapBound[4] - 2 * dilateRadius); //目标点的高度
+                                     (config.mapBound[5] - config.mapBound[4] - 2 * config.dilateRadius); //目标点的高度
             // const double zGoal = msg->pose.position.z; //traj following exc
 
             const Eigen::Vector3d goal(msg->pose.position.x, msg->pose.position.y, zGoal);//目标点的坐标
@@ -460,15 +515,13 @@ public:
 
     inline void targetSetting()
     {
-        poseSub = nh.subscribe(poseTopic, 1, &GlobalPlanner::stateCallBack, this,
+        poseSub = nh.subscribe(config.poseTopic, 1, &GlobalPlanner::stateCallBack, this,
                                ros::TransportHints().tcpNoDelay());
             
-        ctrltriSub = nh.subscribe(ctrlTopic, 1, &GlobalPlanner::ctrltriCallback, this,
+        ctrlSub = nh.subscribe(config.ctrlTopic, 1, &GlobalPlanner::ctrlCallback, this,
                                    ros::TransportHints().tcpNoDelay());
 
-        cmdPub = nh.advertise<quadrotor_msgs::PositionCommand>(cmdTopic,10);
-
-        desPub = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
+        cmdPub = nh.advertise<quadrotor_msgs::PositionCommand>(config.cmdTopic,10);
 
         plan(); //轨迹规划
     }
@@ -476,21 +529,21 @@ public:
     inline void cmdPublish(const Eigen::Vector4d &quat, const Eigen::Vector3d &omg, const Eigen::Vector3d &pos,
                             const Eigen::Vector3d &vel, const Eigen::Vector3d &acc, const Eigen::Vector3d &jer)
     {
-        quadrotor_msgs::PositionCommandPtr cmdMsg(new quadrotor_msgs::PositionCommand());
-        cmdMsg->position.x = pos(0);
-        cmdMsg->position.y = pos(1);
-        cmdMsg->position.z = pos(2);
-        cmdMsg->velocity.x = vel(0);
-        cmdMsg->velocity.y = vel(1);
-        cmdMsg->velocity.z = vel(2);
-        cmdMsg->acceleration.x = acc(0);
-        cmdMsg->acceleration.y = acc(1);
-        cmdMsg->acceleration.z = acc(2);
-        cmdMsg->jerk.x = jer(0);
-        cmdMsg->jerk.y = jer(1);
-        cmdMsg->jerk.z = jer(2);
-        cmdMsg->yaw = atan2(2.0*(quat(2)*quat(3) + quat(0)*quat(1)), quat(0)*quat(0) - quat(1)*quat(1) - quat(2)*quat(2) + quat(3)*quat(3));
-        cmdMsg->yaw_dot = 0;
+        quadrotor_msgs::PositionCommand cmdMsg;
+        cmdMsg.position.x = pos(0);
+        cmdMsg.position.y = pos(1);
+        cmdMsg.position.z = pos(2);
+        cmdMsg.velocity.x = vel(0);
+        cmdMsg.velocity.y = vel(1);
+        cmdMsg.velocity.z = vel(2);
+        cmdMsg.acceleration.x = acc(0);
+        cmdMsg.acceleration.y = acc(1);
+        cmdMsg.acceleration.z = acc(2);
+        cmdMsg.jerk.x = jer(0);
+        cmdMsg.jerk.y = jer(1);
+        cmdMsg.jerk.z = jer(2);
+        cmdMsg.yaw = atan2(2.0*(quat(2)*quat(3) + quat(0)*quat(1)), quat(0)*quat(0) - quat(1)*quat(1) - quat(2)*quat(2) + quat(3)*quat(3));
+        cmdMsg.yaw_dot = 0;
 
         cmdPub.publish(cmdMsg);
 
@@ -501,33 +554,18 @@ public:
         // std::cout<<"omg.z = "<<omg(2)<<std::endl;
     }
 
-    inline void desPublish(const Eigen::Vector4d &quat, const Eigen::Vector3d &pos)
-    {
-        quadrotor_msgs::TrajcurDesirePtr desMsg(new quadrotor_msgs::TrajcurDesire());
-        desMsg->header.stamp = ros::Time::now();
-        desMsg->pos.orientation.w = quat(0);
-        desMsg->pos.orientation.x = quat(1);
-        desMsg->pos.orientation.y = quat(2);
-        desMsg->pos.orientation.z = quat(3);
-        desMsg->pos.position.x = pos(0);
-        desMsg->pos.position.y = pos(1);
-        desMsg->pos.position.z = pos(2);
-
-        desPub.publish(desMsg);
-    }
-
     //计算总推力，姿态四元数，机体角速率
     inline void process()
     {
         // std::cout<<"planning process entry"<<std::endl;
         
         Eigen::VectorXd physicalParams(6); //物理参数
-        physicalParams(0) = vehicleMass;//质量
-        physicalParams(1) = gravAcc;//重力加速度
-        physicalParams(2) = horizDrag;//水平阻力系数
-        physicalParams(3) = vertDrag;//垂直阻力系数
-        physicalParams(4) = parasDrag;//附加阻力系数
-        physicalParams(5) = speedEps;//速度平滑因子
+        physicalParams(0) = config.vehicleMass;//质量
+        physicalParams(1) = config.gravAcc;//重力加速度
+        physicalParams(2) = config.horizDrag;//水平阻力系数
+        physicalParams(3) = config.vertDrag;//垂直阻力系数
+        physicalParams(4) = config.parasDrag;//附加阻力系数
+        physicalParams(5) = config.speedEps;//速度平滑因子
 
         flatness::FlatnessMap flatmap;//微分平坦
         flatmap.reset(physicalParams(0), physicalParams(1), physicalParams(2),
@@ -538,7 +576,6 @@ public:
             // std::cout<<"flap count start"<<std::endl;
 
             const double delta = ros::Time::now().toSec() - trajStamp;//delta=当前时科-上一次规划的时刻
-            const double delta_from_start = ros::Time::now().toSec() - traj_start_stamp;
             if (delta > 0.0 && delta < traj.getTotalDuration())//delta小于轨迹的总时长
             {
                 double thr;//总推力
@@ -576,42 +613,31 @@ public:
                 visualizer.thrPub.publish(thrMsg);//显示总推力
                 visualizer.tiltPub.publish(tiltMsg);//显示倾斜角
                 visualizer.bdrPub.publish(bdrMsg);//显示机体角速率
-                visualizer.visualizeSphere(traj.getPos(delta), dilateRadius);//显示轨迹
-            }
-            if (delta_from_start > 0.0 && delta_from_start < traj.getTotalDuration())
-            {
-                double thr;//总推力
-                Eigen::Vector4d quat;//四元数
-                Eigen::Vector3d omg;//角速率
-                Eigen::Vector3d pos;
-                Eigen::Vector3d vel;
-                Eigen::Vector3d acc;
-                Eigen::Vector3d jer;
-
-                pos = traj.getPos(delta_from_start);
-                vel = traj.getVel(delta_from_start);
-                acc = traj.getAcc(delta_from_start);
-                jer = traj.getJer(delta_from_start);
-
-                flatmap.forward(vel,
-                                acc,
-                                jer,
-                                0.0, 0.0,
-                                thr, quat, omg); //利用微分平坦特性计算出总推力，姿态四元数，机体角速率
-                
-                desPublish(quat, pos);
+                visualizer.visualizeSphere(traj.getPos(delta), config.dilateRadius);//显示轨迹
             }
         }
     }
-
-    void onInit(void) 
-    {
-        ros::NodeHandle nh(getMTPrivateNodeHandle()); //线程并行回调
-        initThread_ = std::thread(std::bind(&GlobalPlanner::init, this, nh)); //在单独的线程中运行
-    }
 };
 
-} //namespace gcopter
+//主运行函数
+int main(int argc, char **argv)
+{
+    ros::init(argc, argv, "global_planning_node");
+    ros::NodeHandle nh_;
+
+    GlobalPlanner global_planner(Config(ros::NodeHandle("~")), nh_); //全局规划器
+
+    ros::Rate lr(1000);
+    while (ros::ok())
+    {
+        global_planner.process(); //根据微分平坦特性，计算总推力，姿态四元数，机体角速率
+        ros::spinOnce();//调用ROS主题
+        lr.sleep();//睡眠1s
+    }
+
+    return 0;
+}
+} //namespace
 
 #include <pluginlib/class_list_macros.h>
-PLUGINLIB_EXPORT_CLASS(gcopter::GlobalPlanner, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(planning::Nodelet, nodelet::Nodelet);

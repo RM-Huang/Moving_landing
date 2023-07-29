@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
 
     fsm.ctrl_FCU_pub = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10); //向px4发布控制指令
     fsm.traj_start_trigger_pub = nh.advertise<geometry_msgs::PoseStamped>("/traj_start_trigger", 10);
+    fsm.traj_ctrl_start_trigger_pub = nh.advertise<quadrotor_msgs::TrajctrlTrigger>("/traj_ctrl_start_trigger",10);
 
     fsm.debug_pub = nh.advertise<quadrotor_msgs::Px4ctrlDebug>("/debugPx4ctrl", 10); // debug
 

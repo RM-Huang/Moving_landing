@@ -15,6 +15,9 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   std_srvs
+  nav_msgs
+  quadrotor_msgs
+  nodelet
 )
 
 ## System dependencies are found with CMake's conventions
@@ -51,10 +54,10 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  # anjiang.msg
-)
+# add_message_files(
+#   FILES
+#   # anjiang.msg
+# )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -109,7 +112,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES plumbing_control
 # CATKIN_DEPENDS geometry_msgs mavros mavros_msgs message_generation roscpp std_msgs std_srvs 
-CATKIN_DEPENDS geometry_msgs mavros mavros_msgs  roscpp std_msgs message_runtime std_srvs 
+CATKIN_DEPENDS geometry_msgs mavros mavros_msgs  roscpp std_msgs message_runtime std_srvs nodelet
 #  DEPENDS system_lib
 )
 
@@ -138,7 +141,8 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/plumbing_control_node.cpp)
-add_executable(remote_control_sub src/rcin_remap.cpp)
+add_library(rcin_remap src/rcin_remap.cpp)
+add_library(traj_analyse src/traj_analyse.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -148,7 +152,8 @@ add_executable(remote_control_sub src/rcin_remap.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
- add_dependencies(rcin_remap ${PROJECT_NAME}_generate_messages_cpp)
+ add_dependencies(rcin_remap ${catkin_EXPORTED_TARGETS})
+ add_dependencies(traj_analyse ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(${PROJECT_NAME}_node
@@ -158,7 +163,9 @@ add_executable(remote_control_sub src/rcin_remap.cpp)
 target_link_libraries(rcin_remap
   ${catkin_LIBRARIES}
 )
-
+target_link_libraries(traj_analyse
+  ${catkin_LIBRARIES}
+)
 #############
 ## Install ##
 #############

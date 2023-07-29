@@ -328,9 +328,12 @@ void PX4CtrlFSM::process()
 	}
 	else
 	{
+		if(!traj_ctrl_start)
+		{
+			publish_traj_ctrl_tri(traj_ctrl_start, now_time);
+		}
 		publish_attitude_ctrl(u, now_time);
 		traj_ctrl_start = true;
-		publish_traj_ctrl_tri(traj_ctrl_start, now_time);
 	}
 
 	// STEP5: Detect if the drone has landed
@@ -578,6 +581,15 @@ void PX4CtrlFSM::publish_attitude_ctrl(const Controller_Output_t &u, const ros::
 	msg.thrust = u.thrust;
 
 	ctrl_FCU_pub.publish(msg);
+}
+
+void PX4CtrlFSM::publish_traj_ctrl_tri(bool &trigger, const ros::Time &stamp)
+{
+	quadrotor_msgs::TrajctrlTrigger msg;
+	msg.header.stamp = stamp;
+	msg.trigger = trigger;
+
+	traj_ctrl_start_trigger_pub.publish(msg);
 }
 
 void PX4CtrlFSM::publish_trigger(const nav_msgs::Odometry &odom_msg)
