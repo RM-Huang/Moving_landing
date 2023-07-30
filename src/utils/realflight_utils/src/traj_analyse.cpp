@@ -39,13 +39,18 @@ class trajAls : public nodelet::Nodelet
     std::string desTopic;
     std::string gtruthTopic;
 
+    bool dessubTri = false;
+    bool gtruthsubTri = false;
+
     void desCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &desMsg)
     {
+        dessubTri = true;
         des = *desMsg;
     }
 
     void gtruthCallback(const geometry_msgs::PoseStamped::ConstPtr &gtruthMsg)
     {
+        gtruthsubTri = true;
         gtruth = *gtruthMsg;
     }
 
@@ -114,17 +119,20 @@ class trajAls : public nodelet::Nodelet
 
     void analyse(const ros::TimerEvent& time_event)
     {
-        current_t = ros::Time::now();
-        double des_t = des.header.stamp.toSec();
-        double truth_t = gtruth.header.stamp.toSec();
-        if ( des_t - truth_t < 0.01) //时间同步检测
+        if (dessubTri && gtruthsubTri)
         {
-          despathPublish();
+          current_t = ros::Time::now();
+          double des_t = des.header.stamp.toSec();
+          double truth_t = gtruth.header.stamp.toSec();
+          if ( des_t - truth_t < 0.01) //时间同步检测
+          {
+            despathPublish();
 
-          truthpathPublish();
+            truthpathPublish();
 
-          posedifferPublish();
-        }
+            posedifferPublish();
+          }
+        }      
     }
 
     void init(ros::NodeHandle& nh)
