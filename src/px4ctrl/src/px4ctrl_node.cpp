@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     ros::Subscriber rc_sub;
     if (!param.takeoff_land.no_RC) // mavros will still publish wrong rc messages although no RC is connected
     {
-        rc_sub = nh.subscribe<mavros_msgs::RCIn>("rcin",
+        rc_sub = nh.subscribe<mavros_msgs::RCIn>("/mavros/rc/in/remap",
                                                  10,
                                                  boost::bind(&RC_Data_t::feed, &fsm.rc_data, _1));
     }
@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
 
     fsm.ctrl_FCU_pub = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
     fsm.traj_start_trigger_pub = nh.advertise<geometry_msgs::PoseStamped>("/traj_start_trigger", 10);
+    fsm.traj_follow_start_trigger_pub = nh.advertise<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10); //首条轨迹控制命令发布时触发
 
     fsm.debug_pub = nh.advertise<quadrotor_msgs::Px4ctrlDebug>("/debugPx4ctrl", 10); // debug
 

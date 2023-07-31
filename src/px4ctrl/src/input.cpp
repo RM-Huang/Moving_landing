@@ -35,8 +35,10 @@ void RC_Data_t::feed(mavros_msgs::RCInConstPtr pMsg)
             ch[i] = 0.0;
     }
 
-    mode = ((double)msg.channels[4] - 1000.0) / 1000.0;
-    gear = ((double)msg.channels[5] - 1000.0) / 1000.0;
+    // mode = ((double)msg.channels[4] - 1000.0) / 1000.0;
+    // gear = ((double)msg.channels[5] - 1000.0) / 1000.0;
+    mode = ((double)msg.channels[14] - 1000.0) / 1000.0;
+    gear = ((double)msg.channels[13] - 1000.0) / 1000.0; //ML project change to FN1,FN2
     reboot_cmd = ((double)msg.channels[7] - 1000.0) / 1000.0;
 
     check_validity();
@@ -191,7 +193,7 @@ void Imu_Data_t::feed(sensor_msgs::ImuConstPtr pMsg)
     {
         if ( one_min_count < 100 )
         {
-            ROS_WARN("IMU frequency seems lower than 100Hz, which is too low!");
+            ROS_WARN("IMU , which is too low!");
         }
         one_min_count = 0;
         last_clear_count_time = now;

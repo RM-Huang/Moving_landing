@@ -4,7 +4,7 @@ MapTopic:                   '/voxel_map'
 
 PoseTopic:                  '/drone/local_position/pose'
 
-CtrlTopic:                  '/mavros/setpoint_raw/attitude'
+CtrlTopic:                  '/traj_follow_start_trigger'
 
 CmdTopic:                   '/drone/planning/traj_follow_cmd'
 
@@ -26,9 +26,9 @@ MaxTiltAngle:               1.05
 
 MinThrust:                  2.0
 
-MaxThrust:                  20.0 ##12.0
+MaxThrust:                  12.0 ##12.0
 
-VehicleMass:                0.61
+VehicleMass:                4.0
 
 GravAcc:                    9.8
 
@@ -50,10 +50,10 @@ IntegralIntervs:            16
 
 RelCostTol:                 1.0e-5
 
-X_Wide:                     4.0
+X_Wide:                     5.0
 
 Y_Wide:                     3.0
 
-Z_Wide:                     2.5
+Z_Wide:                     1.5
 
 Z_min:                      0.5

@@ -2,4 +2,4 @@ dataFile: "/home/pc205/Moving_landing/data/trajAls.txt"
 
 desTopic: "/desire_pose_current_traj"
 
-gtruthTopic: "/motive" ## 格式：geometry_msgs::PoseStamped
+gtruthTopic: "/desire_pose_current_traj" ## 格式：quadrotor_msgs::TrajcurDesire

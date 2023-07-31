@@ -23,7 +23,9 @@ class trajAls : public nodelet::Nodelet
     std::ofstream dataWrite;
 
     quadrotor_msgs::TrajcurDesire des;
-    geometry_msgs::PoseStamped gtruth;
+    quadrotor_msgs::TrajcurDesire gtruth;
+    nav_msgs::Path desMsg;
+    nav_msgs::Path truthMsg;
 
     ros::Subscriber desSub;
     ros::Subscriber gtruthSub;
@@ -48,7 +50,7 @@ class trajAls : public nodelet::Nodelet
         des = *desMsg;
     }
 
-    void gtruthCallback(const geometry_msgs::PoseStamped::ConstPtr &gtruthMsg)
+    void gtruthCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &gtruthMsg)
     {
         gtruthsubTri = true;
         gtruth = *gtruthMsg;
@@ -56,10 +58,11 @@ class trajAls : public nodelet::Nodelet
 
     void despathPublish()
     {
-        nav_msgs::Path desMsg;
         geometry_msgs::PoseStamped despose;
         desMsg.header.stamp = current_t;
-        desMsg.header.frame_id = "trajAls";
+        desMsg.header.frame_id = "odom";
+        despose.header.stamp = current_t;
+        despose.header.frame_id = "odom";
         despose.pose = des.pos;
         desMsg.poses.push_back(despose);
 
@@ -68,11 +71,12 @@ class trajAls : public nodelet::Nodelet
 
     void truthpathPublish()
     {
-        nav_msgs::Path truthMsg;
         geometry_msgs::PoseStamped truthpose;
         truthMsg.header.stamp = current_t;
-        truthMsg.header.frame_id = "trajAls";
-        truthpose.pose = gtruth.pose;
+        truthMsg.header.frame_id = "odom";
+        truthpose.header.stamp = current_t;
+        truthpose.header.frame_id = "odom";
+        truthpose.pose = gtruth.pos;
         truthMsg.poses.push_back(truthpose);
 
         truthpathPub.publish(truthMsg);
@@ -98,12 +102,12 @@ class trajAls : public nodelet::Nodelet
         tf::quaternionMsgToTF(des.pos.orientation, des_Q2T);
         tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
 
-        tf::quaternionMsgToTF(gtruth.pose.orientation, gtruth_Q2T);
+        tf::quaternionMsgToTF(gtruth.pos.orientation, gtruth_Q2T);
         tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_RPY.x, gtruth_RPY.y, gtruth_RPY.z);
 
-        posdiffer.data = sqrt( (gtruth.pose.position.x - des.pos.position.x)*(gtruth.pose.position.x - des.pos.position.x)
-                    +(gtruth.pose.position.y - des.pos.position.y)*(gtruth.pose.position.y - des.pos.position.y)
-                    +(gtruth.pose.position.z - des.pos.position.z)*(gtruth.pose.position.z - des.pos.position.z) );
+        posdiffer.data = sqrt( (gtruth.pos.position.x - des.pos.position.x)*(gtruth.pos.position.x - des.pos.position.x)
+                    +(gtruth.pos.position.y - des.pos.position.y)*(gtruth.pos.position.y - des.pos.position.y)
+                    +(gtruth.pos.position.z - des.pos.position.z)*(gtruth.pos.position.z - des.pos.position.z) );
 
         rolldiffer.data = abs(gtruth_RPY.x - des_RPY.x);
         pitchdiffer.data = abs(gtruth_RPY.y - des_RPY.y);
@@ -114,7 +118,7 @@ class trajAls : public nodelet::Nodelet
         pitchdefferPub.publish(pitchdiffer);
         yawdifferPub.publish(yawdiffer);
 
-        fileWrite(gtruth.pose.position, des.pos.position, des_RPY, gtruth_RPY);
+        fileWrite(gtruth.pos.position, des.pos.position, des_RPY, gtruth_RPY);
     }
 
     void analyse(const ros::TimerEvent& time_event)
@@ -147,8 +151,8 @@ class trajAls : public nodelet::Nodelet
         gtruthSub = nh.subscribe(gtruthTopic, 10, &trajAls::gtruthCallback, this,
                                    ros::TransportHints().tcpNoDelay());
 
-        despathPub = nh.advertise<nav_msgs::Path>("/visual/desPath", 10);
-        truthpathPub = nh.advertise<nav_msgs::Path>("/visual/truthPath", 10);
+        despathPub = nh.advertise<nav_msgs::Path>("desPath", 10);
+        truthpathPub = nh.advertise<nav_msgs::Path>("truthPath", 10);
         posdifferPub = nh.advertise<std_msgs::Float64>("visual/posdiffer", 100);
         yawdifferPub = nh.advertise<std_msgs::Float64>("visual/yawdiffer", 100);
         pitchdefferPub = nh.advertise<std_msgs::Float64>("visual/pitchdiffer", 100);

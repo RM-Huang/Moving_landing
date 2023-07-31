@@ -391,7 +391,7 @@ public:
         }
         else
         {
-            ROS_INFO("Traj_follow: ctrl trigger haven't recived, please rerun");
+            ROS_INFO("Traj_follow: ctrl trigger haven't recived, please checkout px4 node");
         }
     }
 
@@ -516,6 +516,7 @@ public:
             // std::cout<<"flap count start"<<std::endl;
 
             const double delta = ros::Time::now().toSec() - trajStamp;//delta=当前时科-上一次规划的时刻
+            traj_start_stamp = trajStamp; //trajals node test
             const double delta_from_start = ros::Time::now().toSec() - traj_start_stamp;
             if (delta > 0.0 && delta < traj.getTotalDuration())//delta小于轨迹的总时长
             {

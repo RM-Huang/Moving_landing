@@ -222,7 +222,13 @@ void PX4CtrlFSM::process()
 
 	case AUTO_TAKEOFF:
 	{
-		if ((now_time - takeoff_land.toggle_takeoff_land_time).toSec() < AutoTakeoffLand_t::MOTORS_SPEEDUP_TIME) // Wait for several seconds to warn prople.
+		if (!rc_data.is_hover_mode || !rc_data.is_command_mode)
+		{
+			state = AUTO_LAND;
+			set_start_pose_for_takeoff_land(odom_data);
+			ROS_INFO("\033[32m[px4ctrl] AUTO_TAKEOFF --> AUTO_LAND\033[32m");
+		}
+		else if ((now_time - takeoff_land.toggle_takeoff_land_time).toSec() < AutoTakeoffLand_t::MOTORS_SPEEDUP_TIME) // Wait for several seconds to warn prople.
 		{
 			des = get_rotor_speed_up_des(now_time);
 		}
@@ -250,15 +256,15 @@ void PX4CtrlFSM::process()
 			state = MANUAL_CTRL;
 			toggle_offboard_mode(false);
 
-			ROS_WARN("[px4ctrl] From AUTO_LAND to MANUAL_CTRL(L1)!");
+			ROS_WARN("\033[32m[px4ctrl] From AUTO_LAND to MANUAL_CTRL(L1)!\033[32m");
 		}
-		else if (!rc_data.is_command_mode)
-		{
-			state = AUTO_HOVER;
-			set_hov_with_odom();
-			des = get_hover_des();
-			ROS_INFO("[px4ctrl] From AUTO_LAND to AUTO_HOVER(L2)!");
-		}
+		// else if (!rc_data.is_command_mode)
+		// {
+		// 	state = AUTO_HOVER;
+		// 	set_hov_with_odom();
+		// 	des = get_hover_des();
+		// 	ROS_INFO("\033[32m[px4ctrl] From AUTO_LAND to AUTO_HOVER(L2)!\033[32m");
+		// }
 		else if (!get_landed())
 		{
 			des = get_takeoff_land_des(-param.takeoff_land.speed);
@@ -329,7 +335,7 @@ void PX4CtrlFSM::process()
 		publish_attitude_ctrl(u, now_time);
 		if(!traj_ctrl_start)
 		{
-			publish_traj_ctrl_tri(traj_ctrl_start, now_time);
+			publish_follow_trigger(traj_ctrl_start, now_time);
 		}
 		publish_attitude_ctrl(u, now_time);
 		traj_ctrl_start = true;
@@ -582,13 +588,13 @@ void PX4CtrlFSM::publish_attitude_ctrl(const Controller_Output_t &u, const ros::
 	ctrl_FCU_pub.publish(msg);
 }
 
-void PX4CtrlFSM::publish_traj_ctrl_tri(bool &trigger, const ros::Time &stamp)
+void PX4CtrlFSM::publish_follow_trigger(bool &trigger, const ros::Time &stamp)
 {
 	quadrotor_msgs::TrajctrlTrigger msg;
 	msg.header.stamp = stamp;
 	msg.trigger = trigger;
 
-	traj_ctrl_start_trigger_pub.publish(msg);
+	traj_follow_start_trigger_pub.publish(msg);
 }
 
 void PX4CtrlFSM::publish_trigger(const nav_msgs::Odometry &odom_msg)

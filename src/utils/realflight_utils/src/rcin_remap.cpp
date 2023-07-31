@@ -21,6 +21,7 @@ class rcRemap : public nodelet::Nodelet
     std::vector<uint16_t, std::allocator<uint16_t>> chn_last;
 
     double chn_lim = 0.5;
+    bool ifchange = false;
 
     void rcInCallback(const mavros_msgs::RCIn::ConstPtr& msg)
     {   
@@ -43,10 +44,15 @@ class rcRemap : public nodelet::Nodelet
                 else if ( ( (chn[i] -1000) / 1000) < chn_lim )
                     chn[i] = 2000;
                 
+                ifchange = true;
             }
             rc_ref->channels[i] = chn[i];
         }
-        std::cout<<"FN1("<<rc_ref->channels[14]<<") ,"<<"FN2("<<rc_ref->channels[13]<<") ,"<<"FN3("<<rc_ref->channels[15]<<")"<<std::endl;
+        if (ifchange)
+        {
+            std::cout<<"FN1("<<rc_ref->channels[14]<<") ,"<<"FN2("<<rc_ref->channels[13]<<") ,"<<"FN3("<<rc_ref->channels[15]<<")"<<std::endl;
+            ifchange = false;
+        }
         chn_last = msg->channels;
         rcInPub.publish(rc_ref);
     }
