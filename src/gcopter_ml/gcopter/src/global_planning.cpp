@@ -516,8 +516,7 @@ public:
             // std::cout<<"flap count start"<<std::endl;
 
             const double delta = ros::Time::now().toSec() - trajStamp;//delta=当前时科-上一次规划的时刻
-            traj_start_stamp = trajStamp; //trajals node test
-            const double delta_from_start = ros::Time::now().toSec() - traj_start_stamp;
+            // traj_start_stamp = trajStamp; //trajals node test
             if (delta > 0.0 && delta < traj.getTotalDuration())//delta小于轨迹的总时长
             {
                 visualization_msgs::Marker sphereMarkers, sphereDeleter;
@@ -560,28 +559,32 @@ public:
                 spherePub.publish(sphereDeleter);
                 spherePub.publish(sphereMarkers);
             }
-            if (delta_from_start > 0.0 && delta_from_start < traj.getTotalDuration())
+            if (ctrl_start_trigger.trigger)
             {
-                double thr;//总推力
-                Eigen::Vector4d quat;//四元数
-                Eigen::Vector3d omg;//角速率
-                Eigen::Vector3d pos;
-                Eigen::Vector3d vel;
-                Eigen::Vector3d acc;
-                Eigen::Vector3d jer;
+                const double delta_from_start = ros::Time::now().toSec() - traj_start_stamp;
+                if (delta_from_start > 0.0 && delta_from_start < traj.getTotalDuration())
+                {
+                    double thr;//总推力
+                    Eigen::Vector4d quat;//四元数
+                    Eigen::Vector3d omg;//角速率
+                    Eigen::Vector3d pos;
+                    Eigen::Vector3d vel;
+                    Eigen::Vector3d acc;
+                    Eigen::Vector3d jer;
 
-                pos = traj.getPos(delta_from_start);
-                vel = traj.getVel(delta_from_start);
-                acc = traj.getAcc(delta_from_start);
-                jer = traj.getJer(delta_from_start);
+                    pos = traj.getPos(delta_from_start);
+                    vel = traj.getVel(delta_from_start);
+                    acc = traj.getAcc(delta_from_start);
+                    jer = traj.getJer(delta_from_start);
 
-                flatmap.forward(vel,
-                                acc,
-                                jer,
-                                0.0, 0.0,
-                                thr, quat, omg); //利用微分平坦特性计算出总推力，姿态四元数，机体角速率
-                
-                desPublish(quat, pos);
+                    flatmap.forward(vel,
+                                    acc,
+                                    jer,
+                                    0.0, 0.0,
+                                    thr, quat, omg); //利用微分平坦特性计算出总推力，姿态四元数，机体角速率
+                    
+                    desPublish(quat, pos);
+                }
             }
         }
     }

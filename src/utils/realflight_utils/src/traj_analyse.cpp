@@ -8,6 +8,7 @@
 #include <std_msgs/Float64.h>
 
 #include <nav_msgs/Path.h>
+#include <nav_msgs/Odometry.h>
 #include <quadrotor_msgs/TrajcurDesire.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -23,7 +24,7 @@ class trajAls : public nodelet::Nodelet
     std::ofstream dataWrite;
 
     quadrotor_msgs::TrajcurDesire des;
-    quadrotor_msgs::TrajcurDesire gtruth;
+    nav_msgs::Odometry gtruth;
     nav_msgs::Path desMsg;
     nav_msgs::Path truthMsg;
 
@@ -50,7 +51,7 @@ class trajAls : public nodelet::Nodelet
         des = *desMsg;
     }
 
-    void gtruthCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &gtruthMsg)
+    void gtruthCallback(const nav_msgs::Odometry::ConstPtr &gtruthMsg)
     {
         gtruthsubTri = true;
         gtruth = *gtruthMsg;
@@ -76,7 +77,7 @@ class trajAls : public nodelet::Nodelet
         truthMsg.header.frame_id = "odom";
         truthpose.header.stamp = current_t;
         truthpose.header.frame_id = "odom";
-        truthpose.pose = gtruth.pos;
+        truthpose.pose = gtruth.pose.pose;
         truthMsg.poses.push_back(truthpose);
 
         truthpathPub.publish(truthMsg);
@@ -102,12 +103,12 @@ class trajAls : public nodelet::Nodelet
         tf::quaternionMsgToTF(des.pos.orientation, des_Q2T);
         tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
 
-        tf::quaternionMsgToTF(gtruth.pos.orientation, gtruth_Q2T);
+        tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
         tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_RPY.x, gtruth_RPY.y, gtruth_RPY.z);
 
-        posdiffer.data = sqrt( (gtruth.pos.position.x - des.pos.position.x)*(gtruth.pos.position.x - des.pos.position.x)
-                    +(gtruth.pos.position.y - des.pos.position.y)*(gtruth.pos.position.y - des.pos.position.y)
-                    +(gtruth.pos.position.z - des.pos.position.z)*(gtruth.pos.position.z - des.pos.position.z) );
+        posdiffer.data = sqrt( (gtruth.pose.pose.position.x - des.pos.position.x)*(gtruth.pose.pose.position.x - des.pos.position.x)
+                    +(gtruth.pose.pose.position.y - des.pos.position.y)*(gtruth.pose.pose.position.y - des.pos.position.y)
+                    +(gtruth.pose.pose.position.z - des.pos.position.z)*(gtruth.pose.pose.position.z - des.pos.position.z) );
 
         rolldiffer.data = abs(gtruth_RPY.x - des_RPY.x);
         pitchdiffer.data = abs(gtruth_RPY.y - des_RPY.y);
@@ -118,7 +119,7 @@ class trajAls : public nodelet::Nodelet
         pitchdefferPub.publish(pitchdiffer);
         yawdifferPub.publish(yawdiffer);
 
-        fileWrite(gtruth.pos.position, des.pos.position, des_RPY, gtruth_RPY);
+        fileWrite(gtruth.pose.pose.position, des.pos.position, des_RPY, gtruth_RPY);
     }
 
     void analyse(const ros::TimerEvent& time_event)
