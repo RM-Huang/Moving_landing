@@ -125,15 +125,23 @@ Odom_Data_t::Odom_Data_t()
     recv_new_msg = false;
 };
 
-void Odom_Data_t::feed(nav_msgs::OdometryConstPtr pMsg)
+void Odom_Data_t::feed(geometry_msgs::PoseStampedConstPtr pMsg)
 {
     ros::Time now = ros::Time::now();
 
-    msg = *pMsg;
+    msg.header = pMsg->header;
+    msg.pose.pose = pMsg->pose;
     rcv_stamp = now;
     recv_new_msg = true;
 
-    uav_utils::extract_odometry(pMsg, p, v, q, w);
+    double dur = now.toSec() - l_t;
+
+    uav_utils::extract_odometry(pMsg, p, p_l, dur, v, q, w);
+
+    std::cout<<"v = "<<v.transpose()<<std::endl;
+    std::cout<<"p = "<<p.transpose()<<std::endl;
+    std::cout<<"q = "<<q.w()<<" "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<std::endl;
+    std::cout<<"w = "<<w.transpose()<<std::endl;
 
 // #define VEL_IN_BODY
 #ifdef VEL_IN_BODY /* Set to 1 if the velocity in odom topic is relative to current body frame, not to world frame.*/
@@ -159,6 +167,7 @@ void Odom_Data_t::feed(nav_msgs::OdometryConstPtr pMsg)
         last_clear_count_time = now;
     }
     one_min_count ++;
+    l_t = now.toSec();
 }
 
 Imu_Data_t::Imu_Data_t()

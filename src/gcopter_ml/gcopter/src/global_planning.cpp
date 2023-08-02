@@ -466,7 +466,7 @@ public:
         cmdMsg->jerk.x = jer(0);
         cmdMsg->jerk.y = jer(1);
         cmdMsg->jerk.z = jer(2);
-        cmdMsg->yaw = atan2(2.0*(quat(2)*quat(3) + quat(0)*quat(1)), quat(0)*quat(0) - quat(1)*quat(1) - quat(2)*quat(2) + quat(3)*quat(3));
+        cmdMsg->yaw = atan2(2.0*(quat(1)*quat(2) + quat(0)*quat(3)), 1.0 - 2.0 * (quat(2) * quat(2) + quat(3) * quat(3)));
         cmdMsg->yaw_dot = 0;
 
         cmdPub.publish(cmdMsg);
@@ -539,7 +539,7 @@ public:
                                 0.0, 0.0,
                                 thr, quat, omg); //利用微分平坦特性计算出总推力，姿态四元数，机体角速率
 
-                cmdPublish(quat, omg, pos, vel, acc, jer);
+                cmdPublish(quat, omg, pos, vel, acc, jer); // quat 还得检查一下！！
 
                 double speed = traj.getVel(delta).norm(); //航点的速度二范数
                 double bodyratemag = omg.norm();//姿态角的二范数

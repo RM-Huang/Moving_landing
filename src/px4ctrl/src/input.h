@@ -11,6 +11,7 @@
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/ExtendedState.h>
 #include <sensor_msgs/BatteryState.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <uav_utils/utils.h>
 #include "PX4CtrlParam.h"
 
@@ -54,16 +55,19 @@ class Odom_Data_t
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Eigen::Vector3d p;
+  Eigen::Vector3d p_l;
   Eigen::Vector3d v;
   Eigen::Quaterniond q;
   Eigen::Vector3d w;
+
+  double l_t = 0;
 
   nav_msgs::Odometry msg;
   ros::Time rcv_stamp;
   bool recv_new_msg;
 
   Odom_Data_t();
-  void feed(nav_msgs::OdometryConstPtr pMsg);
+  void feed(geometry_msgs::PoseStampedConstPtr pMsg);
 };
 
 class Imu_Data_t

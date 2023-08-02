@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
                                                  boost::bind(&ExtendedState_Data_t::feed, &fsm.extended_state_data, _1));
 
     ros::Subscriber odom_sub =
-        nh.subscribe<nav_msgs::Odometry>("odom",
+        nh.subscribe<geometry_msgs::PoseStamped>("odom",
                                          100,
                                          boost::bind(&Odom_Data_t::feed, &fsm.odom_data, _1),
                                          ros::VoidConstPtr(),
