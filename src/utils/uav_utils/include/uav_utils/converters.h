@@ -12,31 +12,34 @@
 
 namespace uav_utils {
 
-inline void extract_odometry(nav_msgs::OdometryConstPtr msg, Eigen::Vector3d& p,
-                      Eigen::Vector3d& v, Eigen::Quaterniond& q)
+inline void extract_odometry(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vector3d& p, Eigen::Vector3d& p_l,
+                      double dur, Eigen::Vector3d& v, Eigen::Quaterniond& q)
 {
-    p(0) = msg->pose.pose.position.x;
-    p(1) = msg->pose.pose.position.y;
-    p(2) = msg->pose.pose.position.z;
+    p(0) = msg->pose.position.x;
+    p(1) = msg->pose.position.y;
+    p(2) = msg->pose.position.z;
 
-    v(0) = msg->twist.twist.linear.x;
-    v(1) = msg->twist.twist.linear.y;
-    v(2) = msg->twist.twist.linear.z;
+    v(0) = (p(0) - p_l(0)) / dur;
+    v(1) = (p(1) - p_l(1)) / dur;
+    v(2) = (p(2) - p_l(2)) / dur;
 
-    q.w() = msg->pose.pose.orientation.w;
-    q.x() = msg->pose.pose.orientation.x;
-    q.y() = msg->pose.pose.orientation.y;
-    q.z() = msg->pose.pose.orientation.z;
+    q.w() = msg->pose.orientation.w;
+    q.x() = msg->pose.orientation.x;
+    q.y() = msg->pose.orientation.y;
+    q.z() = msg->pose.orientation.z;
 }
 
-inline void extract_odometry(nav_msgs::OdometryConstPtr msg, Eigen::Vector3d& p,
-                      Eigen::Vector3d& v, Eigen::Quaterniond& q, Eigen::Vector3d& w)
+inline void extract_odometry(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vector3d& p, Eigen::Vector3d& p_l,
+                      double dur, Eigen::Vector3d& v, Eigen::Quaterniond& q, Eigen::Vector3d& w)
 {
-    extract_odometry(msg, p, v, q);
+    extract_odometry(msg, p, p_l, dur, v, q);
 
-    w(0) = msg->twist.twist.angular.x;
-    w(1) = msg->twist.twist.angular.y;
-    w(2) = msg->twist.twist.angular.z;
+    // w(0) = msg->twist.twist.angular.x;
+    // w(1) = msg->twist.twist.angular.y;
+    // w(2) = msg->twist.twist.angular.z;
+    w(0) = 0;
+    w(1) = 0;
+    w(2) = 0;
 }
 
 
