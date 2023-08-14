@@ -45,6 +45,7 @@ public:
 	ros::Publisher traj_start_trigger_pub;
 	ros::Publisher ctrl_FCU_pub;
 	ros::Publisher debug_pub; //debug
+	ros::Publisher odom_rz_pub;
 	ros::Publisher traj_follow_start_trigger_pub; //首条轨迹控制发送时触发
 	ros::ServiceClient set_FCU_mode_srv;
 	ros::ServiceClient arming_client_srv;
@@ -103,6 +104,7 @@ private:
 	void publish_attitude_ctrl(const Controller_Output_t &u, const ros::Time &stamp);
 	void publish_follow_trigger(bool &trigger, const ros::Time &stamp);
 	void publish_trigger(const nav_msgs::Odometry &odom_msg);
+	void publish_odom_rz(const Odom_Data_t &odom,  const ros::Time &stamp);
 };
 
 #endif

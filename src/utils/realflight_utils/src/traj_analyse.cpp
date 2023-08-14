@@ -6,10 +6,12 @@
 #include <nodelet/nodelet.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Float64.h>
+#include <sensor_msgs/Imu.h>
 
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
 #include <quadrotor_msgs/TrajcurDesire.h>
+#include <quadrotor_msgs/Px4ctrlDebug.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
 
@@ -18,18 +20,24 @@ namespace trajAnalyse {
 class trajAls : public nodelet::Nodelet
 {
   private:
+    int als_arg;
+
     std::thread initThread_;
     ros::Timer als_timer;
     ros::Time current_t;
     std::ofstream dataWrite;
 
     quadrotor_msgs::TrajcurDesire des;
-    geometry_msgs::PoseStamped gtruth;
+    nav_msgs::Odometry gtruth;
     nav_msgs::Path desMsg;
     nav_msgs::Path truthMsg;
+    quadrotor_msgs::Px4ctrlDebug ctrldes;
+    // nav_msgs::Odometry ctrltruth;
 
     ros::Subscriber desSub;
     ros::Subscriber gtruthSub;
+    ros::Subscriber imuSub;
+    ros::Subscriber ctrlSub;
 
     ros::Publisher despathPub;
     ros::Publisher truthpathPub;
@@ -38,24 +46,55 @@ class trajAls : public nodelet::Nodelet
     ros::Publisher pitchdefferPub;
     ros::Publisher rolldifferPub;
 
+    ros::Publisher imuaccPub_x;
+    ros::Publisher imuaccPub_y;
+    ros::Publisher imuaccPub_z;
+
+    ros::Publisher rpydesPub;
+    ros::Publisher rpytruthPub;
+
     std::string datafile;
     std::string desTopic;
     std::string gtruthTopic;
 
     bool dessubTri = false;
     bool gtruthsubTri = false;
+    bool ctrlsubTri = false;
 
-    void desCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &desMsg)
+    void desCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &Msg)
     {
         dessubTri = true;
-        des = *desMsg;
+        des = *Msg;
     }
 
-    void gtruthCallback(const geometry_msgs::PoseStamped::ConstPtr &gtruthMsg)
+    void gtruthCallback(const nav_msgs::Odometry::ConstPtr &gtruthMsg)
     {
         gtruthsubTri = true;
         gtruth = *gtruthMsg;
     }
+
+    void imuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg)
+    {
+        std_msgs::Float64 acc_x, acc_y, acc_z;
+        acc_x.data = imuMsg->linear_acceleration.x;
+        acc_y.data = imuMsg->linear_acceleration.y;
+        acc_z.data = imuMsg->linear_acceleration.z;
+
+        imuaccPub_x.publish(acc_x);
+        imuaccPub_y.publish(acc_y);
+        imuaccPub_z.publish(acc_z);
+    }
+
+    void ctrlCallback(const quadrotor_msgs::Px4ctrlDebug::ConstPtr &ctrlMsg)
+    {
+        ctrlsubTri = true;
+        ctrldes = *ctrlMsg;
+    }
+
+    // void ctrltruthCallback(const nav_msgs::Odometry::ConstPtr &ctrltruthMsg)
+    // {
+    //     ctrltruth = *ctrltruthMsg;
+    // }
 
     void despathPublish()
     {
@@ -77,7 +116,7 @@ class trajAls : public nodelet::Nodelet
         truthMsg.header.frame_id = "odom";
         truthpose.header.stamp = current_t;
         truthpose.header.frame_id = "odom";
-        truthpose.pose = gtruth.pose;
+        truthpose.pose = gtruth.pose.pose;
         truthMsg.poses.push_back(truthpose);
 
         truthpathPub.publish(truthMsg);
@@ -101,14 +140,16 @@ class trajAls : public nodelet::Nodelet
         geometry_msgs::Vector3 gtruth_RPY; //(roll,pitch,yaw)
           
         tf::quaternionMsgToTF(des.pos.orientation, des_Q2T);
+        // des_Q2T.normalize();
         tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
 
-        tf::quaternionMsgToTF(gtruth.pose.orientation, gtruth_Q2T);
+        tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
+        // gtruth_Q2T.normalize();
         tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_RPY.x, gtruth_RPY.y, gtruth_RPY.z);
 
-        posdiffer.data = sqrt( (gtruth.pose.position.x - des.pos.position.x)*(gtruth.pose.position.x - des.pos.position.x)
-                    +(gtruth.pose.position.y - des.pos.position.y)*(gtruth.pose.position.y - des.pos.position.y)
-                    +(gtruth.pose.position.z - des.pos.position.z)*(gtruth.pose.position.z - des.pos.position.z) );
+        posdiffer.data = sqrt( (gtruth.pose.pose.position.x - des.pos.position.x)*(gtruth.pose.pose.position.x - des.pos.position.x)
+                    +(gtruth.pose.pose.position.y - des.pos.position.y)*(gtruth.pose.pose.position.y - des.pos.position.y)
+                    +(gtruth.pose.pose.position.z - des.pos.position.z)*(gtruth.pose.pose.position.z - des.pos.position.z) );
 
         rolldiffer.data = abs(gtruth_RPY.x - des_RPY.x);
         pitchdiffer.data = abs(gtruth_RPY.y - des_RPY.y);
@@ -119,25 +160,57 @@ class trajAls : public nodelet::Nodelet
         pitchdefferPub.publish(pitchdiffer);
         yawdifferPub.publish(yawdiffer);
 
-        fileWrite(gtruth.pose.position, des.pos.position, des_RPY, gtruth_RPY);
+        fileWrite(gtruth.pose.pose.position, des.pos.position, des_RPY, gtruth_RPY);
     }
 
-    void analyse(const ros::TimerEvent& time_event)
+    void traj_analyse(const ros::TimerEvent& time_event)
+    {
+        // std::cout<<"Trigger = "<<dessubTri<<" "<<gtruthsubTri<<std::endl;
+        if (dessubTri && gtruthsubTri)
+        {
+            current_t = ros::Time::now();
+            double des_t = des.header.stamp.toSec();
+            double truth_t = gtruth.header.stamp.toSec();
+            std::cout<<"als_dur = "<<des_t - truth_t<<std::endl;
+            if ( fabs(des_t - truth_t) < 0.01) //时间同步检测
+            {
+                // ROS_INFO("write file succeed!");
+
+                despathPublish();
+
+                truthpathPublish();
+
+                posedifferPublish();
+          }
+        }      
+    }
+
+    void imu_analyse(const ros::TimerEvent& time_event)
     {
         if (dessubTri && gtruthsubTri)
         {
-          current_t = ros::Time::now();
-          double des_t = des.header.stamp.toSec();
-          double truth_t = gtruth.header.stamp.toSec();
-          if ( des_t - truth_t < 0.01) //时间同步检测
-          {
-            despathPublish();
+            geometry_msgs::Quaternion des_Qua;
+            tf::Quaternion des_Q2T;
+            tf::Quaternion gtruth_Q2T;
+            geometry_msgs::Vector3 des_RPY; //(roll,pitch,yaw)
+            geometry_msgs::Vector3 gtruth_RPY; //(roll,pitch,yaw)
 
-            truthpathPublish();
+            des_Qua.w = ctrldes.des_q_w;
+            des_Qua.x = ctrldes.des_q_x;
+            des_Qua.y = ctrldes.des_q_y;
+            des_Qua.z = ctrldes.des_q_z;
 
-            posedifferPublish();
-          }
-        }      
+            tf::quaternionMsgToTF(des_Qua, des_Q2T);
+            // des_Q2T.normalize();
+            tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
+
+            tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
+            // gtruth_Q2T.normalize();
+            tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_RPY.x, gtruth_RPY.y, gtruth_RPY.z);
+
+            rpydesPub.publish(des_RPY);
+            rpytruthPub.publish(gtruth_RPY);
+        }
     }
 
     void init(ros::NodeHandle& nh)
@@ -145,21 +218,39 @@ class trajAls : public nodelet::Nodelet
         nh.getParam("dataFile", datafile);
         nh.getParam("desTopic", desTopic);
         nh.getParam("gtruthTopic", gtruthTopic);
-
-        desSub = nh.subscribe(desTopic, 10, &trajAls::desCallback, this,
-                                   ros::TransportHints().tcpNoDelay());
+        nh.param("analyse_arg", als_arg, 0);
         
         gtruthSub = nh.subscribe(gtruthTopic, 10, &trajAls::gtruthCallback, this,
                                    ros::TransportHints().tcpNoDelay());
+        
+        if (als_arg == 0)
+        {
+            desSub = nh.subscribe(desTopic, 10, &trajAls::desCallback, this,
+                                   ros::TransportHints().tcpNoDelay());
 
-        despathPub = nh.advertise<nav_msgs::Path>("desPath", 10);
-        truthpathPub = nh.advertise<nav_msgs::Path>("truthPath", 10);
-        posdifferPub = nh.advertise<std_msgs::Float64>("visual/posdiffer", 100);
-        yawdifferPub = nh.advertise<std_msgs::Float64>("visual/yawdiffer", 100);
-        pitchdefferPub = nh.advertise<std_msgs::Float64>("visual/pitchdiffer", 100);
-        rolldifferPub = nh.advertise<std_msgs::Float64>("visual/rolldiffer", 100);
+            despathPub = nh.advertise<nav_msgs::Path>("desPath", 10);
+            truthpathPub = nh.advertise<nav_msgs::Path>("truthPath", 10);
+            posdifferPub = nh.advertise<std_msgs::Float64>("visual/posdiffer", 100);
+            yawdifferPub = nh.advertise<std_msgs::Float64>("visual/yawdiffer", 100);
+            pitchdefferPub = nh.advertise<std_msgs::Float64>("visual/pitchdiffer", 100);
+            rolldifferPub = nh.advertise<std_msgs::Float64>("visual/rolldiffer", 100);
 
-        als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::analyse, this);
+            als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::traj_analyse, this);
+        }
+        else if (als_arg == 1)
+        {
+            imuaccPub_x = nh.advertise<std_msgs::Float64>("visual/imuacc_x",10);
+            imuaccPub_y = nh.advertise<std_msgs::Float64>("visual/imuacc_y",10);
+            imuaccPub_z = nh.advertise<std_msgs::Float64>("visual/imuacc_z",10);
+
+            rpydesPub = nh.advertise<geometry_msgs::Vector3>("analyse/rpy_des",10);
+            rpytruthPub = nh.advertise<geometry_msgs::Vector3>("analyse/rpy_truth",10);
+
+            imuSub = nh.subscribe("/mavros/imu/data", 10, &trajAls::imuCallback, this);
+            ctrlSub = nh.subscribe("/debugPx4ctrl", 10, &trajAls::ctrlCallback, this);
+
+            als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::imu_analyse, this);
+        }
     }
 
   public:

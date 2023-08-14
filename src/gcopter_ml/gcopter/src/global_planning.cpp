@@ -166,6 +166,7 @@ public:
     //轨迹最优化计算
     inline void plan()
     {
+        ROS_INFO("start planning!");
         visualization_msgs::Marker routeMarker, wayPointsMarker, trajMarker;
         std::vector<Eigen::Vector3d> route;//默认三维列向量
         if (startGoal.size() == 2 && setpointTag)//满足两个点且模式为1
@@ -359,7 +360,8 @@ public:
             if (std::isinf(gcopter.optimize(traj, relCostTol)))
             {
                 return;
-            }               
+            }        
+            ROS_INFO("planning succeed!");       
 
             // //带时间戳的轨迹显示
             // if (traj.getPieceNum() > 0)
@@ -439,7 +441,7 @@ public:
 
         cmdPub = nh.advertise<quadrotor_msgs::PositionCommand>(cmdTopic,10);
 
-        desPub = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
+        desPub = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 100);
 
         ROS_WARN("please enter 'y' to start planning");
         while( !(std::getchar() == 'y') )
@@ -479,10 +481,10 @@ public:
         // std::cout<<"omg.z = "<<omg(2)<<std::endl;
     }
 
-    inline void desPublish(const Eigen::Vector4d &quat, const Eigen::Vector3d &pos)
+    inline void desPublish(const Eigen::Vector4d &quat, const Eigen::Vector3d &pos, const ros::Time &current_time)
     {
         quadrotor_msgs::TrajcurDesirePtr desMsg(new quadrotor_msgs::TrajcurDesire());
-        desMsg->header.stamp = ros::Time::now();
+        desMsg->header.stamp = current_time;
         desMsg->pos.orientation.w = quat(0);
         desMsg->pos.orientation.x = quat(1);
         desMsg->pos.orientation.y = quat(2);
@@ -511,11 +513,13 @@ public:
         flatmap.reset(physicalParams(0), physicalParams(1), physicalParams(2),
                       physicalParams(3), physicalParams(4), physicalParams(5));//将物理参数赋值给微分平坦的私有变量
 
+        ros::Time current_time = ros::Time::now();
+
         if (traj.getPieceNum() > 0)
         {
             // std::cout<<"flap count start"<<std::endl;
 
-            const double delta = ros::Time::now().toSec() - trajStamp;//delta=当前时科-上一次规划的时刻
+            const double delta = current_time.toSec() - trajStamp;//delta=当前时科-上一次规划的时刻
             // traj_start_stamp = trajStamp; //trajals node test
             if (delta > 0.0 && delta < traj.getTotalDuration())//delta小于轨迹的总时长
             {
@@ -561,7 +565,7 @@ public:
             }
             if (ctrl_start_trigger.trigger)
             {
-                const double delta_from_start = ros::Time::now().toSec() - traj_start_stamp;
+                const double delta_from_start = current_time.toSec() - traj_start_stamp;
                 if (delta_from_start > 0.0 && delta_from_start < traj.getTotalDuration())
                 {
                     double thr;//总推力
@@ -583,7 +587,7 @@ public:
                                     0.0, 0.0,
                                     thr, quat, omg); //利用微分平坦特性计算出总推力，姿态四元数，机体角速率
                     
-                    desPublish(quat, pos);
+                    desPublish(quat, pos, current_time);
                 }
             }
         }
@@ -623,6 +627,7 @@ public:
         nh.getParam("Z_min",z_min);
 
         ctrl_start_trigger.trigger = false;
+        // ctrl_start_trigger.trigger = true;
         mapInitialized = false;
 
         routePub = nh.advertise<visualization_msgs::Marker>("/visualizer/route", 10);

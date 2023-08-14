@@ -1,5 +1,5 @@
-dataFile: "/home/pc205/Moving_landing/data/trajAls.txt"
+dataFile: "/home/kt205/Moving_landing/data/trajAls.txt"
 
 desTopic: "/desire_pose_current_traj"
 
-gtruthTopic: "/mavros/vision_pose/pose" ## 格式：geometry_msgs/PoseStamped
+gtruthTopic: "/px4ctrl/odom_re_zero"

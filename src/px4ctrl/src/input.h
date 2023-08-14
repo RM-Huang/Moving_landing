@@ -56,11 +56,13 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Eigen::Vector3d p;
   Eigen::Vector3d p_l;
+  Eigen::Vector3d p_init;
   Eigen::Vector3d v;
   Eigen::Quaterniond q;
   Eigen::Vector3d w;
 
   double l_t = 0;
+  int odom_source = 0; //0:mocap, 1:gps
 
   nav_msgs::Odometry msg;
   ros::Time rcv_stamp;

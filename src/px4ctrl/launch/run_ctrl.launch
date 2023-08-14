@@ -3,7 +3,7 @@
 	<node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl" output="screen">
         	<!-- <remap from="~odom" to="/vicon_imu_ekf_odom" /> -->
 			
-		<remap from="~odom" to="/mavros/odometry/in" />
+		<remap from="~odom" to="/mavros/vision_pose/pose" />
 
 		<remap from="~cmd" to="/drone/planning/traj_follow" />
 

@@ -12,16 +12,18 @@
 
 namespace uav_utils {
 
-inline void extract_odometry(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vector3d& p, Eigen::Vector3d& p_l,
-                      double dur, Eigen::Vector3d& v, Eigen::Quaterniond& q)
+inline void extract_odometry_gps(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vector3d& p, Eigen::Vector3d& p_l,
+                      Eigen::Vector3d p_init, double dur, Eigen::Vector3d& v, Eigen::Quaterniond& q)
 {
-    p(0) = msg->pose.position.x;
-    p(1) = msg->pose.position.y;
-    p(2) = msg->pose.position.z;
+    p(0) = - ( msg->pose.position.x - p_init(0) );
+    p(1) = - ( msg->pose.position.y - p_init(1) );
+    p(2) = msg->pose.position.z - p_init(2);
 
     v(0) = (p(0) - p_l(0)) / dur;
     v(1) = (p(1) - p_l(1)) / dur;
     v(2) = (p(2) - p_l(2)) / dur;
+
+    p_l = p;
 
     q.w() = msg->pose.orientation.w;
     q.x() = msg->pose.orientation.x;
@@ -30,9 +32,31 @@ inline void extract_odometry(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vect
 }
 
 inline void extract_odometry(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vector3d& p, Eigen::Vector3d& p_l,
-                      double dur, Eigen::Vector3d& v, Eigen::Quaterniond& q, Eigen::Vector3d& w)
+                      Eigen::Vector3d p_init, double dur, Eigen::Vector3d& v, Eigen::Quaterniond& q)
 {
-    extract_odometry(msg, p, p_l, dur, v, q);
+    p(0) = msg->pose.position.x - p_init(0);
+    p(1) = msg->pose.position.y - p_init(1);
+    p(2) = msg->pose.position.z - p_init(2);
+
+    v(0) = (p(0) - p_l(0)) / dur;
+    v(1) = (p(1) - p_l(1)) / dur;
+    v(2) = (p(2) - p_l(2)) / dur;
+
+    p_l = p;
+
+    q.w() = msg->pose.orientation.w;
+    q.x() = msg->pose.orientation.x;
+    q.y() = msg->pose.orientation.y;
+    q.z() = msg->pose.orientation.z;
+}
+
+inline void extract_odometry(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vector3d& p, Eigen::Vector3d& p_l,
+                      Eigen::Vector3d p_init, double dur, Eigen::Vector3d& v, Eigen::Quaterniond& q, Eigen::Vector3d& w, int o_s)
+{
+    if(o_s == 1)
+        extract_odometry_gps(msg, p, p_l, p_init, dur, v, q);
+    else
+        extract_odometry(msg, p, p_l, p_init, dur, v, q);
 
     // w(0) = msg->twist.twist.angular.x;
     // w(1) = msg->twist.twist.angular.y;

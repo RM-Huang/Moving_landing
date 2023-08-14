@@ -2,11 +2,11 @@ SetpointTag:                0
 
 MapTopic:                   '/voxel_map'
 
-PoseTopic:                  '/drone/local_position/pose'
+PoseTopic:                  '/traj_start_trigger'
 
 CtrlTopic:                  '/traj_follow_start_trigger'
 
-CmdTopic:                   '/drone/planning/traj_follow_cmd'
+CmdTopic:                   '/drone/planning/traj_follow'
 
 TargetTopic:                '/move_base_simple/goal'
 
@@ -50,10 +50,10 @@ IntegralIntervs:            16
 
 RelCostTol:                 1.0e-5
 
-X_Wide:                     5.0
+X_Wide:                     2.0
 
-Y_Wide:                     3.0
+Y_Wide:                     2.0
 
-Z_Wide:                     1.5
+Z_Wide:                     1.0
 
 Z_min:                      0.5
