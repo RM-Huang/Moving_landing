@@ -38,6 +38,15 @@ inline void extract_odometry(geometry_msgs::PoseStampedConstPtr msg, Eigen::Vect
     p(1) = msg->pose.position.y - p_init(1);
     p(2) = msg->pose.position.z - p_init(2);
 
+    // if ( ( ( abs(p(0) - p_l(0)) > abs(2 * v(0) * dur) ) || ( abs(p(1) - p_l(1)) > abs(2 * v(1) * dur) ) || ( abs(p(2) - p_l(2)) > abs(2 * v(2) * dur) ) ) && ( v(0) != 0 ) && ( v(1) != 0) && ( v(2) != 0) )
+    // {
+    //     std::cout<<"p = "<<p(0)<<" "<<p(1)<<" "<<p(2)<<std::endl;
+    //     std::cout<<"v = "<<v(0)<<" "<<v(1)<<" "<<v(2)<<std::endl;
+    //     p(0) = p_l(0) + v(0) * dur * 0.3;
+    //     p(1) = p_l(1) + v(1) * dur * 0.3;
+    //     p(2) = p_l(2) + v(2) * dur * 0.3;
+    // }
+
     v(0) = (p(0) - p_l(0)) / dur;
     v(1) = (p(1) - p_l(1)) / dur;
     v(2) = (p(2) - p_l(2)) / dur;

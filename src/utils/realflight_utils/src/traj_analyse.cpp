@@ -189,18 +189,25 @@ class trajAls : public nodelet::Nodelet
     {
         if (dessubTri && gtruthsubTri)
         {
-            geometry_msgs::Quaternion des_Qua;
+            // tf::Quaternion des_Qua;
             tf::Quaternion des_Q2T;
             tf::Quaternion gtruth_Q2T;
             geometry_msgs::Vector3 des_RPY; //(roll,pitch,yaw)
             geometry_msgs::Vector3 gtruth_RPY; //(roll,pitch,yaw)
+            double des_q_x, des_q_y, des_q_z, des_q_w;
 
-            des_Qua.w = ctrldes.des_q_w;
-            des_Qua.x = ctrldes.des_q_x;
-            des_Qua.y = ctrldes.des_q_y;
-            des_Qua.z = ctrldes.des_q_z;
+            des_q_w = ctrldes.des_q_w;
+            des_q_x = ctrldes.des_q_x;
+            des_q_y = ctrldes.des_q_y;
+            des_q_z = ctrldes.des_q_z;
+            tf::Quaternion des_Qua(des_q_x, des_q_y, des_q_z, des_q_w);
+            // des_Qua.x() = ctrldes.des_q_x;
+            // des_Qua.y() = ctrldes.des_q_y;
+            // des_Qua.z() = ctrldes.des_q_z;
 
-            tf::quaternionMsgToTF(des_Qua, des_Q2T);
+            des_Qua.normalize();
+
+            // tf::quaternionMsgToTF(des_Qua, des_Q2T);
             // des_Q2T.normalize();
             tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
 
@@ -239,12 +246,12 @@ class trajAls : public nodelet::Nodelet
         }
         else if (als_arg == 1)
         {
-            imuaccPub_x = nh.advertise<std_msgs::Float64>("visual/imuacc_x",10);
-            imuaccPub_y = nh.advertise<std_msgs::Float64>("visual/imuacc_y",10);
-            imuaccPub_z = nh.advertise<std_msgs::Float64>("visual/imuacc_z",10);
+            imuaccPub_x = nh.advertise<std_msgs::Float64>("/visual/imuacc_x",10);
+            imuaccPub_y = nh.advertise<std_msgs::Float64>("/visual/imuacc_y",10);
+            imuaccPub_z = nh.advertise<std_msgs::Float64>("/visual/imuacc_z",10);
 
-            rpydesPub = nh.advertise<geometry_msgs::Vector3>("analyse/rpy_des",10);
-            rpytruthPub = nh.advertise<geometry_msgs::Vector3>("analyse/rpy_truth",10);
+            rpydesPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_des",10);
+            rpytruthPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_truth",10);
 
             imuSub = nh.subscribe("/mavros/imu/data", 10, &trajAls::imuCallback, this);
             ctrlSub = nh.subscribe("/debugPx4ctrl", 10, &trajAls::ctrlCallback, this);

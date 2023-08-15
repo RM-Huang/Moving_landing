@@ -54,9 +54,9 @@ LinearControl::calculateControl(const Desired_State_t &des,
   /* WRITE YOUR CODE HERE */
 
   //used for debug
-  // debug_msg_.des_p_x = des.p(0);
-  // debug_msg_.des_p_y = des.p(1);
-  // debug_msg_.des_p_z = des.p(2);
+  debug_msg_.des_p_x = des.p(0);
+  debug_msg_.des_p_y = des.p(1);
+  debug_msg_.des_p_z = des.p(2);
   
   debug_msg_.des_v_x = des.v(0);
   debug_msg_.des_v_y = des.v(1);

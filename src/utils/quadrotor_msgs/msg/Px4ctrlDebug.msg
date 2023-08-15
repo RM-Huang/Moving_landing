@@ -1,4 +1,7 @@
 Header header
+float64 des_p_x
+float64 des_p_y
+float64 des_p_z
 
 float64 des_v_x
 float64 des_v_y
