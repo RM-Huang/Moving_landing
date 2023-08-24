@@ -2,4 +2,4 @@ dataFile: "/home/kt205/Moving_landing/data/trajAls.txt"
 
 desTopic: "/desire_pose_current_traj"
 
-gtruthTopic: "/px4ctrl/odom_re_zero"
+gtruthTopic: "/odom/remap"

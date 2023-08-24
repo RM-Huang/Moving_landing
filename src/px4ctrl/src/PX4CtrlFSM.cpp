@@ -312,8 +312,8 @@ void PX4CtrlFSM::process()
 		break;
 	}
 
-	// publish the odom data after rutrun to zero
-	publish_odom_rz(odom_data, now_time);
+	// // publish the odom data after rutrun to zero
+	// publish_odom_rz(odom_data, now_time);
 
 	// STEP2: estimate thrust model
 	if (state == AUTO_HOVER || state == CMD_CTRL)
@@ -413,7 +413,10 @@ void PX4CtrlFSM::land_detector(const State_t state, const Desired_State_t &des, 
 Desired_State_t PX4CtrlFSM::get_hover_des()
 {
 	Desired_State_t des;
-	des.p = hover_pose.head<3>();
+	// des.p = hover_pose.head<3>();
+	des.p(0) = 0.0;
+	des.p(1) = 0.0;
+	des.p(2) = takeoff_land.start_pose(2) + param.takeoff_land.height;
 	des.v = Eigen::Vector3d::Zero();
 	des.a = Eigen::Vector3d::Zero();
 	des.j = Eigen::Vector3d::Zero();
@@ -553,24 +556,24 @@ bool PX4CtrlFSM::recv_new_odom()
 	return false;
 }
 
-void PX4CtrlFSM::publish_odom_rz(const Odom_Data_t &odom,  const ros::Time &stamp)
-{
-	nav_msgs::Odometry msg;
-	msg.header.stamp = stamp;
-	msg.pose.pose.position.x = odom_data.p(0);
-	msg.pose.pose.position.y = odom_data.p(1);
-	msg.pose.pose.position.z = odom_data.p(2);
-	msg.pose.pose.orientation.w = odom_data.q.w();
-	msg.pose.pose.orientation.x = odom_data.q.x();
-	msg.pose.pose.orientation.y = odom_data.q.y();
-	msg.pose.pose.orientation.z = odom_data.q.z();
+// void PX4CtrlFSM::publish_odom_rz(const Odom_Data_t &odom,  const ros::Time &stamp)
+// {
+// 	nav_msgs::Odometry msg;
+// 	msg.header.stamp = stamp;
+// 	msg.pose.pose.position.x = odom_data.p(0);
+// 	msg.pose.pose.position.y = odom_data.p(1);
+// 	msg.pose.pose.position.z = odom_data.p(2);
+// 	msg.pose.pose.orientation.w = odom_data.q.w();
+// 	msg.pose.pose.orientation.x = odom_data.q.x();
+// 	msg.pose.pose.orientation.y = odom_data.q.y();
+// 	msg.pose.pose.orientation.z = odom_data.q.z();
 
-	msg.twist.twist.linear.x = odom_data.v(0);
-	msg.twist.twist.linear.y = odom_data.v(1);
-	msg.twist.twist.linear.z = odom_data.v(2);
+// 	msg.twist.twist.linear.x = odom_data.v(0);
+// 	msg.twist.twist.linear.y = odom_data.v(1);
+// 	msg.twist.twist.linear.z = odom_data.v(2);
 
-	odom_rz_pub.publish(msg);
-}
+// 	odom_rz_pub.publish(msg);
+// }
 
 void PX4CtrlFSM::publish_bodyrate_ctrl(const Controller_Output_t &u, const ros::Time &stamp)
 {

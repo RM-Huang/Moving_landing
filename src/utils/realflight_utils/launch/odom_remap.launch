@@ -1,0 +1,11 @@
+<launch>
+    <node pkg="nodelet" type="nodelet" name="manager"  args="manager" output="screen">
+      <param name="num_worker_threads" value="16"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="odomRemap" args="load odomRemap/odomRemap manager" output="screen">
+      <param name="gtruthTopic" value="/mavros/vision_pose/pose"/>
+      <param name="fit_size" value="100"/>
+    </node>          
+
+</launch>

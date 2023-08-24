@@ -4,16 +4,17 @@
 #include <tf/tf.h>
 #include <ros/ros.h>
 #include <nodelet/nodelet.h>
+
 #include <std_msgs/String.h>
 #include <std_msgs/Float64.h>
 #include <sensor_msgs/Imu.h>
-
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
 #include <quadrotor_msgs/TrajcurDesire.h>
 #include <quadrotor_msgs/Px4ctrlDebug.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Vector3.h>
 
 namespace trajAnalyse {
 
@@ -57,9 +58,13 @@ class trajAls : public nodelet::Nodelet
     std::string desTopic;
     std::string gtruthTopic;
 
+    std_msgs::Float64 acc_x, acc_y, acc_z; // sub from imu/data
+    // geometry_msgs::Vector3 imuacc_l;
+
     bool dessubTri = false;
     bool gtruthsubTri = false;
     bool ctrlsubTri = false;
+    // bool imusubTri = false;
 
     void desCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &Msg)
     {
@@ -75,10 +80,30 @@ class trajAls : public nodelet::Nodelet
 
     void imuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg)
     {
-        std_msgs::Float64 acc_x, acc_y, acc_z;
+        // imusubTri = true;
+        // std::cout<<"imu_t_size_1 = "<<imu_t.size()<<std::endl;
+        // if(imu_t.size() > (fit_size - 1) )
+        // {
+        //     imu_t.erase(imu_t.begin());
+        //     imuvel_x.erase(imuvel_x.begin());
+        //     imuvel_y.erase(imuvel_y.begin());
+        //     imuvel_z.erase(imuvel_z.begin());
+        //     // std::cout<<"imu_t_size_2 = "<<imu_t.size()<<std::endl;
+        // }
+
+        // if(imu_t.size() < 1)
+        // {
+        //     imu_t0 = imuMsg->header.stamp.toSec();
+        // }
+
+        // imu_t.emplace_back(imuMsg->header.stamp.toSec() - imu_t0);
+        // std::cout<<"imu_t_size = "<<imu_t.size()<<std::endl;
+
         acc_x.data = imuMsg->linear_acceleration.x;
         acc_y.data = imuMsg->linear_acceleration.y;
         acc_z.data = imuMsg->linear_acceleration.z;
+
+        // imuvel_cul();
 
         imuaccPub_x.publish(acc_x);
         imuaccPub_y.publish(acc_y);
@@ -218,6 +243,11 @@ class trajAls : public nodelet::Nodelet
             rpydesPub.publish(des_RPY);
             rpytruthPub.publish(gtruth_RPY);
         }
+        // if(imusubTri)
+        // {
+        //     imuvel_cul();
+        //     imusubTri = false;
+        // }
     }
 
     void init(ros::NodeHandle& nh)
@@ -246,9 +276,14 @@ class trajAls : public nodelet::Nodelet
         }
         else if (als_arg == 1)
         {
+            // nh.param("fit_size", fit_size, 100);
+
             imuaccPub_x = nh.advertise<std_msgs::Float64>("/visual/imuacc_x",10);
             imuaccPub_y = nh.advertise<std_msgs::Float64>("/visual/imuacc_y",10);
             imuaccPub_z = nh.advertise<std_msgs::Float64>("/visual/imuacc_z",10);
+
+            // imuvelPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity",10);
+            // imuvelrawPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity_raw",10);//test
 
             rpydesPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_des",10);
             rpytruthPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_truth",10);

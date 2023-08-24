@@ -125,44 +125,44 @@ Odom_Data_t::Odom_Data_t()
     recv_new_msg = false;
 };
 
-void Odom_Data_t::feed(geometry_msgs::PoseStampedConstPtr pMsg)
+void Odom_Data_t::feed(nav_msgs::OdometryConstPtr pMsg)
 {
     ros::Time now = ros::Time::now();
 
     msg.header = pMsg->header;
-    msg.pose.pose = pMsg->pose;
+    msg.pose.pose = pMsg->pose.pose;
     rcv_stamp = now;
     recv_new_msg = true;
-    double o_t = pMsg->header.stamp.toSec();
+    // double o_t = pMsg->header.stamp.toSec();
     // std::cout<<"o_t = "<<o_t<<std::endl;
-    if (l_t == 0.0)
-    {
-        first_odom_time = now.toSec();
-        p_init(0) =  p_init(0) + pMsg->pose.position.x ;
-        p_init(1) =  p_init(1) + pMsg->pose.position.y;
-        p_init(2) =  p_init(2) + pMsg->pose.position.z;
-        t_delta_0 = 0;
-        std::cout<<"set zero"<<std::endl;
-        std::cout<<"p_init"<<p_init(0)<<" "<<p_init(1)<<" "<<p_init(2)<<std::endl;
-    }
+    // if (l_t == 0.0)
+    // {
+    //     first_odom_time = now.toSec();
+    //     p_init(0) =  p_init(0) + pMsg->pose.position.x ;
+    //     p_init(1) =  p_init(1) + pMsg->pose.position.y;
+    //     p_init(2) =  p_init(2) + pMsg->pose.position.z;
+    //     t_delta_0 = 0;
+    //     std::cout<<"set zero"<<std::endl;
+    //     std::cout<<"p_init"<<p_init(0)<<" "<<p_init(1)<<" "<<p_init(2)<<std::endl;
+    // }
 
-    if (now.toSec() - first_odom_time < 2.0)
-    {
-        t_delta_0 = abs(o_t - now.toSec());
-        std::cout<<"t_delta = "<<t_delta_0<<std::endl;
-    }
+    // if (now.toSec() - first_odom_time < 2.0)
+    // {
+    //     t_delta_0 = abs(o_t - now.toSec());
+    //     std::cout<<"t_delta = "<<t_delta_0<<std::endl;
+    // }
 
     // std::cout<<"ping = "<<abs(o_t - now.toSec()) - t_delta_0<<std::endl;
-    if( abs( o_t - now.toSec() - t_delta_0 ) < 0.1 )
-    {
-        double dur = o_t - l_t;
+    // if( abs( o_t - now.toSec() - t_delta_0 ) < 0.015 )
+    // {
+        // double dur = o_t - l_t;
 
-        uav_utils::extract_odometry(pMsg, p, p_l, p_init, dur, v, q, w, odom_source);
-    }
-    else
-    {
-        ROS_WARN("odom data delay too high");
-    }
+    uav_utils::extract_odometry(pMsg, p, v, q, w, odom_source);
+    // }
+    // else
+    // {
+    //     ROS_WARN("odom data delay too high");
+    // }
 
     // std::cout<<"v = "<<v.transpose()<<std::endl;
     // std::cout<<"p = "<<p.transpose()<<std::endl;
@@ -193,7 +193,7 @@ void Odom_Data_t::feed(geometry_msgs::PoseStampedConstPtr pMsg)
         last_clear_count_time = now;
     }
     one_min_count ++;
-    l_t = o_t;
+    // l_t = o_t;
 }
 
 Imu_Data_t::Imu_Data_t()

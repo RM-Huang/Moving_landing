@@ -104,7 +104,7 @@ private:
 	void publish_attitude_ctrl(const Controller_Output_t &u, const ros::Time &stamp);
 	void publish_follow_trigger(bool &trigger, const ros::Time &stamp);
 	void publish_trigger(const nav_msgs::Odometry &odom_msg);
-	void publish_odom_rz(const Odom_Data_t &odom,  const ros::Time &stamp);
+	// void publish_odom_rz(const Odom_Data_t &odom,  const ros::Time &stamp);
 };
 
 #endif

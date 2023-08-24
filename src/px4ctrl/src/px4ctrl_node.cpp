@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
                                                  boost::bind(&ExtendedState_Data_t::feed, &fsm.extended_state_data, _1));
 
     ros::Subscriber odom_sub =
-        nh.subscribe<geometry_msgs::PoseStamped>("odom",
+        nh.subscribe<nav_msgs::Odometry>("odom",
                                          100,
                                          boost::bind(&Odom_Data_t::feed, &fsm.odom_data, _1),
                                          ros::VoidConstPtr(),
@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
     fsm.traj_start_trigger_pub = nh.advertise<geometry_msgs::PoseStamped>("/traj_start_trigger", 10);
     fsm.traj_follow_start_trigger_pub = nh.advertise<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10); //首条轨迹控制命令发布时触发
 
-    fsm.odom_rz_pub = nh.advertise<nav_msgs::Odometry>("/px4ctrl/odom_re_zero", 10); // 发布归零后的里程计数据
+    // fsm.odom_rz_pub = nh.advertise<nav_msgs::Odometry>("/px4ctrl/odom_re_zero", 10); // 发布归零后的里程计数据
     fsm.debug_pub = nh.advertise<quadrotor_msgs::Px4ctrlDebug>("/debugPx4ctrl", 10); // debug
 
     fsm.set_FCU_mode_srv = nh.serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");

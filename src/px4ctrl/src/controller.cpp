@@ -31,6 +31,7 @@ LinearControl::calculateControl(const Desired_State_t &des,
       Kp << param_.gain.Kp0, param_.gain.Kp1, param_.gain.Kp2;
       Kv << param_.gain.Kv0, param_.gain.Kv1, param_.gain.Kv2;
       des_acc = des.a + Kv.asDiagonal() * (des.v - odom.v) + Kp.asDiagonal() * (des.p - odom.p);
+      // des_acc = des.a + Kp.asDiagonal() * (des.p - odom.p);
       des_acc += Eigen::Vector3d(0,0,param_.gra);
 
       u.thrust = computeDesiredCollectiveThrustSignal(des_acc);

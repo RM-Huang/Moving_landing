@@ -55,26 +55,26 @@ class Odom_Data_t
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Eigen::Vector3d p;
-  Eigen::Vector3d p_l;
-  Eigen::Vector3d p_init;
+  // Eigen::Vector3d p_l;
+  // Eigen::Vector3d p_init;
   Eigen::Vector3d v;
-  Eigen::Vector3d v_ave;
+  // Eigen::Vector3d v_ave;
   Eigen::Quaterniond q;
   Eigen::Vector3d w;
 
-  double l_t = 0;
-  double t_delta_0;
+  // double l_t = 0;
+  // double t_delta_0;
   int odom_source = 0; //0:mocap, 1:gps
 
   // int init_count = 0;
-  double first_odom_time;
+  // double first_odom_time;
 
   nav_msgs::Odometry msg;
   ros::Time rcv_stamp;
   bool recv_new_msg;
 
   Odom_Data_t();
-  void feed(geometry_msgs::PoseStampedConstPtr pMsg);
+  void feed(nav_msgs::OdometryConstPtr pMsg);
 };
 
 class Imu_Data_t

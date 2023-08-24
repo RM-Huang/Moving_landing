@@ -42,6 +42,7 @@
   <export>
       <nodelet plugin="${prefix}/rcinremap_plugins.xml"/>
       <nodelet plugin="${prefix}/trajals_plugins.xml"/>
+      <nodelet plugin="${prefix}/odomremap_plugins.xml"/>
 
   </export>
 </package>
