@@ -137,7 +137,7 @@ LinearControl::estimateThrustModel(
     //printf("%6.3f,%6.3f,%6.3f,%6.3f\n", thr2acc_, gamma, K, P_);
     //fflush(stdout);
 
-    // debug_msg_.thr2acc = thr2acc_;
+    debug_msg_.thr2acc = thr2acc_;
     return true;
   }
   return false;

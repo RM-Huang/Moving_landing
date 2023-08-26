@@ -21,6 +21,7 @@ float64 des_q_z
 float64 des_q_w
 
 float64 des_thr
+float64 thr2acc
 float64 hover_percentage
 float64 thr_scale_compensate
 float64 voltage

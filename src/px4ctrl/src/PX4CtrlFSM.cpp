@@ -517,6 +517,8 @@ void PX4CtrlFSM::set_start_pose_for_takeoff_land(const Odom_Data_t &odom)
 	takeoff_land.start_pose.head<3>() = odom_data.p;
 	takeoff_land.start_pose(3) = get_yaw_from_quaternion(odom_data.q);
 
+	// std::cout<<"start_pose = "<<takeoff_land.start_pose(0)<<" "<<takeoff_land.start_pose(1)<<" "<<takeoff_land.start_pose(2)<<" "<<takeoff_land.start_pose(3)<<std::endl;
+
 	takeoff_land.toggle_takeoff_land_time = ros::Time::now();
 }
 

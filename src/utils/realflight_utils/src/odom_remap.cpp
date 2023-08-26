@@ -178,9 +178,9 @@ private:
         gtruth_rpy.y = gtruth_rpy.y - gtruth_rpy_bias.y;
         gtruth_rpy.z = gtruth_rpy.z - gtruth_rpy_bias.z;
 
-        // std::cout<<"roll = "<<gtruth_rpy.x<<" pitch = "<<gtruth_rpy.y<<" yaw = "<<gtruth_rpy.z<<std::endl;
+        std::cout<<"roll = "<<gtruth_rpy.y<<" pitch = "<<-gtruth_rpy.x<<" yaw = "<<gtruth_rpy.z<<std::endl;
 
-        gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+        gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.y, - gtruth_rpy.x, gtruth_rpy.z); //mocap system has y front and x right 
     }
 
     void odom_pub(const ros::TimerEvent& time_event)
@@ -212,8 +212,9 @@ private:
             }
             else
             {
+                //  std::cout<<"truth_data_delta= "<<abs(gtruth_t - gtruth_time_delay - imu.header.stamp.toSec())<<std::endl;
                 // std::cout<<"dur_judge = "<<abs(gtruth_t - gtruth_time_delay - imu.header.stamp.toSec())<<std::endl;
-                if( (abs(gtruth_t - gtruth_time_delay - imu.header.stamp.toSec()) < 0.5))
+                if( (abs(gtruth_t - gtruth_time_delay - imu.header.stamp.toSec()) < 0.05))
                 {
                     // std::cout<<"---calculate---"<<std::endl;
                     geometry_msgs::Vector3 vel;
@@ -224,8 +225,8 @@ private:
                     qua_cal(gtruth_qua);
 
                     odomMsg->header.stamp = ros::Time().fromSec(gtruth_t - gtruth_time_delay);
-                    odomMsg->pose.pose.position.x = gtruth.pose.position.x - gtruth_pos_bias.x;
-                    odomMsg->pose.pose.position.y = gtruth.pose.position.y - gtruth_pos_bias.y;
+                    odomMsg->pose.pose.position.x = gtruth.pose.position.y - gtruth_pos_bias.y;
+                    odomMsg->pose.pose.position.y = -(gtruth.pose.position.x - gtruth_pos_bias.x);
                     odomMsg->pose.pose.position.z = gtruth.pose.position.z - gtruth_pos_bias.z;
                     odomMsg->pose.pose.orientation = gtruth_qua;
                     odomMsg->twist.twist.linear.x = vel.x;

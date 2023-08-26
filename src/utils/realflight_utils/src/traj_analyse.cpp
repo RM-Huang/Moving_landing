@@ -53,6 +53,7 @@ class trajAls : public nodelet::Nodelet
 
     ros::Publisher rpydesPub;
     ros::Publisher rpytruthPub;
+    ros::Publisher ctrlquaPub;
 
     std::string datafile;
     std::string desTopic;
@@ -212,9 +213,10 @@ class trajAls : public nodelet::Nodelet
 
     void imu_analyse(const ros::TimerEvent& time_event)
     {
-        if (dessubTri && gtruthsubTri)
+        if (ctrlsubTri && gtruthsubTri)
         {
-            // tf::Quaternion des_Qua;
+            // std::cout<<"imu_analyse start"<<std::endl;
+            geometry_msgs::QuaternionStamped des_Qua;
             tf::Quaternion des_Q2T;
             tf::Quaternion gtruth_Q2T;
             geometry_msgs::Vector3 des_RPY; //(roll,pitch,yaw)
@@ -225,16 +227,22 @@ class trajAls : public nodelet::Nodelet
             des_q_x = ctrldes.des_q_x;
             des_q_y = ctrldes.des_q_y;
             des_q_z = ctrldes.des_q_z;
-            tf::Quaternion des_Qua(des_q_x, des_q_y, des_q_z, des_q_w);
-            // des_Qua.x() = ctrldes.des_q_x;
-            // des_Qua.y() = ctrldes.des_q_y;
-            // des_Qua.z() = ctrldes.des_q_z;
+            // tf::Quaternion des_Qua(des_q_x, des_q_y, des_q_z, des_q_w);
 
-            des_Qua.normalize();
+            des_Qua.quaternion.w = ctrldes.des_q_w;
+            des_Qua.quaternion.x = ctrldes.des_q_x;
+            des_Qua.quaternion.y = ctrldes.des_q_y;
+            des_Qua.quaternion.z = ctrldes.des_q_z;
+            des_Qua.header.stamp = gtruth.header.stamp;
 
-            // tf::quaternionMsgToTF(des_Qua, des_Q2T);
+            ctrlquaPub.publish(des_Qua);
+
+            // des_Qua.normalize();
+
+            tf::quaternionMsgToTF(des_Qua.quaternion, des_Q2T);
             // des_Q2T.normalize();
             tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
+            std::cout<<"des_RPY = "<<des_RPY.x<<" "<<des_RPY.y<<" "<<des_RPY.z<<std::endl;
 
             tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
             // gtruth_Q2T.normalize();
@@ -242,6 +250,15 @@ class trajAls : public nodelet::Nodelet
 
             rpydesPub.publish(des_RPY);
             rpytruthPub.publish(gtruth_RPY);
+        }
+        else
+        {
+            ROS_ERROR("[traj_anlyse]:No odom or ctrl data, please check rostopic.");
+            while(!ctrlsubTri || !gtruthsubTri)
+            {
+                // std::cout<<"ctrsubTri = "<<ctrlsubTri<<" gtruthsubTri = "<<gtruthsubTri<<std::endl;
+                ros::Duration(0.2).sleep();
+            }
         }
         // if(imusubTri)
         // {
@@ -286,6 +303,7 @@ class trajAls : public nodelet::Nodelet
             // imuvelrawPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity_raw",10);//test
 
             rpydesPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_des",10);
+            ctrlquaPub = nh.advertise<geometry_msgs::QuaternionStamped>("/analyse/qua_ctrl",10);
             rpytruthPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_truth",10);
 
             imuSub = nh.subscribe("/mavros/imu/data", 10, &trajAls::imuCallback, this);

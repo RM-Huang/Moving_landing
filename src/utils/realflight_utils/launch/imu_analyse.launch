@@ -21,7 +21,6 @@
         <node pkg="nodelet" type="nodelet" name="traj_analyse" args="load trajAnalyse/trajAls manager" output="screen">
                 <rosparam file="$(find realflight_utils)/config/traj_analyse.yaml" command="load" />
                 <param name="analyse_arg" value="1"/>
-                <param name="fit_size" value="100"/>
         </node> 
 
         <!-- <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl" output="screen">
