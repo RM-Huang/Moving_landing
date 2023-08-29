@@ -1,6 +1,7 @@
 #include <thread>
 #include <ros/ros.h>
 #include <tf/tf.h>
+#include <Eigen>
 #include <nodelet/nodelet.h>
 #include "polyfit.hpp"
 
@@ -19,10 +20,11 @@ private:
     std::thread initThread_;
     ros::Timer odom_timer;
 
-    geometry_msgs::PoseStamped gtruth;
+    nav_msgs::Odometry gtruth;
     geometry_msgs::Vector3 gtruth_pos_bias;
     geometry_msgs::Vector3 gtruth_rpy_bias;
     geometry_msgs::Vector3 gtruth_rpy;
+    Eigen::Quaterniond gtruth_qua_bias;
     tf::Quaternion gtruth_Q2T;
           
     sensor_msgs::Imu imu;
@@ -33,7 +35,7 @@ private:
     std::string gtruthTopic;
 
     ros::Publisher odomPub;
-    ros::Publisher imuvelrawPub; // publish imu_vel msg with merely acc integral
+    // ros::Publisher imuvelrawPub; // publish imu_vel msg with merely acc integral
 
     std::vector<double> imuvel_x; // imuvel store the unfit data
     std::vector<double> imuvel_y;
@@ -49,7 +51,14 @@ private:
     int bias_c = 0;
     int fit_size;
 
-    void gtruthCallback(const geometry_msgs::PoseStamped::ConstPtr &gtruthMsg)
+    void mctruthCallback(const geometry_msgs::PoseStamped::ConstPtr &gtruthMsg)
+    {
+        gtruth.header = gtruthMsg->header;
+        gtruth.pose.pose = gtruthMsg->pose;
+        gtruthsubTri = true;
+    }
+
+    void gpstruthCallback(const nav_msgs::Odometry::ConstPtr &gtruthMsg)
     {
         gtruth = *gtruthMsg;
         gtruthsubTri = true;
@@ -57,8 +66,7 @@ private:
 
     void gtruth_const_bias_cal(const double &gtruth_t)
     {
-        // double current_t = ros::Time::now().toSec();
-        double current_t = imu.header.stamp.toSec(); // for bag replay
+        double current_t = imu.header.stamp.toSec();
 
         double flash_dur;
         if(bias_c > 0)
@@ -70,10 +78,6 @@ private:
             flash_dur = abs( abs(gtruth_t - current_t) - gtruth_time_delay);
             gtruth_time_delay = 0; // delete first gtruth_time_delay for total time bias cal
         }
- 
-        // std::cout<<"gtruth_t =  = "<<gtruth_t<<" current_t = "<<current_t<<std::endl;
-        // std::cout<<"gtruth_time_delay = "<<gtruth_time_delay<<std::endl;
-        // std::cout<<"flash dur = "<<flash_dur<<std::endl;
 
         if( flash_dur < 0.5)
         {
@@ -81,11 +85,11 @@ private:
 
             gtruth_time_delay = gtruth_time_delay + abs(gtruth_t - current_t);
 
-            gtruth_pos_bias.x = gtruth_pos_bias.x + gtruth.pose.position.x;
-            gtruth_pos_bias.y = gtruth_pos_bias.y + gtruth.pose.position.y;
-            gtruth_pos_bias.z = gtruth_pos_bias.z + gtruth.pose.position.z;
+            gtruth_pos_bias.x = gtruth_pos_bias.x + gtruth.pose.pose.position.x;
+            gtruth_pos_bias.y = gtruth_pos_bias.y + gtruth.pose.pose.position.y;
+            gtruth_pos_bias.z = gtruth_pos_bias.z + gtruth.pose.pose.position.z;
 
-            tf::quaternionMsgToTF(gtruth.pose.orientation, gtruth_Q2T);
+            tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
             tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
 
             gtruth_rpy_bias.x = gtruth_rpy_bias.x + gtruth_rpy.x;
@@ -103,6 +107,26 @@ private:
             bias_c = 0;
             std::cout<<"time delay haven't stable"<<std::endl;
         }
+    }
+
+    void gtruth_const_bias_cal()
+    {
+        bias_c += 1;
+
+        gtruth_pos_bias.x = gtruth_pos_bias.x + gtruth.pose.pose.position.x;
+        gtruth_pos_bias.y = gtruth_pos_bias.y + gtruth.pose.pose.position.y;
+        gtruth_pos_bias.z = gtruth_pos_bias.z + gtruth.pose.pose.position.z;
+
+        tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
+        tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+
+        gtruth_rpy_bias.x = gtruth_rpy_bias.x + gtruth_rpy.x;
+        gtruth_rpy_bias.y = gtruth_rpy_bias.y + gtruth_rpy.y;
+        gtruth_rpy_bias.z = gtruth_rpy_bias.z + gtruth_rpy.z;
+
+        // std::cout<<"bias_c = "<<bias_c<<std::endl;
+        // std::cout<<"delta_r_tol = "<<gtruth_rpy_bias.x<<" delta_p_tol = "<<gtruth_rpy_bias.y<<" delta_y_tol = "<<gtruth_rpy_bias.z<<std::endl;
+        // std::cout<<"delta_t_tol = "<<gtruth_time_delay<<" delta_x_tol = "<<gtruth_pos_bias.x<<" delta_y_tol = "<<gtruth_pos_bias.y<<" delta_z_tol = "<<gtruth_pos_bias.z<<std::endl;
     }
 
     void imuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg)
@@ -136,11 +160,10 @@ private:
             double imu_dur;
             
             imu_dur = imu_t[data_c - 1] - imu_t[data_c - 2];
-            // std::cout<<"imu_t = "<<imu_t[data_c - 1]<<std::endl;
             vel.x = imuvel_x[data_c - 1] + imu.linear_acceleration.x * imu_dur;
             vel.y = imuvel_y[data_c - 1] + imu.linear_acceleration.y * imu_dur;
             vel.z = imuvel_z[data_c - 1] + imu.linear_acceleration.z * imu_dur;
-            // std::cout<<"imuvel = "<<vel.x<<" "<<vel.y<<" "<<vel.z<<std::endl;
+
             // imuvelrawPub.publish(vel); //test
             
             imuvel_x.emplace_back(vel.x);
@@ -158,8 +181,6 @@ private:
             fit.polyfit(imu_t, imuvel_z, order, false);
             double fit_z = fit.getY(imu_t[data_c - 1]);
             vel.z = imuvel_z[data_c - 1] - fit.getY(imu_t[data_c - 1]);
-
-            // std::cout<<"fit = "<<fit_x<<" "<<fit_y<<" "<<fit_z<<std::endl;
         }
         else
         {
@@ -169,9 +190,9 @@ private:
         }     
     }
 
-    void qua_cal(geometry_msgs::Quaternion& gtruth_qua)
+    void qua_cal_mc(geometry_msgs::Quaternion& gtruth_qua)
     {
-        tf::quaternionMsgToTF(gtruth.pose.orientation, gtruth_Q2T);
+        tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
         tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
 
         gtruth_rpy.x = gtruth_rpy.x - gtruth_rpy_bias.x;
@@ -183,7 +204,29 @@ private:
         gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.y, - gtruth_rpy.x, gtruth_rpy.z); //mocap system has y front and x right 
     }
 
-    void odom_pub(const ros::TimerEvent& time_event)
+    void qua_cal_gps(Eigen::Quaterniond& qua)
+    {
+        // tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
+        // tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+        Eigen::Quaterniond gtruth_orientation;
+
+        gtruth_orientation.w() = gtruth.pose.pose.orientation.w;
+        gtruth_orientation.x() = gtruth.pose.pose.orientation.x;
+        gtruth_orientation.y() = gtruth.pose.pose.orientation.y;
+        gtruth_orientation.z() = gtruth.pose.pose.orientation.z;
+
+        qua = gtruth_qua_bias.inverse() * gtruth_orientation;
+        // gtruth_rpy.x = gtruth_rpy.x - gtruth_rpy_bias.x;
+        // gtruth_rpy.y = gtruth_rpy.y - gtruth_rpy_bias.y;
+        // gtruth_rpy.z = gtruth_rpy.z - gtruth_rpy_bias.z;
+
+        Eigen::Vector3d rpy = qua.matrix().eulerAngles(0,1,2); //test
+        std::cout<<"roll = "<<rpy(0) * 180 / 3.14159265<<" pitch = "<<rpy(1) * 180 / 3.14159265<<" yaw = "<<rpy(2) * 180 / 3.14159265<<std::endl;
+
+        // gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z); //mocap system has y front and x right 
+    }
+
+    void mc_odom_pub(const ros::TimerEvent& time_event)
     {
         // std::cout<<"---------------"<<std::endl;
         if(imusubTri && gtruthsubTri)
@@ -216,18 +259,17 @@ private:
                 // std::cout<<"dur_judge = "<<abs(gtruth_t - gtruth_time_delay - imu.header.stamp.toSec())<<std::endl;
                 if( (abs(gtruth_t - gtruth_time_delay - imu.header.stamp.toSec()) < 0.05))
                 {
-                    // std::cout<<"---calculate---"<<std::endl;
                     geometry_msgs::Vector3 vel;
                     nav_msgs::OdometryPtr odomMsg(new nav_msgs::Odometry);
                     geometry_msgs::Quaternion gtruth_qua;
 
                     imuvel_cal(vel);
-                    qua_cal(gtruth_qua);
+                    qua_cal_mc(gtruth_qua);
 
                     odomMsg->header.stamp = ros::Time().fromSec(gtruth_t - gtruth_time_delay);
-                    odomMsg->pose.pose.position.x = gtruth.pose.position.y - gtruth_pos_bias.y;
-                    odomMsg->pose.pose.position.y = -(gtruth.pose.position.x - gtruth_pos_bias.x);
-                    odomMsg->pose.pose.position.z = gtruth.pose.position.z - gtruth_pos_bias.z;
+                    odomMsg->pose.pose.position.x = gtruth.pose.pose.position.y - gtruth_pos_bias.y;
+                    odomMsg->pose.pose.position.y = -(gtruth.pose.pose.position.x - gtruth_pos_bias.x);
+                    odomMsg->pose.pose.position.z = gtruth.pose.pose.position.z - gtruth_pos_bias.z;
                     odomMsg->pose.pose.orientation = gtruth_qua;
                     odomMsg->twist.twist.linear.x = vel.x;
                     odomMsg->twist.twist.linear.y = vel.y;
@@ -247,8 +289,78 @@ private:
         }
         else
         {
+            ROS_INFO("[odom_remap]:Using Mocap for odom calculate.");
             ROS_ERROR("[odom_remap]:No odom or imu data, please check rostopic.");
             while(!imusubTri || !gtruthsubTri)
+            {
+                ros::Duration(0.2).sleep();
+            }
+        }
+        // gtruth_time_l = gtruth.header.stamp.toSec();
+    }
+
+    void gps_odom_pub(const ros::TimerEvent& time_event)
+    {
+        if(gtruthsubTri)
+        {
+            seq += 1;
+
+            if(seq < 300)
+            {
+                gtruth_const_bias_cal();    
+            }
+            else if(seq == 300)
+            {
+                gtruth_pos_bias.x = gtruth_pos_bias.x / bias_c;
+                gtruth_pos_bias.y = gtruth_pos_bias.y / bias_c;
+                gtruth_pos_bias.z = gtruth_pos_bias.z / bias_c;
+                gtruth_rpy_bias.x = gtruth_rpy_bias.x / bias_c;
+                gtruth_rpy_bias.y = gtruth_rpy_bias.y / bias_c;
+                gtruth_rpy_bias.z = gtruth_rpy_bias.z / bias_c;
+                gtruth_qua_bias = Eigen::AngleAxisd(gtruth_rpy_bias.x, Eigen::Vector3d::UnitZ()) * 
+                                    Eigen::AngleAxisd(gtruth_rpy_bias.y, Eigen::Vector3d::UnitY()) * 
+                                    Eigen::AngleAxisd(gtruth_rpy_bias.z, Eigen::Vector3d::UnitX());
+
+                ROS_INFO("[odom_remap]:Odom const bias cal succeed, ready to flight!");
+
+                std::cout<<"delta_x = "<<gtruth_pos_bias.x<<" delta_y = "<<gtruth_pos_bias.y<<" delta_z = "<<gtruth_pos_bias.z<<std::endl;
+                std::cout<<"delta_r = "<<gtruth_rpy_bias.x<<" delta_p = "<<gtruth_rpy_bias.y<<" delta_y = "<<gtruth_rpy_bias.z<<std::endl;
+            }
+            else
+            {
+                 std::cout<<"update_dur= "<<abs(gtruth.header.stamp.toSec() - gtruth_time_l)<<std::endl;
+                if( (abs(gtruth.header.stamp.toSec() - gtruth_time_l) < 0.03))
+                {
+                    nav_msgs::OdometryPtr odomMsg(new nav_msgs::Odometry);
+                    Eigen::Quaterniond gtruth_qua;
+
+                    qua_cal_gps(gtruth_qua);
+
+                    odomMsg->header = gtruth.header;
+                    odomMsg->child_frame_id = gtruth.child_frame_id;
+                    odomMsg->pose.pose.position.x = -(gtruth.pose.pose.position.x - gtruth_pos_bias.x);
+                    odomMsg->pose.pose.position.y = -(gtruth.pose.pose.position.y - gtruth_pos_bias.y);
+                    odomMsg->pose.pose.position.z = gtruth.pose.pose.position.z - gtruth_pos_bias.z;
+                    odomMsg->pose.covariance = gtruth.pose.covariance;
+                    odomMsg->pose.pose.orientation.w = gtruth_qua.w();
+                    odomMsg->pose.pose.orientation.x = gtruth_qua.x();
+                    odomMsg->pose.pose.orientation.y = gtruth_qua.y();
+                    odomMsg->pose.pose.orientation.z = gtruth_qua.z();
+                    odomMsg->twist = gtruth.twist;
+
+                    odomPub.publish(odomMsg);
+                }
+                else
+                {
+                    ROS_WARN("[odom_remap]:odom data update rate is too low!");
+                    std::cout<<"truth_data_delay= "<<abs(gtruth.header.stamp.toSec() - gtruth_time_l)<<std::endl; //test
+                }
+            }
+        }
+        else
+        {
+            ROS_ERROR("[odom_remap]:No odom data, please check rostopic.");
+            while(!gtruthsubTri)
             {
                 ros::Duration(0.2).sleep();
             }
@@ -258,8 +370,10 @@ private:
 
     void init(ros::NodeHandle& nh)
     {
+        int odom_source;
         nh.getParam("gtruthTopic", gtruthTopic);
         nh.param("fit_size", fit_size, 100);
+        nh.param("odom_source", odom_source, 0); // 0 for mocap, 1 for gps
 
         gtruth_pos_bias.x = 0;
         gtruth_pos_bias.y = 0;
@@ -268,14 +382,25 @@ private:
         gtruth_rpy_bias.y = 0;
         gtruth_rpy_bias.z = 0;
 
-        gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::gtruthCallback, this,
-                                   ros::TransportHints().tcpNoDelay());
         imuSub = nh.subscribe("/mavros/imu/data", 10, &odomRemap::imuCallback, this);
 
         odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap", 10);
         // imuvelrawPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity_raw",10);//test
 
-        odom_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::odom_pub, this);
+        switch (odom_source) {
+            case 0:
+                gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::mctruthCallback, this,
+                                   ros::TransportHints().tcpNoDelay());
+                odom_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::mc_odom_pub, this);
+                ROS_INFO("[odom_remap]:Using Mocap for odom calculate.");
+                break;
+            case 1:
+                gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::gpstruthCallback, this,
+                                    ros::TransportHints().tcpNoDelay());
+                odom_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::gps_odom_pub, this);
+                ROS_INFO("[odom_remap]:Using GPS for odom calculate.");
+                break;
+        }
     }
 
 public:

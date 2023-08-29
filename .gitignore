@@ -13,5 +13,5 @@ devel/
 
 data/
 
-# 忽略项目根目录下的 doc 目录下的所有以 .txt 结尾的文件，但不包括 doc/server/*.txt
+# 忽略项目根目录下的 doc 目录下的所有以 .txt 结尾的文件
 doc/*.txt

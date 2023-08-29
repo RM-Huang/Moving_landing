@@ -4,8 +4,9 @@
     </node>
 
     <node pkg="nodelet" type="nodelet" name="odomRemap" args="load odomRemap/odomRemap manager" output="screen">
-      <param name="gtruthTopic" value="/vrpn_client_node/uav1/pose"/>
+      <param name="gtruthTopic" value="/mavros/local_position/odom"/>
       <param name="fit_size" value="100"/>
+      <param name="odom_source" value="1"/>
     </node>   
 
 </launch>
