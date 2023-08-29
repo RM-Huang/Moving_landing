@@ -6,7 +6,7 @@ rosbag record --tcpnodelay \
 /drone/planning/traj_follow \
 /mavros/rc/in/remap \
 /debugPx4ctrl \
-/mavros/vision_pose/pose \
+/vrpn_client_ros/uav1/pose \
 /traj_follow_start_trigger \
 /desire_pose_current_traj \
 /mavros/imu/data \
