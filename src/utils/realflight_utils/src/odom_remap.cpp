@@ -1,7 +1,7 @@
 #include <thread>
 #include <ros/ros.h>
 #include <tf/tf.h>
-#include <Eigen>
+#include <Eigen/Dense>
 #include <nodelet/nodelet.h>
 #include "polyfit.hpp"
 
@@ -190,24 +190,30 @@ private:
         }     
     }
 
-    void qua_cal_mc(geometry_msgs::Quaternion& gtruth_qua)
+    // void qua_cal_mc(geometry_msgs::Quaternion& gtruth_qua)
+    // {
+    //     Eigen::Quaterniond gtruth_orientation;
+
+    //     gtruth_orientation.w() = gtruth.pose.pose.orientation.w;
+    //     gtruth_orientation.x() = gtruth.pose.pose.orientation.x;
+    //     gtruth_orientation.y() = gtruth.pose.pose.orientation.y;
+    //     gtruth_orientation.z() = gtruth.pose.pose.orientation.z;
+
+    //     gtruth_qua = gtruth_qua_bias.inverse() * gtruth_orientation;
+    //     // tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
+    //     // tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+
+    //     // gtruth_rpy.x = gtruth_rpy.x - gtruth_rpy_bias.x;
+    //     // gtruth_rpy.y = gtruth_rpy.y - gtruth_rpy_bias.y;
+    //     // gtruth_rpy.z = gtruth_rpy.z - gtruth_rpy_bias.z;
+
+    //     // std::cout<<"roll = "<<gtruth_rpy.y<<" pitch = "<<-gtruth_rpy.x<<" yaw = "<<gtruth_rpy.z<<std::endl;
+
+    //     // gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.y, - gtruth_rpy.x, gtruth_rpy.z); //mocap system has y front and x right 
+    // }
+
+    void qua_cal(Eigen::Quaterniond& qua)
     {
-        tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
-        tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
-
-        gtruth_rpy.x = gtruth_rpy.x - gtruth_rpy_bias.x;
-        gtruth_rpy.y = gtruth_rpy.y - gtruth_rpy_bias.y;
-        gtruth_rpy.z = gtruth_rpy.z - gtruth_rpy_bias.z;
-
-        std::cout<<"roll = "<<gtruth_rpy.y<<" pitch = "<<-gtruth_rpy.x<<" yaw = "<<gtruth_rpy.z<<std::endl;
-
-        gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.y, - gtruth_rpy.x, gtruth_rpy.z); //mocap system has y front and x right 
-    }
-
-    void qua_cal_gps(Eigen::Quaterniond& qua)
-    {
-        // tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
-        // tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
         Eigen::Quaterniond gtruth_orientation;
 
         gtruth_orientation.w() = gtruth.pose.pose.orientation.w;
@@ -216,14 +222,6 @@ private:
         gtruth_orientation.z() = gtruth.pose.pose.orientation.z;
 
         qua = gtruth_qua_bias.inverse() * gtruth_orientation;
-        // gtruth_rpy.x = gtruth_rpy.x - gtruth_rpy_bias.x;
-        // gtruth_rpy.y = gtruth_rpy.y - gtruth_rpy_bias.y;
-        // gtruth_rpy.z = gtruth_rpy.z - gtruth_rpy_bias.z;
-
-        Eigen::Vector3d rpy = qua.matrix().eulerAngles(0,1,2); //test
-        std::cout<<"roll = "<<rpy(0) * 180 / 3.14159265<<" pitch = "<<rpy(1) * 180 / 3.14159265<<" yaw = "<<rpy(2) * 180 / 3.14159265<<std::endl;
-
-        // gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z); //mocap system has y front and x right 
     }
 
     void mc_odom_pub(const ros::TimerEvent& time_event)
@@ -248,9 +246,13 @@ private:
                 gtruth_rpy_bias.y = gtruth_rpy_bias.y / bias_c;
                 gtruth_rpy_bias.z = gtruth_rpy_bias.z / bias_c;
 
+                gtruth_qua_bias = Eigen::AngleAxisd(gtruth_rpy_bias.z, Eigen::Vector3d::UnitZ()) * 
+                    Eigen::AngleAxisd(gtruth_rpy_bias.y, Eigen::Vector3d::UnitY()) * 
+                    Eigen::AngleAxisd(gtruth_rpy_bias.x, Eigen::Vector3d::UnitX());
+
                 ROS_INFO("[odom_remap]:Odom const bias cal succeed, ready to flight!");
 
-                std::cout<<"delta_r = "<<gtruth_rpy_bias.x<<" delta_p = "<<gtruth_rpy_bias.y<<" delta_y = "<<gtruth_rpy_bias.z<<std::endl;
+                std::cout<<"delta_r = "<<gtruth_rpy_bias.x * 180 / 3.14159265<<" delta_p = "<<gtruth_rpy_bias.y * 180 / 3.14159265<<" delta_y = "<<gtruth_rpy_bias.z * 180 / 3.14159265<<std::endl;
                 // std::cout<<"delta_t = "<<gtruth_time_delay<<" delta_x = "<<gtruth_pos_bias.x<<" delta_y = "<<gtruth_pos_bias.y<<" delta_z = "<<gtruth_pos_bias.z<<std::endl;
             }
             else
@@ -261,16 +263,19 @@ private:
                 {
                     geometry_msgs::Vector3 vel;
                     nav_msgs::OdometryPtr odomMsg(new nav_msgs::Odometry);
-                    geometry_msgs::Quaternion gtruth_qua;
+                    Eigen::Quaterniond gtruth_qua;
 
                     imuvel_cal(vel);
-                    qua_cal_mc(gtruth_qua);
+                    qua_cal(gtruth_qua);
 
                     odomMsg->header.stamp = ros::Time().fromSec(gtruth_t - gtruth_time_delay);
                     odomMsg->pose.pose.position.x = gtruth.pose.pose.position.y - gtruth_pos_bias.y;
                     odomMsg->pose.pose.position.y = -(gtruth.pose.pose.position.x - gtruth_pos_bias.x);
                     odomMsg->pose.pose.position.z = gtruth.pose.pose.position.z - gtruth_pos_bias.z;
-                    odomMsg->pose.pose.orientation = gtruth_qua;
+                    odomMsg->pose.pose.orientation.w = gtruth_qua.w();
+                    odomMsg->pose.pose.orientation.x = gtruth_qua.x();
+                    odomMsg->pose.pose.orientation.y = gtruth_qua.y();
+                    odomMsg->pose.pose.orientation.z = gtruth_qua.z();
                     odomMsg->twist.twist.linear.x = vel.x;
                     odomMsg->twist.twist.linear.y = vel.y;
                     odomMsg->twist.twist.linear.z = vel.z;
@@ -289,7 +294,6 @@ private:
         }
         else
         {
-            ROS_INFO("[odom_remap]:Using Mocap for odom calculate.");
             ROS_ERROR("[odom_remap]:No odom or imu data, please check rostopic.");
             while(!imusubTri || !gtruthsubTri)
             {
@@ -317,24 +321,23 @@ private:
                 gtruth_rpy_bias.x = gtruth_rpy_bias.x / bias_c;
                 gtruth_rpy_bias.y = gtruth_rpy_bias.y / bias_c;
                 gtruth_rpy_bias.z = gtruth_rpy_bias.z / bias_c;
-                gtruth_qua_bias = Eigen::AngleAxisd(gtruth_rpy_bias.x, Eigen::Vector3d::UnitZ()) * 
+                gtruth_qua_bias = Eigen::AngleAxisd(gtruth_rpy_bias.z, Eigen::Vector3d::UnitZ()) * 
                                     Eigen::AngleAxisd(gtruth_rpy_bias.y, Eigen::Vector3d::UnitY()) * 
-                                    Eigen::AngleAxisd(gtruth_rpy_bias.z, Eigen::Vector3d::UnitX());
+                                    Eigen::AngleAxisd(gtruth_rpy_bias.x, Eigen::Vector3d::UnitX());
 
                 ROS_INFO("[odom_remap]:Odom const bias cal succeed, ready to flight!");
 
                 std::cout<<"delta_x = "<<gtruth_pos_bias.x<<" delta_y = "<<gtruth_pos_bias.y<<" delta_z = "<<gtruth_pos_bias.z<<std::endl;
-                std::cout<<"delta_r = "<<gtruth_rpy_bias.x<<" delta_p = "<<gtruth_rpy_bias.y<<" delta_y = "<<gtruth_rpy_bias.z<<std::endl;
+                std::cout<<"delta_r = "<<gtruth_rpy_bias.x * 180 / 3.14159265<<" delta_p = "<<gtruth_rpy_bias.y * 180 / 3.14159265<<" delta_y = "<<gtruth_rpy_bias.z * 180 / 3.14159265<<std::endl;
             }
             else
             {
-                 std::cout<<"update_dur= "<<abs(gtruth.header.stamp.toSec() - gtruth_time_l)<<std::endl;
                 if( (abs(gtruth.header.stamp.toSec() - gtruth_time_l) < 0.03))
                 {
                     nav_msgs::OdometryPtr odomMsg(new nav_msgs::Odometry);
                     Eigen::Quaterniond gtruth_qua;
 
-                    qua_cal_gps(gtruth_qua);
+                    qua_cal(gtruth_qua);
 
                     odomMsg->header = gtruth.header;
                     odomMsg->child_frame_id = gtruth.child_frame_id;
@@ -349,6 +352,10 @@ private:
                     odomMsg->twist = gtruth.twist;
 
                     odomPub.publish(odomMsg);
+
+                    tf::quaternionMsgToTF(odomMsg->pose.pose.orientation, gtruth_Q2T);
+                    tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+                    std::cout<<"roll = "<<gtruth_rpy.x * 180 / 3.14159265<<" pitch = "<<gtruth_rpy.y * 180 / 3.14159265<<" yaw = "<<gtruth_rpy.z * 180 / 3.14159265<<std::endl;
                 }
                 else
                 {

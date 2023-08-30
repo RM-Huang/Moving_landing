@@ -15,3 +15,5 @@ data/
 
 # 忽略项目根目录下的 doc 目录下的所有以 .txt 结尾的文件
 doc/*.txt
+
+src/vis_utils（复件）/
