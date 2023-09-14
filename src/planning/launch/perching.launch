@@ -25,9 +25,12 @@
     <node pkg="nodelet" type="nodelet" name="planning" args="load planning/Nodelet manager" output="screen">
       <!-- 将发布的/drone0/planning/odom重命名为/drone0/odom -->
       <remap from="~odom" to="odom"/>
+      <!-- 订阅目标与无人机odom -->
+      <remap from="~target_odom" to="/target/odom"/>
+      <remap from="~uav_odom" to="uav/odom"/>
       <!-- 未使用话题 -->
       <remap from="~heartbeat" to="heartbeat"/>
-      <!-- trajectory话题由odom_visualization话题发出，但没有接收者 -->
+      <!-- trajectory话题由odom_visualization话题发出 -->
       <remap from="~trajectory" to="trajectory"/>
       <!-- 未使用话题 -->
       <remap from="~replanState" to="replanState"/>
@@ -67,7 +70,7 @@
       <param name="perching_pz" value="1.0"/>
       <!-- <param name="perching_pz" value="1.5"/> -->
       <!-- <param name="perching_pz" value="2.0"/> -->
-      <param name="perching_vx" value="2.0"/>
+      <param name="perching_vx" value="0.0"/>
       <param name="perching_vy" value="0.0"/>
       <param name="perching_vz" value="0.0"/>
 

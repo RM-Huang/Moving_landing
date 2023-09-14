@@ -341,8 +341,8 @@ private:
 
                     odomMsg->header = gtruth.header;
                     odomMsg->child_frame_id = gtruth.child_frame_id;
-                    odomMsg->pose.pose.position.x = -(gtruth.pose.pose.position.x - gtruth_pos_bias.x);
-                    odomMsg->pose.pose.position.y = -(gtruth.pose.pose.position.y - gtruth_pos_bias.y);
+                    odomMsg->pose.pose.position.x = gtruth.pose.pose.position.x - gtruth_pos_bias.x;
+                    odomMsg->pose.pose.position.y = gtruth.pose.pose.position.y - gtruth_pos_bias.y;
                     odomMsg->pose.pose.position.z = gtruth.pose.pose.position.z - gtruth_pos_bias.z;
                     odomMsg->pose.covariance = gtruth.pose.covariance;
                     odomMsg->pose.pose.orientation.w = gtruth_qua.w();
@@ -353,9 +353,9 @@ private:
 
                     odomPub.publish(odomMsg);
 
-                    tf::quaternionMsgToTF(odomMsg->pose.pose.orientation, gtruth_Q2T);
-                    tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
-                    std::cout<<"roll = "<<gtruth_rpy.x * 180 / 3.14159265<<" pitch = "<<gtruth_rpy.y * 180 / 3.14159265<<" yaw = "<<gtruth_rpy.z * 180 / 3.14159265<<std::endl;
+                    // tf::quaternionMsgToTF(odomMsg->pose.pose.orientation, gtruth_Q2T);
+                    // tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+                    // std::cout<<"roll = "<<gtruth_rpy.x * 180 / 3.14159265<<" pitch = "<<gtruth_rpy.y * 180 / 3.14159265<<" yaw = "<<gtruth_rpy.z * 180 / 3.14159265<<std::endl;
                 }
                 else
                 {

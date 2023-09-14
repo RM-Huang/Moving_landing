@@ -1,5 +1,4 @@
 gnome-terminal --window -e 'bash -c "roslaunch px4ctrl run_ctrl.launch; exec bash"' \
---tab -e 'bash -c "sleep 3; roslaunch vrpn_client_ros sample.launch; exec bash"' \
 --tab -e 'bash -c "sleep 5; rosrun mavros mavcmd long 511 105 5000 0 0 0 0 0; "' \
 --tab -e 'bash -c "sleep 6; rosrun mavros mavcmd long 511 31 5000 0 0 0 0 0; "' \
 --tab -e 'bash -c "sleep 6; rosrun mavros mavcmd long 511 32 5000 0 0 0 0 0; "' \

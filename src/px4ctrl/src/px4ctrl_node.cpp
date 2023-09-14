@@ -77,8 +77,8 @@ int main(int argc, char *argv[])
                                                   ros::TransportHints().tcpNoDelay());
 
     fsm.ctrl_FCU_pub = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
-    fsm.traj_start_trigger_pub = nh.advertise<geometry_msgs::PoseStamped>("/traj_start_trigger", 10);
-    fsm.traj_follow_start_trigger_pub = nh.advertise<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10); //首条轨迹控制命令发布时触发
+    fsm.traj_start_triger_pub = nh.advertise<geometry_msgs::PoseStamped>("/traj_start_trigger", 10);
+    fsm.traj_follow_start_triger_pub = nh.advertise<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10); //首条轨迹控制命令发布时触发
 
     // fsm.odom_rz_pub = nh.advertise<nav_msgs::Odometry>("/px4ctrl/odom_re_zero", 10); // 发布归零后的里程计数据
     fsm.debug_pub = nh.advertise<quadrotor_msgs::Px4ctrlDebug>("/debugPx4ctrl", 10); // debug

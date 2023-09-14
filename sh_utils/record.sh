@@ -6,13 +6,19 @@ rosbag record --tcpnodelay \
 /drone/planning/traj_follow \
 /mavros/rc/in/remap \
 /debugPx4ctrl \
-/vrpn_client_ros/uav1/pose \
 /traj_follow_start_trigger \
+/drone/planning/traj_follow \
 /desire_pose_current_traj \
 /mavros/imu/data \
 /mavros/actuator_control \
-/visual/imuacc_x \
-/visual/imuacc_y \
-/visual/imuacc_z \
+/mavros/local_position/odom \
+/analyse/posdiffer \
+/analyse/yawdiffer \
+/analyse/pitchdiffer \
+/analyse/rolldiffer \
+/analyse/desPath \
+/analyse/truthPath \
 /analyse/rpy_des \
-/analyse/rpy_truth
+/analyse/rpy_truth \
+/tag_detections \
+/camera/color/image_raw

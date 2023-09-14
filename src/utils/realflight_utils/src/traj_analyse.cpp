@@ -100,15 +100,15 @@ class trajAls : public nodelet::Nodelet
         // imu_t.emplace_back(imuMsg->header.stamp.toSec() - imu_t0);
         // std::cout<<"imu_t_size = "<<imu_t.size()<<std::endl;
 
-        acc_x.data = imuMsg->linear_acceleration.x;
-        acc_y.data = imuMsg->linear_acceleration.y;
-        acc_z.data = imuMsg->linear_acceleration.z;
+        // acc_x.data = imuMsg->linear_acceleration.x;
+        // acc_y.data = imuMsg->linear_acceleration.y;
+        // acc_z.data = imuMsg->linear_acceleration.z;
 
-        // imuvel_cul();
+        // // imuvel_cul();
 
-        imuaccPub_x.publish(acc_x);
-        imuaccPub_y.publish(acc_y);
-        imuaccPub_z.publish(acc_z);
+        // imuaccPub_x.publish(acc_x);
+        // imuaccPub_y.publish(acc_y);
+        // imuaccPub_z.publish(acc_z);
     }
 
     void ctrlCallback(const quadrotor_msgs::Px4ctrlDebug::ConstPtr &ctrlMsg)
@@ -282,12 +282,12 @@ class trajAls : public nodelet::Nodelet
             desSub = nh.subscribe(desTopic, 10, &trajAls::desCallback, this,
                                    ros::TransportHints().tcpNoDelay());
 
-            despathPub = nh.advertise<nav_msgs::Path>("desPath", 10);
-            truthpathPub = nh.advertise<nav_msgs::Path>("truthPath", 10);
-            posdifferPub = nh.advertise<std_msgs::Float64>("visual/posdiffer", 100);
-            yawdifferPub = nh.advertise<std_msgs::Float64>("visual/yawdiffer", 100);
-            pitchdefferPub = nh.advertise<std_msgs::Float64>("visual/pitchdiffer", 100);
-            rolldifferPub = nh.advertise<std_msgs::Float64>("visual/rolldiffer", 100);
+            despathPub = nh.advertise<nav_msgs::Path>("/analyse/desPath", 10);
+            truthpathPub = nh.advertise<nav_msgs::Path>("/analyse/truthPath", 10);
+            posdifferPub = nh.advertise<std_msgs::Float64>("/analyse/posdiffer", 100);
+            yawdifferPub = nh.advertise<std_msgs::Float64>("/analyse/yawdiffer", 100);
+            pitchdefferPub = nh.advertise<std_msgs::Float64>("/analyse/pitchdiffer", 100);
+            rolldifferPub = nh.advertise<std_msgs::Float64>("/analyse/rolldiffer", 100);
 
             als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::traj_analyse, this);
         }

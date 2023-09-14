@@ -12,6 +12,9 @@
   <depend>roscpp</depend>
   <depend>nodelet</depend>
   <depend>traj_opt</depend>
+  <build_depend>quadrotor_msgs</build_depend>
+  <build_export_depend>quadrotor_msgs</build_export_depend>
+  <exec_depend>quadrotor_msgs</exec_depend>
 
   <export>
     <nodelet plugin="${prefix}/nodelet_plugin.xml"/>

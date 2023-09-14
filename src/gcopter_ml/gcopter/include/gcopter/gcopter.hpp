@@ -545,7 +545,7 @@ namespace gcopter
            //得到平坦空间的花费和梯度
             backwardGradT(tau, obj.gradByTimes, gradTau);//任务泛函对T的梯度
             // backwardGradP(xi, obj.vPolyIdx, obj.vPolytopes, obj.gradByPoints, gradXi);//任务泛函对航点的梯度
-            // normRetrictionLayer(xi, obj.vPolyIdx, obj.vPolytopes, cost, gradXi);//计算任务泛函的花费和梯度
+            normRetrictionLayer(xi, obj.vPolyIdx, obj.vPolytopes, cost, gradXi);//计算任务泛函的花费和梯度
 
             return cost;//损失函数
         }

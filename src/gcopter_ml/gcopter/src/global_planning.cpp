@@ -292,15 +292,24 @@ public:
             // std::cout<<"position = "<<std::endl;
             // std::cout<<current_pose.pose.position<<std::endl;
 
-            route_M.col(1) = Eigen::Vector3d(x_h, y_h, z_min);
-            route_M.col(2) = Eigen::Vector3d(-x_h, y_h, z_min + z_wide / 8);
-            route_M.col(3) = Eigen::Vector3d(x_h, -y_h, z_min + z_wide / 4);
-            route_M.col(4) = Eigen::Vector3d(-x_h, -y_h, z_min + 3 * z_wide / 8);
+            // route_M.col(1) = Eigen::Vector3d(x_h, y_h, z_min);
+            // route_M.col(2) = Eigen::Vector3d(-x_h, y_h, z_min + z_wide / 8);
+            // route_M.col(3) = Eigen::Vector3d(x_h, -y_h, z_min + z_wide / 4);
+            // route_M.col(4) = Eigen::Vector3d(-x_h, -y_h, z_min + 3 * z_wide / 8);
 
-            route_M.col(5) = Eigen::Vector3d(x_h, y_h, z_min + z_wide / 2);
-            route_M.col(6) = Eigen::Vector3d(-x_h, y_h, z_min + 5 * z_wide / 8);
-            route_M.col(7) = Eigen::Vector3d(x_h, -y_h, z_min + 6 * z_wide / 8);
-            route_M.col(8) = Eigen::Vector3d(-x_h, -y_h, z_min + 7 * z_wide / 8);
+            // route_M.col(5) = Eigen::Vector3d(x_h, y_h, z_min + z_wide / 2);
+            // route_M.col(6) = Eigen::Vector3d(-x_h, y_h, z_min + 5 * z_wide / 8);
+            // route_M.col(7) = Eigen::Vector3d(x_h, -y_h, z_min + 6 * z_wide / 8);
+            // route_M.col(8) = Eigen::Vector3d(-x_h, -y_h, z_min + 7 * z_wide / 8);
+
+            route_M.col(1) = Eigen::Vector3d(current_pose.pose.position.x+0.3, current_pose.pose.position.y, current_pose.pose.position.z);
+            route_M.col(2) = Eigen::Vector3d(current_pose.pose.position.x+0.6, current_pose.pose.position.y, current_pose.pose.position.z);
+            route_M.col(3) = Eigen::Vector3d(current_pose.pose.position.x+0.9, current_pose.pose.position.y, current_pose.pose.position.z);
+            route_M.col(4) = Eigen::Vector3d(current_pose.pose.position.x+1.2, current_pose.pose.position.y, current_pose.pose.position.z);
+            route_M.col(5) = Eigen::Vector3d(current_pose.pose.position.x+1.5, current_pose.pose.position.y, current_pose.pose.position.z);
+            route_M.col(6) = Eigen::Vector3d(current_pose.pose.position.x+1.8, current_pose.pose.position.y, current_pose.pose.position.z);
+            route_M.col(7) = Eigen::Vector3d(current_pose.pose.position.x+2.1, current_pose.pose.position.y, current_pose.pose.position.z);
+            route_M.col(8) = Eigen::Vector3d(current_pose.pose.position.x+2.4, current_pose.pose.position.y, current_pose.pose.position.z);
             
             // std::cout<<"setpoint suc"<<std::endl;
 
@@ -361,7 +370,7 @@ public:
             {
                 return;
             }        
-            ROS_INFO("planning succeed!");       
+            ROS_INFO("planning succeed! Total time duration: %f",traj.getTotalDuration());       
 
             // //带时间戳的轨迹显示
             // if (traj.getPieceNum() > 0)
@@ -381,6 +390,7 @@ public:
     inline void stateCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
     {
         current_pose = *msg;
+        std::cout<<"start_pose = "<<current_pose.pose.position.x<<" "<<current_pose.pose.position.y<<" "<<current_pose.pose.position.z<<std::endl;
     }
 
     inline void ctrltriCallback(const quadrotor_msgs::TrajctrlTrigger::ConstPtr &msg)
@@ -656,7 +666,7 @@ public:
         {
             targetSetting();
         }
-        process_timer = nh.createTimer(ros::Duration(0.01), &GlobalPlanner::process, this);
+        process_timer = nh.createTimer(ros::Duration(0.008), &GlobalPlanner::process, this);
     }
 
     void onInit(void) 

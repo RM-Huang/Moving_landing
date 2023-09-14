@@ -1,5 +1,6 @@
 # 忽略项目根目录下所有以 .a 结尾的文件
 *.a
+*.bag
 
 # lib.a 除外
 !lib.a
@@ -14,6 +15,6 @@ devel/
 data/
 
 # 忽略项目根目录下的 doc 目录下的所有以 .txt 结尾的文件
-doc/*.txt
+sh_utils/*.txt
 
 src/vis_utils（复件）/

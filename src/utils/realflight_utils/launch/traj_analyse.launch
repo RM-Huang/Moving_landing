@@ -2,9 +2,9 @@
 
     <!-- <group ns="drone"> -->
         <!-- rviz -->
-        <node name="rviz" pkg="rviz" type="rviz" output="screen"
+        <!-- <node name="rviz" pkg="rviz" type="rviz" output="screen"
                 args="-d $(find realflight_utils)/config/traj_follow.rviz"> 
-        </node>
+        </node> -->
 
         <!-- <node name="pos_vel_plot" pkg="rqt_plot" type="rqt_plot" 
                 args="visual/posdiffer visual/yawdiffer visual/pitchdiffer visual/rolldiffer">

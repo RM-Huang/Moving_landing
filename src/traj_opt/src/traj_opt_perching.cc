@@ -32,7 +32,7 @@ static Eigen::Vector3d f_N(const Eigen::Vector3d& x) {
 }
 static Eigen::MatrixXd f_DN(const Eigen::Vector3d& x) {
   double x_norm_2 = x.squaredNorm();
-  return (Eigen::MatrixXd::Identity(3, 3) - x * x.transpose() / x_norm_2) / sqrt(x_norm_2);
+  return (Eigen::MatrixXd::Identity(3, 3) - x * x.transpose() / x_norm_2) / sqrt(x_norm_2); // 公式9b
 }
 static Eigen::MatrixXd f_D2N(const Eigen::Vector3d& x, const Eigen::Vector3d& y) {
   double x_norm_2 = x.squaredNorm();
@@ -110,7 +110,7 @@ static void addLayerThrust(const double& f,
 }
 static void forwardTailV(const Eigen::Ref<const Eigen::Vector2d>& xy,
                          Eigen::Ref<Eigen::Vector3d> tailV) {
-  tailV = land_v_ + xy.x() * v_t_x_ + xy.y() * v_t_y_;
+  tailV = land_v_ + xy.x() * v_t_x_ + xy.y() * v_t_y_; // 公式19,land_v_ = car_v - tail_q_v_ * v_plus_
 }
 
 // !SECTION variables transformation and gradient transmission
@@ -139,11 +139,11 @@ static inline double objectiveFunc(void* ptrObj,
   Eigen::MatrixXd tailS(3, 4);
   tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_;
   tailS.col(1) = tailV;
-  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
   tailS.col(3).setZero();
 
   auto tic = std::chrono::steady_clock::now();
-  obj.mincoOpt_.generate(obj.initS_, tailS, P, dT);
+  obj.mincoOpt_.generate(obj.initS_, tailS, P, dT); // minco生成轨迹
 
   double cost = obj.mincoOpt_.getTrajSnapCost();
   obj.mincoOpt_.calGrads_CT();
@@ -185,6 +185,7 @@ static inline double objectiveFunc(void* ptrObj,
 
   return cost;
 }
+
 // !SECTION object function
 static inline int earlyExit(void* ptrObj,
                             const double* x,
@@ -275,6 +276,7 @@ static void bvp(const double& t,
   coeffMat.col(2) = coeffMat.col(2) / t5;
   coeffMat.col(3) = coeffMat.col(3) / t4;
 }
+
 static double getMaxOmega(Trajectory& traj) {
   double dt = 0.01;
   double max_omega = 0;
@@ -282,8 +284,8 @@ static double getMaxOmega(Trajectory& traj) {
     Eigen::Vector3d a = traj.getAcc(t);
     Eigen::Vector3d j = traj.getJer(t);
     Eigen::Vector3d thrust = a - g_;
-    Eigen::Vector3d zb_dot = f_DN(thrust) * j;
-    double omega12 = zb_dot.norm();
+    Eigen::Vector3d zb_dot = f_DN(thrust) * j; // zb为推力方向向量，公式9b
+    double omega12 = zb_dot.norm(); // 角速度前两个分量平方和
     if (omega12 > max_omega) {
       max_omega = omega12;
     }
@@ -317,7 +319,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   thrust_middle_ = (thrust_max_ + thrust_min_) / 2; // 中位
   thrust_half_ = (thrust_max_ - thrust_min_) / 2; // 半增值
 
-  land_v_ = car_v - tail_q_v_ * v_plus_; // 在平台运动速度基础上减去降落平面方向上的微小速度，避免碰撞
+  land_v_ = car_v - tail_q_v_ * v_plus_; // 在平台运动速度基础上减去降落平面方向上的微小速度
   // std::cout << "tail_q_v_: " << tail_q_v_.transpose() << std::endl;
 
   v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 0, 1));
@@ -353,7 +355,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
     bvp_f.col(0) = car_p_;
     bvp_f.col(1) = car_v_;
-    bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+    bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
     bvp_f.col(3).setZero();
     double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
     CoefficientMat coeffMat;
@@ -361,10 +363,11 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     do {
       T_bvp += 1.0;
       bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
-      bvp(T_bvp, bvp_i, bvp_f, coeffMat); //得到中间路径点
+      bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
       std::vector<double> durs{T_bvp};
       std::vector<CoefficientMat> coeffs{coeffMat};
-      Trajectory traj(durs, coeffs); //获得轨迹
+      std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+      Trajectory traj(durs, coeffs); // 保存粗轨迹
       max_omega = getMaxOmega(traj);
     } while (max_omega > 1.5 * omega_max_);
     Eigen::VectorXd tt(8);
@@ -374,9 +377,12 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
       for (int j = 6; j >= 0; j -= 1) {
         tt(j) = tt(j + 1) * tt0;
       }
-      P.col(i - 1) = coeffMat * tt;
+      P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
+      // std::cout<<"tt:"<<tt.transpose()<<std::endl;
+      // std::cout<<"P:"<<std::endl;
+      // std::cout<<P<<std::endl;
     }
-    t = logC2(T_bvp / N_);
+    t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
   }
   // std::cout << "initial guess >>> t: " << t << std::endl;
   // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
@@ -445,6 +451,154 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   return true;
 }
 
+// bool TrajOpt::generate_test_traj(const std::vector<Eigen::Vector3d> route,
+//                                 Trajectory& traj,
+//                                 const double& t_replan) {
+  
+//   N_ = route.size(); // pieces
+//   dim_t_ = 1;
+//   dim_p_ = N_ - 1;
+//   x_ = new double[dim_t_ + 3 * dim_p_ + 1 + 2];  // 1: tail thrust; 2: tail vt
+//   double& t = x_[0];
+//   Eigen::Map<Eigen::MatrixXd> P(x_ + dim_t_, 3, dim_p_); // P为x_的映射矩阵，3行dim_p_列，从第dim_t_组开始取
+//   double& tail_f = x_[dim_t_ + 3 * dim_p_];
+//   Eigen::Map<Eigen::Vector2d> vt(x_ + dim_t_ + 3 * dim_p_ + 1); //
+//   car_p_ = fin_p;
+//   car_v_ = fin_v;
+
+//   q2v(fin_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
+//   thrust_middle_ = (thrust_max_ + thrust_min_) / 2; // 中位
+//   thrust_half_ = (thrust_max_ - thrust_min_) / 2; // 半增值
+
+//   land_v_ = fin_v - tail_q_v_ * v_plus_; // 在平台运动速度基础上减去降落平面方向上的微小速度，避免碰撞
+//   // std::cout << "tail_q_v_: " << tail_q_v_.transpose() << std::endl;
+
+//   v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 0, 1));
+//   if (v_t_x_.squaredNorm() == 0) {
+//     v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 1, 0));
+//   }
+//   v_t_x_.normalize();
+//   v_t_y_ = tail_q_v_.cross(v_t_x_);
+//   v_t_y_.normalize(); //这一段定义了以tail_q_v_为z轴的坐标系
+
+//   vt.setConstant(0.0);
+
+//   // NOTE set boundary conditions
+//   initS_ = iniState;
+
+//   // set initial guess with obvp minimum jerk + rhoT
+//   mincoOpt_.reset(N_);
+
+//   tail_f = 0;
+
+//   bool opt_once = initial_guess_ && t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
+//   if (opt_once) { // if t_replan is true and not for first plan
+//     double init_T = init_traj_.getTotalDuration() - t_replan;
+//     t = logC2(init_T / N_);
+//     for (int i = 1; i < N_; ++i) {
+//       double tt0 = (i * 1.0 / N_) * init_T;
+//       P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
+//     }
+//     tail_f = init_tail_f_;
+//     vt = init_vt_;
+//   } else {
+//     Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
+//     Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
+//     bvp_f.col(0) = car_p_;
+//     bvp_f.col(1) = car_v_;
+//     bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+//     bvp_f.col(3).setZero();
+//     double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
+//     CoefficientMat coeffMat;
+//     double max_omega = 0;
+//     do {
+//       T_bvp += 1.0;
+//       bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
+//       bvp(T_bvp, bvp_i, bvp_f, coeffMat); //得到多项式阶数
+//       std::vector<double> durs{T_bvp};
+//       std::vector<CoefficientMat> coeffs{coeffMat};
+//       std::cout<<"T_bvp = "<<T_bvp<<" "<<"durs.size = "<<durs.size()<<" coeffs.size = "<<coeffs.size()<<std::endl;
+//       Trajectory traj(durs, coeffs); //获得多项式粗轨迹
+//       max_omega = getMaxOmega(traj);
+//     } while (max_omega > 1.5 * omega_max_);
+//     Eigen::VectorXd tt(8);
+//     tt(7) = 1.0;
+//     for (int i = 1; i < N_; ++i) {
+//       double tt0 = (i * 1.0 / N_) * T_bvp;
+//       for (int j = 6; j >= 0; j -= 1) {
+//         tt(j) = tt(j + 1) * tt0;
+//       }
+//       P.col(i - 1) = coeffMat * tt;
+//     }
+//     t = logC2(T_bvp / N_);
+//   }
+//   // std::cout << "initial guess >>> t: " << t << std::endl;
+//   // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
+//   // std::cout << "initial guess >>> vt: " << vt.transpose() << std::endl;
+
+//   // NOTE optimization
+//   lbfgs::lbfgs_parameter_t lbfgs_params;
+//   lbfgs::lbfgs_load_default_parameters(&lbfgs_params);
+//   lbfgs_params.mem_size = 32;
+//   lbfgs_params.past = 3;
+//   lbfgs_params.g_epsilon = 0.0;
+//   lbfgs_params.min_step = 1e-16;
+//   lbfgs_params.delta = 1e-4;
+//   lbfgs_params.line_search_type = 0;
+//   double minObjective;
+
+//   int opt_ret = 0;
+
+//   auto tic = std::chrono::steady_clock::now();
+//   tictoc_innerloop_ = 0;
+//   tictoc_integral_ = 0;
+
+//   iter_times_ = 0;
+//   opt_ret = lbfgs::lbfgs_optimize(dim_t_ + 3 * dim_p_ + 1 + 2, x_, &minObjective,
+//                                   &objectiveFunc, nullptr,
+//                                   &earlyExit, this, &lbfgs_params);
+
+//   auto toc = std::chrono::steady_clock::now();
+
+//   std::cout << "\033[32m>ret: " << opt_ret << "\033[0m" << std::endl;
+
+//   // std::cout << "innerloop costs: " << tictoc_innerloop_ * 1e-6 << "ms" << std::endl;
+//   // std::cout << "integral costs: " << tictoc_integral_ * 1e-6 << "ms" << std::endl;
+//   std::cout << "optmization costs: " << (toc - tic).count() * 1e-6 << "ms" << std::endl;
+//   // std::cout << "\033[32m>iter times: " << iter_times_ << "\033[0m" << std::endl;
+//   if (pause_debug_) {
+//     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+//   }
+//   if (opt_ret < 0) {
+//     delete[] x_;
+//     return false;
+//   }
+//   double dT = expC2(t);
+//   double T = N_ * dT;
+//   Eigen::Vector3d tailV;
+//   forwardTailV(vt, tailV);
+//   Eigen::MatrixXd tailS(3, 4);
+//   tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * robot_l_;
+//   tailS.col(1) = tailV;
+//   tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+//   tailS.col(3).setZero();
+//   // std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
+//   // std::cout << tailS << std::endl;
+//   mincoOpt_.generate(initS_, tailS, P, dT);
+//   traj = mincoOpt_.getTraj(); //调用MINCO轨迹类生成轨迹
+
+//   std::cout << "tailV: " << tailV.transpose() << std::endl;
+//   std::cout << "maxOmega: " << getMaxOmega(traj) << std::endl;
+//   std::cout << "maxThrust: " << traj.getMaxThrust() << std::endl;
+
+//   init_traj_ = traj;
+//   init_tail_f_ = tail_f;
+//   init_vt_ = vt;
+//   initial_guess_ = true;
+//   delete[] x_;
+//   return true;
+// }
+
 void TrajOpt::addTimeIntPenalty(double& cost) {
   Eigen::Vector3d pos, vel, acc, jer, snp;
   Eigen::Vector3d grad_tmp, grad_tmp2, grad_tmp3, grad_p, grad_v, grad_a, grad_j;
@@ -477,7 +631,7 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
     omg = (j == 0 || j == innerLoop - 1) ? 0.5 : 1.0;
 
     for (int i = 0; i < N_; ++i) {
-      const auto& c = mincoOpt_.c.block<8, 3>(i * 8, 0);
+      const auto& c = mincoOpt_.c.block<8, 3>(i * 8, 0); // 第i段多项式系数
 
       pos = c.transpose() * beta0;
       vel = c.transpose() * beta1;
@@ -520,10 +674,10 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
       }
 
       double dur2now = (i + alpha) * mincoOpt_.t(1);
-      Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now;
+      Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测
       if (grad_cost_perching_collision(pos, acc, car_p,
                                        grad_tmp, grad_tmp2, grad_tmp3,
-                                       cost_tmp)) {
+                                       cost_tmp)) { // ??
         grad_p += grad_tmp;
         grad_a += grad_tmp2;
         cost_inner += cost_tmp;
@@ -662,7 +816,7 @@ bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
   static double z_floor = 0.4;
-  double pen = z_floor - p.z();
+  double pen = z_floor - p.z(); // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
     costp = smoothedL1(pen, grad);
@@ -838,7 +992,7 @@ bool TrajOpt::feasibleCheck(Trajectory& traj) {
     Eigen::Vector3d j = traj.getJer(t);
     Eigen::Vector3d thrust = a - g_;
     Eigen::Vector3d zb_dot = f_DN(thrust) * j;
-    double omega12 = zb_dot.norm();
+    double omega12 = zb_dot.norm(); // 角速度前两个分量平方和
     if (omega12 > omega_max_ + 0.2) {
       return false;
     }
