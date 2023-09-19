@@ -3,11 +3,11 @@ rosbag record --tcpnodelay \
 /mavros/setpoint_raw/attitude \
 /mavros/local_position/pose \
 /odom/remap \
-/drone/planning/traj_follow \
+/drone0/planning/traj \
 /mavros/rc/in/remap \
 /debugPx4ctrl \
 /traj_follow_start_trigger \
-/drone/planning/traj_follow \
+/drone0/planning/traj \
 /desire_pose_current_traj \
 /mavros/imu/data \
 /mavros/actuator_control \

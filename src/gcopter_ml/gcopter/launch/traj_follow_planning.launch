@@ -15,7 +15,7 @@
 
         <!-- <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl" output="screen">
                         <remap from="~odom" to="/mavros/odometry/in" />
-                        <remap from="~cmd" to="/drone/planning/traj_follow" />
+                        <remap from="~cmd" to="/drone0/planning/traj" />
                 <rosparam command="load" file="$(find px4ctrl)/config/ctrl_param_fpv.yaml" />
         </node> -->
 

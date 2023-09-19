@@ -6,7 +6,7 @@ PoseTopic:                  '/traj_start_trigger'
 
 CtrlTopic:                  '/traj_follow_start_trigger'
 
-CmdTopic:                   '/drone/planning/traj_follow'
+CmdTopic:                   '/drone0/planning/traj'
 
 TargetTopic:                '/move_base_simple/goal'
 

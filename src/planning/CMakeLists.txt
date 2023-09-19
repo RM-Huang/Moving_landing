@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   nodelet
   vis_utils
+  quadrotor_msgs
 )
 
 catkin_package(

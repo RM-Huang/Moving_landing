@@ -5,7 +5,7 @@
 			
 		<remap from="~odom" to="/odom/remap" />
 
-		<remap from="~cmd" to="/drone/planning/traj_follow" />
+		<remap from="~cmd" to="/drone0/planning/cmd" />
 
         <rosparam command="load" file="$(find px4ctrl)/config/ctrl_param_fpv.yaml" />
 	</node>
