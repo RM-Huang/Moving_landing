@@ -510,11 +510,13 @@ class Nodelet : public nodelet::Nodelet {
           }
         }
       }
-      else if(delta_from_start > traj.getTotalDuration() && uav_p[2] - target_p[2] - robot_l_ < 0.0)
+      else if(delta_from_start > traj.getTotalDuration() && uav_p[2] - target_p[2] - robot_l_ < 0.03)
       {
         quadrotor_msgs::TakeoffLand landMsg;
         landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
         land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+
+        generate_new_traj_success = false;
       }
       publishing_cmd = false;
     }
