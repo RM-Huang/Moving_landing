@@ -1,6 +1,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <quadrotor_msgs/PositionCommand.h>
+#include <quadrotor_msgs/TrajcurDesire.h>
+#include <quadrotor_msgs/TakeoffLand.h>
 #include <nodelet/nodelet.h>
 #include <ros/package.h>
 #include <ros/ros.h>
@@ -29,6 +31,8 @@ class Nodelet : public nodelet::Nodelet {
   // ros::Subscriber ctrl_start_tri_sub_;
 
   ros::Publisher cmd_pub_;
+  ros::Publisher des_pub_;
+  ros::Publisher land_pub_;
 
   ros::Timer plan_timer_;
   ros::Timer cmd_timer_;
@@ -56,11 +60,13 @@ class Nodelet : public nodelet::Nodelet {
   double vertDrag;
   double parasDrag;
   double speedEps;
+  double robot_l_;
 
   // NOTE just for debug
   // bool debug_ = false;
   // bool once_ = false;
   bool debug_replan_ = false;
+  bool ifanalyse =false;
 
   // double tracking_dur_, tracking_dist_, tolerance_d_;
   Eigen::Vector3d perching_p_, perching_v_, perching_axis_; // for simulation
@@ -149,29 +155,31 @@ class Nodelet : public nodelet::Nodelet {
 
   void realflight_plan(const ros::TimerEvent& event)
   {
-    // if(!ctrl_ready_triger || !triger_received_)
-    // {
-    //   return;
-    // }
-    if(!triger_received_ || publishing_cmd) // for testing, change to above sentence while finish
+    if(!ctrl_ready_triger || !triger_received_ || publishing_cmd)
     {
       ros::Duration(1.0).sleep();
       return;
     }
+    ROS_WARN("[planning]:plan triger received! start planning.");
+    // if(!triger_received_ || publishing_cmd) // for testing, change to above sentence while finish
+    // {
+    //   ros::Duration(1.0).sleep();
+    //   return;
+    // }
     // TODO replan require
     generate_new_traj_success = false;
     
     iniState.setZero(3, 4);
 
-    // /* for test */
-    // uav_p << 0.0, 0.0, 3.0;
+    /* for test */
+    // uav_p << 0.0, 0.0, 1.5;
     // uav_v << 0.0,0.0,0.0; 
-    // target_p = perching_p_;
-    // target_v = perching_v_;
-    // target_q.x() = 0.0;
-    // target_q.y() = 0.0;
-    // target_q.z() = 0.0;
-    // target_q.w() = 1.0; // target_q表示平台的预设姿态
+    target_p = perching_p_;
+    target_v = perching_v_;
+    target_q.x() = 0.0;
+    target_q.y() = 0.0;
+    target_q.z() = 0.0;
+    target_q.w() = 1.0; // target_q表示平台的预设姿态
     // Eigen::Vector3d axis = perching_axis_.normalized(); //将perching_axis_向量化为单位向量
     // double theta = perching_theta_ * 0.5; // 四元数乘法中除以2以保证旋转角为theta
     // /* 定义降落姿态四元数为target_q绕axis旋转theta角 */
@@ -180,19 +188,20 @@ class Nodelet : public nodelet::Nodelet {
     // land_q.y() = axis.y() * sin(theta);
     // land_q.z() = axis.z() * sin(theta);
     // land_q = target_q * land_q;
-    // std::cout << "target_p: " << target_p.transpose() << std::endl; //输出转置
-    // std::cout << "target_v: " << target_v.transpose() << std::endl;
-    // std::cout << "land_q: "
-    //           << land_q.w() << ","
-    //           << land_q.x() << ","
-    //           << land_q.y() << ","
-    //           << land_q.z() << "," << std::endl;
 
 
     iniState.col(0) = uav_p;
     iniState.col(1) = uav_v;
-
     land_q = target_q; // 后续加入姿态预测内容
+
+    std::cout<<"uav_p = "<<uav_p.transpose()<<" uav_v = "<<uav_v.transpose()<<std::endl;
+    std::cout << "target_p: " << target_p.transpose() << std::endl;
+    std::cout << "target_v: " << target_v.transpose() << std::endl;
+    std::cout << "land_q: "
+              << land_q.w() << ","
+              << land_q.x() << ","
+              << land_q.y() << ","
+              << land_q.z() << "," << std::endl;
 
     /* 轨迹生成器traj_opt::TrajOpt::generate_traj
       input：初始状态iniState、目标位置target_p、目标速度target_v、降落点四元数land_q、段数N
@@ -205,12 +214,13 @@ class Nodelet : public nodelet::Nodelet {
     {
       trajStamp = ros::Time::now().toSec();
       generate_new_traj_success = true;
-      ROS_WARN("Traj generate succeed");
+      ROS_WARN("[planning]:Traj generate succeed");
+      std::cout<<"traj_duration = "<<traj.getTotalDuration()<<std::endl;
     }
     else if(!generate_new_traj)
     {
       generate_new_traj_success = false;
-      ROS_ERROR("Traj generate fail!");
+      ROS_ERROR("[planning]:Traj generate fail!");
     }
     triger_received_ = false;
   }
@@ -392,10 +402,11 @@ class Nodelet : public nodelet::Nodelet {
 
   void cmd_pub(const ros::TimerEvent& event)
   {
-    if(generate_new_traj_success && ctrl_ready_triger && !visualize_sig)
+    if(generate_new_traj_success && ctrl_ready_triger)
     {
       publishing_cmd = true;
-      double delta_from_start = ros::Time::now().toSec() - trajStamp;
+      ros::Time current_time = ros::Time::now();
+      double delta_from_start = current_time.toSec() - trajStamp;
       if (delta_from_start > 0.0 && delta_from_start < traj.getTotalDuration())
       {
         Eigen::VectorXd physicalParams(6); //物理参数
@@ -446,104 +457,143 @@ class Nodelet : public nodelet::Nodelet {
         cmdMsg->yaw_dot = omg[2];
 
         cmd_pub_.publish(cmdMsg);
-      }
-      publishing_cmd = false;
-    }
-    else if(generate_new_traj_success && visualize_sig) // visualize traj
-    {
-      publishing_cmd = true;
-      visPtr_->visualize_traj(traj, "traj");
 
-      Eigen::Vector3d tail_pos = traj.getPos(traj.getTotalDuration());
-      Eigen::Vector3d tail_vel = traj.getVel(traj.getTotalDuration());
-      visPtr_->visualize_arrow(tail_pos, tail_pos + 0.5 * tail_vel, "tail_vel");
-
-      nav_msgs::Odometry msg;
-      msg.header.frame_id = "world";
-      double dt = 0.001;
-      Eigen::Quaterniond q_last;
-      double max_omega = 0;
-      for (double t = 0; t <= traj.getTotalDuration(); t += dt) { // get cmd at t
-        ros::Duration(dt).sleep();
-        // drone
-        Eigen::Vector3d p = traj.getPos(t);
-        Eigen::Vector3d a = traj.getAcc(t);
-        Eigen::Vector3d j = traj.getJer(t);
-        Eigen::Vector3d g(0, 0, -9.8);
-        Eigen::Vector3d thrust = a - g;
-
-        // std::cout << p.x() << " , " << p.z() << " , ";
-
-        Eigen::Vector3d zb = thrust.normalized();
-        // double a = zb.x();
-        // double b = zb.y();
-        // double c = zb.z();
-        Eigen::Vector3d zb_dot = f_DN(thrust) * j; //取推力方向jerk的分量
-        double omega12 = zb_dot.norm();
-        // if (omega12 > 3.1) {
-        //   std::cout << "omega: " << omega12 << "rad/s  t: " << t << std::endl;
-        // }
-        if (omega12 > max_omega) {
-          max_omega = omega12;
+        if(ifanalyse)
+        {
+          /* for traj analyse */
+          quadrotor_msgs::TrajcurDesirePtr desMsg(new quadrotor_msgs::TrajcurDesire());
+          desMsg->header.stamp = current_time;
+          desMsg->pos.orientation.w = quat(0);
+          desMsg->pos.orientation.x = quat(1);
+          desMsg->pos.orientation.y = quat(2);
+          desMsg->pos.orientation.z = quat(3);
+          desMsg->pos.position.x = pos(0);
+          desMsg->pos.position.y = pos(1);
+          desMsg->pos.position.z = pos(2);
+          
+          des_pub_.publish(desMsg);
         }
-        // double a_dot = zb_dot.x();
-        // double b_dot = zb_dot.y();
-        // double omega3 = (b * a_dot - a * b_dot) / (1 + c);
-        // std::cout << "jer: " << j.transpose() << std::endl;
-        // std::cout << "omega12: " << zb_dot.norm() << std::endl;
-        // std::cout << "omega3: " << omega3 << std::endl;
-        // std::cout << thrust.x() << " , " << thrust.z() << " , ";
-        // double omega2 = zb_dot.x() - zb.x() * zb_dot.z() / (zb.z() + 1);
-        // std::cout << omega2 << std::endl;
-        // std::cout << zb_dot.norm() << std::endl;
 
-        Eigen::Quaterniond q;
-        bool no_singlarity = v2q(zb, q); //将推力方向向量转换为四元数
-        Eigen::MatrixXd R_dot = (q.toRotationMatrix() - q_last.toRotationMatrix()) / dt; //旋转矩阵表示的推力角速度
-        Eigen::MatrixXd omega_M = q.toRotationMatrix().transpose() * R_dot;
-        // std::cout << "omega_M: \n" << omega_M << std::endl;
-        Eigen::Vector3d omega_real;
-        omega_real.x() = -omega_M(1, 2);
-        omega_real.y() = omega_M(0, 2);
-        omega_real.z() = -omega_M(0, 1); //此部分从加速度取得角速度omega_real各分量
-        // std::cout << "omega_real: " << omega_real.transpose() << std::endl;
-        q_last = q;
-        if (no_singlarity) { //推力转四元数成功发布
-          msg.pose.pose.position.x = p.x();
-          msg.pose.pose.position.y = p.y();
-          msg.pose.pose.position.z = p.z();
-          msg.pose.pose.orientation.w = q.w();
-          msg.pose.pose.orientation.x = q.x();
-          msg.pose.pose.orientation.y = q.y();
-          msg.pose.pose.orientation.z = q.z();
+        if(visualize_sig)
+        {
+          visPtr_->visualize_traj(traj, "traj");
+          Eigen::Vector3d tail_pos = traj.getPos(traj.getTotalDuration());
+          Eigen::Vector3d tail_vel = traj.getVel(traj.getTotalDuration());
+          visPtr_->visualize_arrow(tail_pos, tail_pos + 0.5 * tail_vel, "tail_vel");
+
+          nav_msgs::Odometry msg;
+          msg.header.frame_id = "world";
+          
+          msg.pose.pose.position.x = pos.x();
+          msg.pose.pose.position.y = pos.y();
+          msg.pose.pose.position.z = pos.z();
+          msg.pose.pose.orientation.w = quat(0);
+          msg.pose.pose.orientation.x = quat(1);
+          msg.pose.pose.orientation.y = quat(2);
+          msg.pose.pose.orientation.z = quat(3);
           msg.header.stamp = ros::Time::now();
           visPtr_->visualize_traj(traj, "traj");
           visPtr_->pub_msg(msg, "odom"); //此处的odom是无人机的odom，默认话题名/drone/planning/odom
-        }
-        // target
-        // Eigen::Vector3d fake_target_v = target_v * (1.0 + 0.5 * sin(1e6 * t));
-        // target_p = target_p + fake_target_v * dt;
-        // target_v *= 1.0001;
-        target_p = target_p + target_v * dt;
-        msg.pose.pose.position.x = target_p.x();
-        msg.pose.pose.position.y = target_p.y();
-        msg.pose.pose.position.z = target_p.z();
-        msg.pose.pose.orientation.w = land_q.w();
-        msg.pose.pose.orientation.x = land_q.x();
-        msg.pose.pose.orientation.y = land_q.y();
-        msg.pose.pose.orientation.z = land_q.z();
-        msg.header.stamp = ros::Time::now();
-        visPtr_->pub_msg(msg, "target");
-        if (trajOptPtr_->check_collilsion(p, a, target_p)) {
-          std::cout << "collide!  t: " << t << std::endl;
+
+          msg.pose.pose.position.x = target_p.x();
+          msg.pose.pose.position.y = target_p.y();
+          msg.pose.pose.position.z = target_p.z();
+          msg.pose.pose.orientation.w = land_q.w();
+          msg.pose.pose.orientation.x = land_q.x();
+          msg.pose.pose.orientation.y = land_q.y();
+          msg.pose.pose.orientation.z = land_q.z();
+          msg.header.stamp = ros::Time::now();
+          visPtr_->pub_msg(msg, "target");
+
+          if (trajOptPtr_->check_collilsion(pos, acc, target_p)) {
+          std::cout << "collide!  t: " << delta_from_start << std::endl;
+          }
         }
       }
-      std::cout << "tailV: " << traj.getVel(traj.getTotalDuration()).transpose() << std::endl;
-      std::cout << "max thrust: " << traj.getMaxThrust() << std::endl;
-      std::cout << "max omega: " << max_omega << std::endl;
+      else if(delta_from_start > traj.getTotalDuration() && uav_p[2] - target_p[2] - robot_l_ < 0.0)
+      {
+        quadrotor_msgs::TakeoffLand landMsg;
+        landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
+        land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+      }
       publishing_cmd = false;
-      generate_new_traj_success = false;
     }
+    // else if(generate_new_traj_success && visualize_sig) // visualize traj
+    // {
+    //   publishing_cmd = true;
+    //   visPtr_->visualize_traj(traj, "traj");
+
+    //   Eigen::Vector3d tail_pos = traj.getPos(traj.getTotalDuration());
+    //   Eigen::Vector3d tail_vel = traj.getVel(traj.getTotalDuration());
+    //   visPtr_->visualize_arrow(tail_pos, tail_pos + 0.5 * tail_vel, "tail_vel");
+
+    //   nav_msgs::Odometry msg;
+    //   msg.header.frame_id = "world";
+    //   double dt = 0.001;
+    //   Eigen::Quaterniond q_last;
+    //   double max_omega = 0;
+    //   for (double t = 0; t <= traj.getTotalDuration(); t += dt) { // get cmd at t
+    //     ros::Duration(dt).sleep();
+    //     // drone
+    //     Eigen::Vector3d p = traj.getPos(t);
+    //     Eigen::Vector3d a = traj.getAcc(t);
+    //     Eigen::Vector3d j = traj.getJer(t);
+    //     Eigen::Vector3d g(0, 0, -9.8);
+    //     Eigen::Vector3d thrust = a - g;
+
+    //     Eigen::Vector3d zb = thrust.normalized();
+
+    //     Eigen::Vector3d zb_dot = f_DN(thrust) * j; //取推力方向jerk的分量
+    //     double omega12 = zb_dot.norm();
+
+    //     if (omega12 > max_omega) {
+    //       max_omega = omega12;
+    //     }
+
+    //     Eigen::Quaterniond q;
+    //     bool no_singlarity = v2q(zb, q); //将推力方向向量转换为四元数
+    //     Eigen::MatrixXd R_dot = (q.toRotationMatrix() - q_last.toRotationMatrix()) / dt; //旋转矩阵表示的推力角速度
+    //     Eigen::MatrixXd omega_M = q.toRotationMatrix().transpose() * R_dot;
+    //     // std::cout << "omega_M: \n" << omega_M << std::endl;
+    //     Eigen::Vector3d omega_real;
+    //     omega_real.x() = -omega_M(1, 2);
+    //     omega_real.y() = omega_M(0, 2);
+    //     omega_real.z() = -omega_M(0, 1); //此部分从加速度取得角速度omega_real各分量
+    //     // std::cout << "omega_real: " << omega_real.transpose() << std::endl;
+    //     q_last = q;
+    //     if (no_singlarity) { //推力转四元数成功发布
+    //       msg.pose.pose.position.x = p.x();
+    //       msg.pose.pose.position.y = p.y();
+    //       msg.pose.pose.position.z = p.z();
+    //       msg.pose.pose.orientation.w = q.w();
+    //       msg.pose.pose.orientation.x = q.x();
+    //       msg.pose.pose.orientation.y = q.y();
+    //       msg.pose.pose.orientation.z = q.z();
+    //       msg.header.stamp = ros::Time::now();
+    //       visPtr_->visualize_traj(traj, "traj");
+    //       visPtr_->pub_msg(msg, "odom"); //此处的odom是无人机的odom，默认话题名/drone/planning/odom
+    //     }
+
+    //     target_p = target_p + target_v * dt;
+    //     msg.pose.pose.position.x = target_p.x();
+    //     msg.pose.pose.position.y = target_p.y();
+    //     msg.pose.pose.position.z = target_p.z();
+    //     msg.pose.pose.orientation.w = land_q.w();
+    //     msg.pose.pose.orientation.x = land_q.x();
+    //     msg.pose.pose.orientation.y = land_q.y();
+    //     msg.pose.pose.orientation.z = land_q.z();
+    //     msg.header.stamp = ros::Time::now();
+    //     visPtr_->pub_msg(msg, "target");
+    //     if (trajOptPtr_->check_collilsion(p, a, target_p)) {
+    //       std::cout << "collide!  t: " << t << std::endl;
+    //     }
+    //   }
+    //   std::cout << "tailV: " << traj.getVel(traj.getTotalDuration()).transpose() << std::endl;
+    //   std::cout << "max thrust: " << traj.getMaxThrust() << std::endl;
+    //   std::cout << "max omega: " << max_omega << std::endl;
+    //   publishing_cmd = false;
+    //   generate_new_traj_success = false;
+    // }
     else
     {
       //TODO replan cmd set
@@ -560,13 +610,18 @@ class Nodelet : public nodelet::Nodelet {
     nh.getParam("VertDrag", vertDrag);
     nh.getParam("ParasDrag", parasDrag);
     nh.getParam("SpeedEps", speedEps);
+    nh.getParam("robot_l", robot_l_);
     
     target_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("target_odom", 10, &Nodelet::target_odom_callback, this, ros::TransportHints().tcpNoDelay());
     uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 10, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
-    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("/traj_start_trigger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay());
+    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay());
     // ctrl_start_tri_sub_ = nh.subscribe<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10, &ctrl_start_tri_callback, this, ros::TransportHints().tcpNoDelay());
 
+    if(ifanalyse)
+      des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
+  
     cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 10);
+    land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
     
     plan_timer_ = nh.createTimer(ros::Duration(1.0 / plan_hz_), &Nodelet::realflight_plan, this);
   }
@@ -579,6 +634,7 @@ class Nodelet : public nodelet::Nodelet {
 
     // NOTE once
     nh.param("plan_type", plan_type, 1); // 0 for simulation, 1 for realflight
+    nh.param("ifanalyse", ifanalyse, false);
     nh.param("plan_hz", plan_hz_, 10);
     nh.getParam("perching_px", perching_p_.x());
     nh.getParam("perching_py", perching_p_.y());

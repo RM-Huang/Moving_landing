@@ -5,8 +5,7 @@
 #include "std_msgs/String.h"
 
 #include <quadrotor_msgs/RcinRemap.h>
-// #include "plumbing_control/anjiang.h"
-
+#include <quadrotor_msgs/MotorlockTriger.h>
 namespace rcinRemap {
 
 class rcRemap : public nodelet::Nodelet
@@ -16,12 +15,14 @@ class rcRemap : public nodelet::Nodelet
 
     ros::Publisher rcInPub;
     ros::Subscriber rcInSub;
+    ros::Subscriber landtriSub;
 
     std::vector<uint16_t, std::allocator<uint16_t>> chn; //通道中间变量
     std::vector<uint16_t, std::allocator<uint16_t>> chn_last;
 
     double chn_lim = 0.5;
     bool ifchange = false;
+    bool locktriger = false;
 
     void rcInCallback(const mavros_msgs::RCIn::ConstPtr& msg)
     {   
@@ -46,6 +47,12 @@ class rcRemap : public nodelet::Nodelet
                 
                 ifchange = true;
             }
+
+            if(locktriger) // 若接收到motorlock信号，则切回手控模式
+            {
+                chn[14] = 1000;
+                locktriger = false;
+            }
             rc_ref->channels[i] = chn[i];
         }
         if (ifchange)
@@ -55,6 +62,11 @@ class rcRemap : public nodelet::Nodelet
         }
         chn_last = msg->channels;
         rcInPub.publish(rc_ref);
+    }
+
+    void lockCallback(const quadrotor_msgs::MotorlockTriger::ConstPtr& msg)
+    {
+        locktriger = true;
     }
 
     void init(ros::NodeHandle& nh)
@@ -68,8 +80,10 @@ class rcRemap : public nodelet::Nodelet
         rcInPub = nh.advertise<mavros_msgs::RCIn>("/mavros/rc/in/remap",10);
         rcInSub = nh.subscribe<mavros_msgs::RCIn>("/mavros/rc/in", 1, &rcRemap::rcInCallback, this,
                                                      ros::TransportHints().tcpNoDelay());
+        landtriSub = nh.subscribe<quadrotor_msgs::MotorlockTriger>("/locktriger", 1, &rcRemap::lockCallback, this,
+                                                     ros::TransportHints().tcpNoDelay());
 
-        ROS_INFO("Waiting for rcIn");
+        ROS_INFO("[rcin_remap]:Waiting for rcIn");
     }
 
   public:

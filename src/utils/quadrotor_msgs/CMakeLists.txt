@@ -45,6 +45,7 @@ add_message_files(
   TrajctrlTrigger.msg
   TrajcurDesire.msg
   RcinRemap.msg
+  MotorlockTriger.msg
 )
 
 generate_messages(

@@ -117,12 +117,17 @@ private:
         gtruth_pos_bias.y = gtruth_pos_bias.y + gtruth.pose.pose.position.y;
         gtruth_pos_bias.z = gtruth_pos_bias.z + gtruth.pose.pose.position.z;
 
-        tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
-        tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+        // tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
+        // tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
 
-        gtruth_rpy_bias.x = gtruth_rpy_bias.x + gtruth_rpy.x;
-        gtruth_rpy_bias.y = gtruth_rpy_bias.y + gtruth_rpy.y;
-        gtruth_rpy_bias.z = gtruth_rpy_bias.z + gtruth_rpy.z;
+        // gtruth_rpy_bias.x = gtruth_rpy_bias.x + gtruth_rpy.x;
+        // gtruth_rpy_bias.y = gtruth_rpy_bias.y + gtruth_rpy.y;
+        // gtruth_rpy_bias.z = gtruth_rpy_bias.z + gtruth_rpy.z;
+
+        gtruth_qua_bias.w() += gtruth.pose.pose.orientation.w;
+        gtruth_qua_bias.x() += gtruth.pose.pose.orientation.x;
+        gtruth_qua_bias.y() += gtruth.pose.pose.orientation.y;
+        gtruth_qua_bias.z() += gtruth.pose.pose.orientation.z;
 
         // std::cout<<"bias_c = "<<bias_c<<std::endl;
         // std::cout<<"delta_r_tol = "<<gtruth_rpy_bias.x<<" delta_p_tol = "<<gtruth_rpy_bias.y<<" delta_y_tol = "<<gtruth_rpy_bias.z<<std::endl;
@@ -318,12 +323,16 @@ private:
                 gtruth_pos_bias.x = gtruth_pos_bias.x / bias_c;
                 gtruth_pos_bias.y = gtruth_pos_bias.y / bias_c;
                 gtruth_pos_bias.z = gtruth_pos_bias.z / bias_c;
-                gtruth_rpy_bias.x = gtruth_rpy_bias.x / bias_c;
-                gtruth_rpy_bias.y = gtruth_rpy_bias.y / bias_c;
-                gtruth_rpy_bias.z = gtruth_rpy_bias.z / bias_c;
-                gtruth_qua_bias = Eigen::AngleAxisd(gtruth_rpy_bias.z, Eigen::Vector3d::UnitZ()) * 
-                                    Eigen::AngleAxisd(gtruth_rpy_bias.y, Eigen::Vector3d::UnitY()) * 
-                                    Eigen::AngleAxisd(gtruth_rpy_bias.x, Eigen::Vector3d::UnitX());
+                // gtruth_rpy_bias.x = gtruth_rpy_bias.x / bias_c;
+                // gtruth_rpy_bias.y = gtruth_rpy_bias.y / bias_c;
+                // gtruth_rpy_bias.z = gtruth_rpy_bias.z / bias_c;
+                // gtruth_qua_bias = Eigen::AngleAxisd(gtruth_rpy_bias.z, Eigen::Vector3d::UnitZ()) * 
+                //                     Eigen::AngleAxisd(gtruth_rpy_bias.y, Eigen::Vector3d::UnitY()) * 
+                //                     Eigen::AngleAxisd(gtruth_rpy_bias.x, Eigen::Vector3d::UnitX());
+                gtruth_qua_bias.w() = gtruth_qua_bias.w() / bias_c;
+                gtruth_qua_bias.x() = gtruth_qua_bias.x() / bias_c;
+                gtruth_qua_bias.y() = gtruth_qua_bias.y() / bias_c;
+                gtruth_qua_bias.z() = gtruth_qua_bias.z() / bias_c;
 
                 ROS_INFO("[odom_remap]:Odom const bias cal succeed, ready to flight!");
 
@@ -341,8 +350,8 @@ private:
 
                     odomMsg->header = gtruth.header;
                     odomMsg->child_frame_id = gtruth.child_frame_id;
-                    odomMsg->pose.pose.position.x = gtruth.pose.pose.position.x - gtruth_pos_bias.x;
-                    odomMsg->pose.pose.position.y = gtruth.pose.pose.position.y - gtruth_pos_bias.y;
+                    odomMsg->pose.pose.position.x = -(gtruth.pose.pose.position.x - gtruth_pos_bias.x);
+                    odomMsg->pose.pose.position.y = -(gtruth.pose.pose.position.y - gtruth_pos_bias.y);
                     odomMsg->pose.pose.position.z = gtruth.pose.pose.position.z - gtruth_pos_bias.z;
                     odomMsg->pose.covariance = gtruth.pose.covariance;
                     odomMsg->pose.pose.orientation.w = gtruth_qua.w();

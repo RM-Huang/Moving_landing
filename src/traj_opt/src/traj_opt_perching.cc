@@ -105,7 +105,7 @@ static double forward_thrust(const double& f) {
 static void addLayerThrust(const double& f,
                            const double& grad_thrust,
                            double& grad_f) {
-  grad_f = thrust_half_ * cos(f) * grad_thrust;
+  grad_f = thrust_half_ * cos(f) * grad_thrust; // 公式22
   // grad_f = grad_thrust;
 }
 static void forwardTailV(const Eigen::Ref<const Eigen::Vector2d>& xy,
@@ -366,7 +366,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
       bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
       std::vector<double> durs{T_bvp};
       std::vector<CoefficientMat> coeffs{coeffMat};
-      std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+      // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
       Trajectory traj(durs, coeffs); // 保存粗轨迹
       max_omega = getMaxOmega(traj);
     } while (max_omega > 1.5 * omega_max_);

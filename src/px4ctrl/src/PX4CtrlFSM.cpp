@@ -413,10 +413,10 @@ void PX4CtrlFSM::land_detector(const State_t state, const Desired_State_t &des, 
 Desired_State_t PX4CtrlFSM::get_hover_des()
 {
 	Desired_State_t des;
-	// des.p = hover_pose.head<3>();
-	des.p(0) = 0.0;
-	des.p(1) = 0.0;
-	des.p(2) = takeoff_land.start_pose(2) + param.takeoff_land.height;
+	des.p = hover_pose.head<3>();
+	// des.p(0) = 0.0;
+	// des.p(1) = 0.0;
+	// des.p(2) = takeoff_land.start_pose(2) + param.takeoff_land.height;
 	des.v = Eigen::Vector3d::Zero();
 	des.a = Eigen::Vector3d::Zero();
 	des.j = Eigen::Vector3d::Zero();

@@ -315,7 +315,7 @@ class Trajectory {
   Trajectory(const std::vector<double> &durs,
              const std::vector<CoefficientMat> &cMats) {
     int N = std::min(durs.size(), cMats.size());
-    std::cout<<"durs.size = "<<durs.size()<<" cMats.size = "<<cMats.size()<<std::endl;
+    // std::cout<<"durs.size = "<<durs.size()<<" cMats.size = "<<cMats.size()<<std::endl;
     pieces.reserve(N);
     for (int i = 0; i < N; i++) {
       pieces.emplace_back(durs[i], cMats[i]);
