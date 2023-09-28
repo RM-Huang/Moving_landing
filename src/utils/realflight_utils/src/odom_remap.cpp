@@ -31,7 +31,7 @@ private:
 
     ros::Subscriber gtruthSub;
     ros::Subscriber imuSub;
-    ros::Subscriber debugSub;
+    // ros::Subscriber debugSub;
 
     std::string gtruthTopic;
 
@@ -240,10 +240,10 @@ private:
         Eigen::Quaterniond gtruth_orientation;
         Eigen::Vector3d p(gtruth.pose.pose.position.x, gtruth.pose.pose.position.y, gtruth.pose.pose.position.z);
         Eigen::Vector3d p_bias(gtruth_pos_bias.x, gtruth_pos_bias.y, gtruth_pos_bias.z);
-        // Eigen::Vector3d l_v(gtruth.twist.twist.linear.x, gtruth.twist.twist.linear.y, gtruth.twist.twist.linear.z);
-        // Eigen::Vector3d a_v(gtruth.twist.twist.angular.x, gtruth.twist.twist.angular.y, gtruth.twist.twist.angular.z);
-        Eigen::Vector3d l_v(0,0,0);
-        Eigen::Vector3d a_v(0,0,0);
+        Eigen::Vector3d l_v(gtruth.twist.twist.linear.x, gtruth.twist.twist.linear.y, gtruth.twist.twist.linear.z);
+        Eigen::Vector3d a_v(gtruth.twist.twist.angular.x, gtruth.twist.twist.angular.y, gtruth.twist.twist.angular.z);
+        // Eigen::Vector3d l_v(0,0,0);
+        // Eigen::Vector3d a_v(0,0,0);
 
         gtruth_orientation.w() = gtruth.pose.pose.orientation.w;
         gtruth_orientation.x() = gtruth.pose.pose.orientation.x;
@@ -451,8 +451,8 @@ private:
                 gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::gpstruthCallback, this,
                                     ros::TransportHints().tcpNoDelay());
 
-                debugSub = nh.subscribe("/mavros/local_position/pose", 10, &odomRemap::localposeCallback, this,
-                                    ros::TransportHints().tcpNoDelay()); // debug
+                // debugSub = nh.subscribe("/mavros/local_position/pose", 10, &odomRemap::localposeCallback, this,
+                //                     ros::TransportHints().tcpNoDelay()); // debug
                 odom_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::gps_odom_pub, this);
                 ROS_INFO("[odom_remap]:Using GPS for odom calculate.");
                 break;
