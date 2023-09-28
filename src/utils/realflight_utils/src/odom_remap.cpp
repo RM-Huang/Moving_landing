@@ -64,6 +64,13 @@ private:
         gtruthsubTri = true;
     }
 
+    void localposeCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg)
+    {
+        gtruth.header = gtruthMsg->header;
+        gtruth.pose.pose = gtruthMsg->pose;
+        gtruthsubTri = true;
+    }
+
     void gtruth_const_bias_cal(const double &gtruth_t)
     {
         double current_t = imu.header.stamp.toSec();
@@ -217,9 +224,13 @@ private:
     //     // gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.y, - gtruth_rpy.x, gtruth_rpy.z); //mocap system has y front and x right 
     // }
 
-    void qua_cal(Eigen::Quaterniond& qua)
+    void motion_cal(Eigen::Quaterniond& qua, Eigen::Vector3d& pos, Eigen::Vector3d& lin_vel, Eigen::Vector3d& ang_vel)
     {
         Eigen::Quaterniond gtruth_orientation;
+        Eigen::Vector3d p(gtruth.pose.pose.position.x, gtruth.pose.pose.position.y, gtruth.pose.pose.position.z);
+        Eigen::Vector3d p_bias(gtruth_pos_bias.x, gtruth_pos_bias.y, gtruth_pos_bias.z);
+        Eigen::Vector3d l_v(gtruth.twist.twist.linear.x, gtruth.twist.twist.linear.y, gtruth.twist.twist.linear.z);
+        Eigen::Vector3d a_v(gtruth.twist.twist.angular.x, gtruth.twist.twist.angular.y, gtruth.twist.twist.angular.z);
 
         gtruth_orientation.w() = gtruth.pose.pose.orientation.w;
         gtruth_orientation.x() = gtruth.pose.pose.orientation.x;
@@ -227,6 +238,9 @@ private:
         gtruth_orientation.z() = gtruth.pose.pose.orientation.z;
 
         qua = gtruth_qua_bias.inverse() * gtruth_orientation;
+        pos = gtruth_qua_bias * (p - p_bias);
+        lin_vel = gtruth_qua_bias * l_v;
+        ang_vel = gtruth_qua_bias * a_v;
     }
 
     void mc_odom_pub(const ros::TimerEvent& time_event)
@@ -337,7 +351,9 @@ private:
                 ROS_INFO("[odom_remap]:Odom const bias cal succeed, ready to flight!");
 
                 std::cout<<"delta_x = "<<gtruth_pos_bias.x<<" delta_y = "<<gtruth_pos_bias.y<<" delta_z = "<<gtruth_pos_bias.z<<std::endl;
-                std::cout<<"delta_r = "<<gtruth_rpy_bias.x * 180 / 3.14159265<<" delta_p = "<<gtruth_rpy_bias.y * 180 / 3.14159265<<" delta_y = "<<gtruth_rpy_bias.z * 180 / 3.14159265<<std::endl;
+                Eigen::Matrix3d rx = gtruth_qua_bias.toRotationMatrix();
+                Eigen::Vector3d eular_bias = rx.eulerAngles(2,1,0);
+                std::cout<<"delta_r = "<<eular_bias[0] * 180 / 3.14159265<<" delta_p = "<<eular_bias[1] * 180 / 3.14159265<<" delta_y = "<<eular_bias[2] * 180 / 3.14159265<<std::endl;
             }
             else
             {
@@ -345,20 +361,23 @@ private:
                 {
                     nav_msgs::OdometryPtr odomMsg(new nav_msgs::Odometry);
                     Eigen::Quaterniond gtruth_qua;
+                    Eigen::Vector3d position;
+                    Eigen::Vector3d lin_vel;
+                    Eigen::Vector3d ang_vel;
 
-                    qua_cal(gtruth_qua);
+                    motion_cal(gtruth_qua, position, lin_vel, ang_vel);
 
                     odomMsg->header = gtruth.header;
                     odomMsg->child_frame_id = gtruth.child_frame_id;
-                    odomMsg->pose.pose.position.x = -(gtruth.pose.pose.position.x - gtruth_pos_bias.x);
-                    odomMsg->pose.pose.position.y = -(gtruth.pose.pose.position.y - gtruth_pos_bias.y);
-                    odomMsg->pose.pose.position.z = gtruth.pose.pose.position.z - gtruth_pos_bias.z;
+                    odomMsg->pose.pose.position.x = position[0];
+                    odomMsg->pose.pose.position.y = position[1];
+                    odomMsg->pose.pose.position.z = position[2];
                     odomMsg->pose.covariance = gtruth.pose.covariance;
                     odomMsg->pose.pose.orientation.w = gtruth_qua.w();
                     odomMsg->pose.pose.orientation.x = gtruth_qua.x();
                     odomMsg->pose.pose.orientation.y = gtruth_qua.y();
                     odomMsg->pose.pose.orientation.z = gtruth_qua.z();
-                    odomMsg->twist = gtruth.twist;
+                    odomMsg->twist.twist.linear = gtruth.twist;
 
                     odomPub.publish(odomMsg);
 

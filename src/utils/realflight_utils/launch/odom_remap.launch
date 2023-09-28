@@ -1,4 +1,5 @@
 <launch>
+  <group ns="drone0">
     <!-- <node pkg="nodelet" type="nodelet" name="manager"  args="manager" output="screen">
       <param name="num_worker_threads" value="16"/>
     </node> -->
@@ -8,5 +9,6 @@
       <param name="fit_size" value="100"/>
       <param name="odom_source" value="1"/>
     </node>   
+  </group>
 
 </launch>

@@ -1,5 +1,5 @@
-dataFile: "/home/kt205/Moving_landing/data/trajAls.txt"
+dataFile: "/home/gnc-lab/Moving_landing/data/trajAls.txt"
 
 desTopic: "/desire_pose_current_traj"
 
-gtruthTopic: "/mavros/local_position/odom"
+gtruthTopic: "/odom/remap"

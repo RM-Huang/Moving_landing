@@ -1,6 +1,6 @@
 <launch>
 
-    <!-- <group ns="drone"> -->
+    <group ns="drone0">
         <!-- rviz -->
         <!-- <node name="rviz" pkg="rviz" type="rviz" output="screen"
                 args="-d $(find realflight_utils)/config/traj_follow.rviz"> 
@@ -28,6 +28,6 @@
                 <rosparam command="load" file="$(find px4ctrl)/config/ctrl_param_fpv.yaml" />
         </node> -->
 
-    <!-- </group> -->
+    </group>
 
 </launch>

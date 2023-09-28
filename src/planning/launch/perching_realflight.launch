@@ -28,7 +28,7 @@
       <remap from="~target" to="planning/target_odom"/>
       <!-- 订阅目标与无人机实际odometry -->
       <remap from="~target_odom" to="/target/odom"/>
-      <remap from="~uav_odom" to="/mavros/local_position/odom"/>
+      <remap from="~uav_odom" to="/odom/remap"/>
       <!-- 发布控制指令 -->
       <remap from="~cmd" to="planning/cmd"/>
       <!-- 外部程序触发规划接口 -->
@@ -79,7 +79,7 @@
       <param name="rhoOmega" value="100000.0"/>
       <param name="rhoPerchingCollision" value="1000000.0"/>
 
-      <param name="perching_px" value="2.0"/>
+      <param name="perching_px" value="3.0"/>
       <param name="perching_py" value="0.0"/>
       <param name="perching_pz" value="0.2"/>
       <!-- <param name="perching_pz" value="1.5"/> -->

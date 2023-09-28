@@ -1,7 +1,7 @@
 rosbag record --tcpnodelay \
 /px4ctrl/takeoff_land \
 /mavros/setpoint_raw/attitude \
-/mavros/local_position/pose \
+/mavros/local_position/odom \
 /mavros/rc/in/remap \
 /debugPx4ctrl \
 /traj_start_trigger \
