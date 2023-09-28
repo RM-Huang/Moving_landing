@@ -31,6 +31,7 @@ private:
 
     ros::Subscriber gtruthSub;
     ros::Subscriber imuSub;
+    ros::Subscriber debugSub;
 
     std::string gtruthTopic;
 
@@ -66,8 +67,8 @@ private:
 
     void localposeCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg)
     {
-        gtruth.header = gtruthMsg->header;
-        gtruth.pose.pose = gtruthMsg->pose;
+        gtruth.header = poseMsg->header;
+        gtruth.pose.pose = poseMsg->pose;
         gtruthsubTri = true;
     }
 
@@ -223,14 +224,26 @@ private:
 
     //     // gtruth_qua = tf::createQuaternionMsgFromRollPitchYaw(gtruth_rpy.y, - gtruth_rpy.x, gtruth_rpy.z); //mocap system has y front and x right 
     // }
+    void motion_cal(Eigen::Quaterniond& qua)
+    {
+        Eigen::Quaterniond gtruth_orientation;
+        gtruth_orientation.w() = gtruth.pose.pose.orientation.w;
+        gtruth_orientation.x() = gtruth.pose.pose.orientation.x;
+        gtruth_orientation.y() = gtruth.pose.pose.orientation.y;
+        gtruth_orientation.z() = gtruth.pose.pose.orientation.z;
+
+        qua = gtruth_qua_bias.inverse() * gtruth_orientation;
+    }
 
     void motion_cal(Eigen::Quaterniond& qua, Eigen::Vector3d& pos, Eigen::Vector3d& lin_vel, Eigen::Vector3d& ang_vel)
     {
         Eigen::Quaterniond gtruth_orientation;
         Eigen::Vector3d p(gtruth.pose.pose.position.x, gtruth.pose.pose.position.y, gtruth.pose.pose.position.z);
         Eigen::Vector3d p_bias(gtruth_pos_bias.x, gtruth_pos_bias.y, gtruth_pos_bias.z);
-        Eigen::Vector3d l_v(gtruth.twist.twist.linear.x, gtruth.twist.twist.linear.y, gtruth.twist.twist.linear.z);
-        Eigen::Vector3d a_v(gtruth.twist.twist.angular.x, gtruth.twist.twist.angular.y, gtruth.twist.twist.angular.z);
+        // Eigen::Vector3d l_v(gtruth.twist.twist.linear.x, gtruth.twist.twist.linear.y, gtruth.twist.twist.linear.z);
+        // Eigen::Vector3d a_v(gtruth.twist.twist.angular.x, gtruth.twist.twist.angular.y, gtruth.twist.twist.angular.z);
+        Eigen::Vector3d l_v(0,0,0);
+        Eigen::Vector3d a_v(0,0,0);
 
         gtruth_orientation.w() = gtruth.pose.pose.orientation.w;
         gtruth_orientation.x() = gtruth.pose.pose.orientation.x;
@@ -238,9 +251,9 @@ private:
         gtruth_orientation.z() = gtruth.pose.pose.orientation.z;
 
         qua = gtruth_qua_bias.inverse() * gtruth_orientation;
-        pos = gtruth_qua_bias * (p - p_bias);
-        lin_vel = gtruth_qua_bias * l_v;
-        ang_vel = gtruth_qua_bias * a_v;
+        pos = gtruth_qua_bias.inverse() * (p - p_bias);
+        lin_vel = gtruth_qua_bias.inverse() * l_v;
+        ang_vel = gtruth_qua_bias.inverse() * a_v;
     }
 
     void mc_odom_pub(const ros::TimerEvent& time_event)
@@ -285,7 +298,7 @@ private:
                     Eigen::Quaterniond gtruth_qua;
 
                     imuvel_cal(vel);
-                    qua_cal(gtruth_qua);
+                    motion_cal(gtruth_qua);
 
                     odomMsg->header.stamp = ros::Time().fromSec(gtruth_t - gtruth_time_delay);
                     odomMsg->pose.pose.position.x = gtruth.pose.pose.position.y - gtruth_pos_bias.y;
@@ -357,7 +370,7 @@ private:
             }
             else
             {
-                if( (abs(gtruth.header.stamp.toSec() - gtruth_time_l) < 0.03))
+                if( (abs(gtruth.header.stamp.toSec() - gtruth_time_l) < 0.04))
                 {
                     nav_msgs::OdometryPtr odomMsg(new nav_msgs::Odometry);
                     Eigen::Quaterniond gtruth_qua;
@@ -377,7 +390,12 @@ private:
                     odomMsg->pose.pose.orientation.x = gtruth_qua.x();
                     odomMsg->pose.pose.orientation.y = gtruth_qua.y();
                     odomMsg->pose.pose.orientation.z = gtruth_qua.z();
-                    odomMsg->twist.twist.linear = gtruth.twist;
+                    odomMsg->twist.twist.linear.x = lin_vel[0];
+                    odomMsg->twist.twist.linear.y = lin_vel[1];
+                    odomMsg->twist.twist.linear.z = lin_vel[2];
+                    odomMsg->twist.twist.angular.x = ang_vel[0];
+                    odomMsg->twist.twist.angular.y = ang_vel[1];
+                    odomMsg->twist.twist.angular.z = ang_vel[2];
 
                     odomPub.publish(odomMsg);
 
@@ -419,7 +437,7 @@ private:
 
         imuSub = nh.subscribe("/mavros/imu/data", 10, &odomRemap::imuCallback, this);
 
-        odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap", 10);
+        odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap/test", 10);
         // imuvelrawPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity_raw",10);//test
 
         switch (odom_source) {
@@ -432,6 +450,9 @@ private:
             case 1:
                 gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::gpstruthCallback, this,
                                     ros::TransportHints().tcpNoDelay());
+
+                debugSub = nh.subscribe("/mavros/local_position/pose", 10, &odomRemap::localposeCallback, this,
+                                    ros::TransportHints().tcpNoDelay()); // debug
                 odom_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::gps_odom_pub, this);
                 ROS_INFO("[odom_remap]:Using GPS for odom calculate.");
                 break;
