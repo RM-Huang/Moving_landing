@@ -57,15 +57,15 @@
       <param name="SpeedEps" value="0.0001"/>
 
       <param name="K" value="16"/>
-      <param name="vmax" value="2.0"/>
-      <param name="amax" value="1.0"/>
+      <param name="vmax" value="1.0"/>
+      <param name="amax" value="0.3"/>
 
       <param name="thrust_max" value="17.0"/>
-      <param name="thrust_min" value="5.0"/>
+      <param name="thrust_min" value="7.0"/>
       <param name="omega_max" value="0.3"/>
       <param name="omega_yaw_max" value="0.17"/>
 
-      <param name="robot_l" value="0.02"/>
+      <param name="robot_l" value="0.1"/>
       <param name="robot_r" value="0.14"/>
       <param name="platform_r" value="0.3"/>
       <param name="v_plus" value="0.3"/>
@@ -79,9 +79,9 @@
       <param name="rhoOmega" value="100000.0"/>
       <param name="rhoPerchingCollision" value="1000000.0"/>
 
-      <param name="perching_px" value="3.0"/>
-      <param name="perching_py" value="0.0"/>
-      <param name="perching_pz" value="0.2"/>
+      <param name="perching_px" value="4.95"/>
+      <param name="perching_py" value="0.06"/>
+      <param name="perching_pz" value="0.03"/>
       <!-- <param name="perching_pz" value="1.5"/> -->
       <!-- <param name="perching_pz" value="2.0"/> -->
       <param name="perching_vx" value="0.0"/>

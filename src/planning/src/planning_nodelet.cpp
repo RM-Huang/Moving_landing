@@ -3,6 +3,7 @@
 #include <quadrotor_msgs/PositionCommand.h>
 #include <quadrotor_msgs/TrajcurDesire.h>
 #include <quadrotor_msgs/TakeoffLand.h>
+#include <quadrotor_msgs/MotorlockTriger.h>
 #include <nodelet/nodelet.h>
 #include <ros/package.h>
 #include <ros/ros.h>
@@ -510,11 +511,14 @@ class Nodelet : public nodelet::Nodelet {
           }
         }
       }
-      else if(delta_from_start > traj.getTotalDuration() && uav_p[2] - target_p[2] - robot_l_ < 0.03)
+      else if(delta_from_start > traj.getTotalDuration() && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       {
-        quadrotor_msgs::TakeoffLand landMsg;
-        landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
-        land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+        // quadrotor_msgs::TakeoffLand landMsg;
+        // landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
+        // land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+
+        quadrotor_msgs::MotorlockTriger landTri;
+        landTri.triger = true;
 
         generate_new_traj_success = false;
       }
@@ -623,7 +627,8 @@ class Nodelet : public nodelet::Nodelet {
       des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
   
     cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 10);
-    land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
+    // land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
+    land_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
     
     plan_timer_ = nh.createTimer(ros::Duration(1.0 / plan_hz_), &Nodelet::realflight_plan, this);
   }

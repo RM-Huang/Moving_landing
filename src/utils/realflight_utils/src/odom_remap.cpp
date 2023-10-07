@@ -65,12 +65,12 @@ private:
         gtruthsubTri = true;
     }
 
-    void localposeCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg)
-    {
-        gtruth.header = poseMsg->header;
-        gtruth.pose.pose = poseMsg->pose;
-        gtruthsubTri = true;
-    }
+    // void localposeCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg)
+    // {
+    //     gtruth.header = poseMsg->header;
+    //     gtruth.pose.pose = poseMsg->pose;
+    //     gtruthsubTri = true;
+    // }
 
     void gtruth_const_bias_cal(const double &gtruth_t)
     {
@@ -252,8 +252,8 @@ private:
 
         qua = gtruth_qua_bias.inverse() * gtruth_orientation;
         pos = gtruth_qua_bias.inverse() * (p - p_bias);
-        lin_vel = gtruth_qua_bias.inverse() * l_v;
-        ang_vel = gtruth_qua_bias.inverse() * a_v;
+        // lin_vel = gtruth_qua_bias.inverse() * l_v;
+        // ang_vel = gtruth_qua_bias.inverse() * a_v;
     }
 
     void mc_odom_pub(const ros::TimerEvent& time_event)
@@ -390,12 +390,13 @@ private:
                     odomMsg->pose.pose.orientation.x = gtruth_qua.x();
                     odomMsg->pose.pose.orientation.y = gtruth_qua.y();
                     odomMsg->pose.pose.orientation.z = gtruth_qua.z();
-                    odomMsg->twist.twist.linear.x = lin_vel[0];
-                    odomMsg->twist.twist.linear.y = lin_vel[1];
-                    odomMsg->twist.twist.linear.z = lin_vel[2];
-                    odomMsg->twist.twist.angular.x = ang_vel[0];
-                    odomMsg->twist.twist.angular.y = ang_vel[1];
-                    odomMsg->twist.twist.angular.z = ang_vel[2];
+                    odomMsg->twist = gtruth.twist;
+                    // odomMsg->twist.twist.linear.x = lin_vel[0];
+                    // odomMsg->twist.twist.linear.y = lin_vel[1];
+                    // odomMsg->twist.twist.linear.z = lin_vel[2];
+                    // odomMsg->twist.twist.angular.x = ang_vel[0];
+                    // odomMsg->twist.twist.angular.y = ang_vel[1];
+                    // odomMsg->twist.twist.angular.z = ang_vel[2];
 
                     odomPub.publish(odomMsg);
 
@@ -437,7 +438,7 @@ private:
 
         imuSub = nh.subscribe("/mavros/imu/data", 10, &odomRemap::imuCallback, this);
 
-        odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap/test", 10);
+        odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap", 10);
         // imuvelrawPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity_raw",10);//test
 
         switch (odom_source) {

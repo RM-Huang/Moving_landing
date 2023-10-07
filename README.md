@@ -12,13 +12,29 @@ catkin_make
 source devel/setup.bash
 ```
 
+## Simulation
+You need to install gazebo and rviz with correct ros version.
+Run the following sctipt to start simulation.
+```
+./sim_traj_follow.sh
+./takeoff.sh
+```
+After vehicle stablized, run the following script to start planning:
+```
+./pub_triger.sh
+```
+
 ## Realfight run
-You have to read the _README.md_ file in the px4ctrl package before you run the scripe.
-Execute the following commands after you connecting _Autopilot_ to _flight computer_. 
+You have to read the _README.md_ file in the px4ctrl package before you run the script.
+Execute the following commands to take off your vehical after you connecting _Autopilot_ to _flight computer_. 
 ```
 cd Moving_landing/sh_utils
 ./realflight_traj_follow
 ./takeoff.sh
+```
+Than run the following sctipt to start planning.
+```
+./pub_triger.sh
 ```
 
 Traj analyse data would be generated into Moving_landing/data
