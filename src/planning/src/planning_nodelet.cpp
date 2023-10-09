@@ -34,6 +34,7 @@ class Nodelet : public nodelet::Nodelet {
   ros::Publisher cmd_pub_;
   ros::Publisher des_pub_;
   ros::Publisher land_pub_;
+  ros::Publisher hover_pub_;
 
   ros::Timer plan_timer_;
   ros::Timer cmd_timer_;
@@ -193,6 +194,7 @@ class Nodelet : public nodelet::Nodelet {
 
     iniState.col(0) = uav_p;
     iniState.col(1) = uav_v;
+    // iniState.col(2) << 0.0,0.0,-9.8;
     land_q = target_q; // 后续加入姿态预测内容
 
     std::cout<<"uav_p = "<<uav_p.transpose()<<" uav_v = "<<uav_v.transpose()<<std::endl;
@@ -408,6 +410,7 @@ class Nodelet : public nodelet::Nodelet {
       publishing_cmd = true;
       ros::Time current_time = ros::Time::now();
       double delta_from_start = current_time.toSec() - trajStamp;
+      // quadrotor_msgs::PositionCommandPtr cmdMsg(new quadrotor_msgs::PositionCommand());
       if (delta_from_start > 0.0 && delta_from_start < traj.getTotalDuration())
       {
         Eigen::VectorXd physicalParams(6); //物理参数
@@ -513,12 +516,16 @@ class Nodelet : public nodelet::Nodelet {
       }
       else if(delta_from_start > traj.getTotalDuration() && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       {
-        // quadrotor_msgs::TakeoffLand landMsg;
-        // landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
-        // land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+        // quadrotor_msgs::MotorlockTriger hoverTri;
+        // hoverTri.triger = true;
+        // land_pub_.publish(hoverTri);
 
-        quadrotor_msgs::MotorlockTriger landTri;
-        landTri.triger = true;
+        // ros::Duration(0.01).sleep();
+        quadrotor_msgs::TakeoffLand landMsg;
+        landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
+        land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+
+        ROS_WARN("[planning]: land triger published");
 
         generate_new_traj_success = false;
       }
@@ -627,8 +634,8 @@ class Nodelet : public nodelet::Nodelet {
       des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
   
     cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 10);
-    // land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
-    land_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
+    hover_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
+    land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
     
     plan_timer_ = nh.createTimer(ros::Duration(1.0 / plan_hz_), &Nodelet::realflight_plan, this);
   }

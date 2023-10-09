@@ -60,8 +60,8 @@
       <param name="vmax" value="1.0"/>
       <param name="amax" value="0.3"/>
 
-      <param name="thrust_max" value="17.0"/>
-      <param name="thrust_min" value="7.0"/>
+      <param name="thrust_max" value="13.8"/>
+      <param name="thrust_min" value="5.8"/>
       <param name="omega_max" value="0.3"/>
       <param name="omega_yaw_max" value="0.17"/>
 
@@ -75,7 +75,8 @@
       <param name="rhoV" value="1000.0"/>
       <param name="rhoA" value="1000.0"/>
       <param name="rhoVt" value="100000.0"/>
-      <param name="rhoThrust" value="10000.0"/>
+      <param name="rhoThrust" value="500000.0"/>
+      <!-- <param name="rhoThrust" value="10000.0"/> -->
       <param name="rhoOmega" value="100000.0"/>
       <param name="rhoPerchingCollision" value="1000000.0"/>
 

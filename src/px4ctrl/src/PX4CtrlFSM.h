@@ -80,6 +80,7 @@ private:
 	State_t state; // Should only be changed in PX4CtrlFSM::process() function!
 	AutoTakeoffLand_t takeoff_land;
 	bool traj_ctrl_start = false;
+	bool force_call_once = false;
 
 	// ---- control related ----
 	Desired_State_t get_hover_des();
@@ -98,6 +99,7 @@ private:
 
 	bool toggle_offboard_mode(bool on_off); // It will only try to toggle once, so not blocked.
 	bool toggle_arm_disarm(bool arm); // It will only try to toggle once, so not blocked.
+	bool force_arm_disarm(bool arm);
 	void reboot_FCU();
 
 	void publish_bodyrate_ctrl(const Controller_Output_t &u, const ros::Time &stamp);

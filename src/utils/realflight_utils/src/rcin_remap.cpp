@@ -75,9 +75,9 @@ class rcRemap : public nodelet::Nodelet
         quadrotor_msgs::RcinRemapPtr rc_ref(new quadrotor_msgs::RcinRemap);
         rc_ref->channels.resize(chn.size());
 
-        if(locktriger) // 若接收到motorlock信号，则切回手控模式
+        if(locktriger) // 若接收到motorlock信号，则切回悬停
         {
-            chn[14] = 1000;
+            chn[13] = 1000;
             locktriger = false;
             ifchange = true;
         }

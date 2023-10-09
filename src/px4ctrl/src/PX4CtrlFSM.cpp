@@ -159,6 +159,7 @@ void PX4CtrlFSM::process()
 			if (state_data.current_state.mode == "OFFBOARD")
 			{
 				state = CMD_CTRL;
+				force_call_once = false;
 				des = get_cmd_des();
 				ROS_INFO("\033[32m[px4ctrl] AUTO_HOVER(L2) --> CMD_CTRL(L3)\033[32m");
 			}
@@ -205,9 +206,10 @@ void PX4CtrlFSM::process()
 			des = get_hover_des();
 			ROS_INFO("[px4ctrl] From CMD_CTRL(L3) to AUTO_HOVER(L2)!");
 		}
-		else
+		else if(takeoff_land_data.takeoff_land_cmd != quadrotor_msgs::TakeoffLand::LAND)
 		{
 			des = get_cmd_des();
+			std::cout<<"des.p = "<<des.p.reverse()<<std::endl;
 			if(!traj_ctrl_start)
 			{
 				publish_follow_trigger(traj_ctrl_start, now_time);
@@ -217,9 +219,36 @@ void PX4CtrlFSM::process()
 
 		if (takeoff_land_data.triggered && takeoff_land_data.takeoff_land_cmd == quadrotor_msgs::TakeoffLand::LAND)
 		{
-			ROS_ERROR("[px4ctrl] Reject AUTO_LAND, which must be triggered in AUTO_HOVER. \
+			/* ROS_ERROR("[px4ctrl] Reject AUTO_LAND, which must be triggered in AUTO_HOVER. \
 					Stop sending control commands for longer than %fs to let px4ctrl return to AUTO_HOVER first.",
-					  param.msg_timeout.cmd);
+					  param.msg_timeout.cmd); */
+
+			/* 10.08 change FSM for landing */
+			// if (toggle_arm_disarm(false)) // disarm
+			// {
+			// 	state = MANUAL_CTRL;
+			// 	toggle_offboard_mode(false); // toggle off offboard after disarm
+			// 	ROS_INFO("\033[32m[px4ctrl] DISARM --> MANUAL_CTRL(L1)\033[32m");
+			// }
+			set_hov_with_odom();
+			des = get_hover_des();
+			if (!force_call_once)
+			{
+				if (force_arm_disarm(false)) // force disarm
+				{
+					state = MANUAL_CTRL;
+					toggle_offboard_mode(false); // toggle off offboard after disarm
+					ROS_INFO("\033[32m[px4ctrl] CMD_CTRL --> MANUAL_CTRL(L1)\033[32m");
+					force_call_once = true;
+				}
+			}
+			else
+			{
+				state = AUTO_HOVER;
+				set_hov_with_odom();
+				des = get_hover_des();
+				ROS_INFO("[px4ctrl] From CMD_CTRL(L3) to AUTO_HOVER(L2)!");
+			}
 		}
 
 		break;
@@ -361,7 +390,7 @@ void PX4CtrlFSM::motors_idling(const Imu_Data_t &imu, Controller_Output_t &u)
 {
 	u.q = imu.q;
 	u.bodyrates = Eigen::Vector3d::Zero();
-	u.thrust = 0.04;
+	u.thrust = 0.02; // 0.04 for ori
 }
 
 void PX4CtrlFSM::land_detector(const State_t state, const Desired_State_t &des, const Odom_Data_t &odom)
@@ -483,6 +512,7 @@ void PX4CtrlFSM::set_hov_with_odom()
 {
 	hover_pose.head<3>() = odom_data.p;
 	hover_pose(3) = get_yaw_from_quaternion(odom_data.q);
+	std::cout<<"hover_pose = "<< odom_data.p.reverse()<<std::endl;
 
 	last_set_hover_pose_time = ros::Time::now();
 }
@@ -698,4 +728,25 @@ void PX4CtrlFSM::reboot_FCU()
 
 	// if (param.print_dbg)
 	// 	printf("reboot result=%d(uint8_t), success=%d(uint8_t)\n", reboot_srv.response.result, reboot_srv.response.success);
+}
+
+bool PX4CtrlFSM::force_arm_disarm(bool arm)
+{
+	// https://mavlink.io/en/messages/common.html#MAV_CMD_COMPONENT_ARM_DISARM
+	mavros_msgs::CommandLong force_arm_disarm_srv;
+	force_arm_disarm_srv.request.broadcast = false;
+	force_arm_disarm_srv.request.command = 400; // MAV_CMD_COMPONENT_ARM_DISARM
+	force_arm_disarm_srv.request.param1 = arm;
+	force_arm_disarm_srv.request.param2 = 21196.0;	  // force
+	force_arm_disarm_srv.request.confirmation = true;
+
+	if (!(reboot_FCU_srv.call(force_arm_disarm_srv) && force_arm_disarm_srv.response.success))
+	{
+		if (arm)
+			ROS_ERROR("ARM rejected by PX4!");
+		else
+			ROS_ERROR("DISARM rejected by PX4!");
+
+		return false;
+	}
 }
