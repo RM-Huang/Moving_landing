@@ -18,6 +18,7 @@ class TrajOpt {
     int N_, K_, dim_t_, dim_p_;
     // weight for time regularization term
     double rhoT_, rhoVt_;
+    double rhoTf_;
     // collision avoiding and dynamics paramters
     double vmax_, amax_;
     double rhoP_, rhoV_, rhoA_;

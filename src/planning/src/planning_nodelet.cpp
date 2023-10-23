@@ -1,5 +1,6 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Odometry.h>
+#include <mavros_msgs/CommandLong.h>
 #include <quadrotor_msgs/PositionCommand.h>
 #include <quadrotor_msgs/TrajcurDesire.h>
 #include <quadrotor_msgs/TakeoffLand.h>
@@ -33,8 +34,9 @@ class Nodelet : public nodelet::Nodelet {
 
   ros::Publisher cmd_pub_;
   ros::Publisher des_pub_;
-  ros::Publisher land_pub_;
-  ros::Publisher hover_pub_;
+  // ros::Publisher land_pub_;
+  // ros::Publisher hover_pub_;
+  ros::ServiceClient FCU_command_srv;
 
   ros::Timer plan_timer_;
   ros::Timer cmd_timer_;
@@ -226,6 +228,27 @@ class Nodelet : public nodelet::Nodelet {
       ROS_ERROR("[planning]:Traj generate fail!");
     }
     triger_received_ = false;
+  }
+
+  bool force_arm_disarm(bool arm)
+  {
+    // https://mavlink.io/en/messages/common.html#MAV_CMD_COMPONENT_ARM_DISARM
+    mavros_msgs::CommandLong force_arm_disarm_srv;
+    force_arm_disarm_srv.request.broadcast = false;
+    force_arm_disarm_srv.request.command = 400; // MAV_CMD_COMPONENT_ARM_DISARM
+    force_arm_disarm_srv.request.param1 = arm;
+    force_arm_disarm_srv.request.param2 = 21196.0;	  // force
+    force_arm_disarm_srv.request.confirmation = true;
+
+    if (!(FCU_command_srv.call(force_arm_disarm_srv) && force_arm_disarm_srv.response.success))
+    {
+      if (arm)
+        ROS_ERROR("ARM rejected by PX4!");
+      else
+        ROS_ERROR("DISARM rejected by PX4!");
+
+      return false;
+    }
   }
 
   void debug_timer_callback(const ros::TimerEvent& event) {
@@ -514,16 +537,18 @@ class Nodelet : public nodelet::Nodelet {
           }
         }
       }
-      else if(delta_from_start > traj.getTotalDuration() && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
+      else if(delta_from_start >= traj.getTotalDuration() && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       {
         // quadrotor_msgs::MotorlockTriger hoverTri;
         // hoverTri.triger = true;
         // land_pub_.publish(hoverTri);
 
         // ros::Duration(0.01).sleep();
-        quadrotor_msgs::TakeoffLand landMsg;
-        landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
-        land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+        // quadrotor_msgs::TakeoffLand landMsg;
+        // landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
+        // land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
+
+        force_arm_disarm(false);
 
         ROS_WARN("[planning]: land triger published");
 
@@ -634,8 +659,9 @@ class Nodelet : public nodelet::Nodelet {
       des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
   
     cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 10);
-    hover_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
-    land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
+    // hover_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
+    // land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
+    FCU_command_srv = nh.serviceClient<mavros_msgs::CommandLong>("/mavros/cmd/command");
     
     plan_timer_ = nh.createTimer(ros::Duration(1.0 / plan_hz_), &Nodelet::realflight_plan, this);
   }
