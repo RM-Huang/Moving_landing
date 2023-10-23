@@ -137,6 +137,7 @@ static inline double objectiveFunc(void* ptrObj,
   forwardTailV(vt, tailV);
 
   Eigen::MatrixXd tailS(3, 4);
+  // tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_; // cons 4d
   tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_;
   tailS.col(1) = tailV;
   tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
@@ -169,6 +170,12 @@ static inline double objectiveFunc(void* ptrObj,
   double grad_thrust = obj.mincoOpt_.gdTail.col(2).dot(tail_q_v_);
   addLayerThrust(tail_f, grad_thrust, grad_f);
 
+  if(obj.rhoTf_ > -1)
+  {
+    cost += obj.rhoTf_ * abs(sin(tail_f));
+    // std::cout<< "Tf_cost = "<<obj.rhoTf_ * abs(sin(tail_f))<<std::endl;
+  }
+
   if (obj.rhoVt_ > -1) {
     grad_vt.x() = grad_tailV.dot(v_t_x_);
     grad_vt.y() = grad_tailV.dot(v_t_y_);
@@ -183,6 +190,7 @@ static inline double objectiveFunc(void* ptrObj,
 
   gradP = obj.mincoOpt_.gdP;
 
+  std::cout<<"cost = "<<cost<<std::endl;
   return cost;
 }
 
@@ -355,7 +363,8 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
     bvp_f.col(0) = car_p_;
     bvp_f.col(1) = car_v_;
-    bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+    // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+    bvp_f.col(2).setZero();
     bvp_f.col(3).setZero();
     double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
     CoefficientMat coeffMat;
@@ -434,12 +443,13 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   tailS.col(1) = tailV;
   tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
   tailS.col(3).setZero();
-  // std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
-  // std::cout << tailS << std::endl;
+  std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
+  std::cout << "tailS : " << std::endl;
+  std::cout << tailS << std::endl;
   mincoOpt_.generate(initS_, tailS, P, dT);
   traj = mincoOpt_.getTraj(); //调用MINCO轨迹类生成轨迹
 
-  std::cout << "tailV: " << tailV.transpose() << std::endl;
+  // std::cout << "tailV: " << tailV.transpose() << std::endl;
   std::cout << "maxOmega: " << getMaxOmega(traj) << std::endl;
   std::cout << "maxThrust: " << traj.getMaxThrust() << std::endl;
 
@@ -719,6 +729,7 @@ TrajOpt::TrajOpt(ros::NodeHandle& nh) {
   nh.getParam("platform_r", platform_r_);
   nh.getParam("rhoT", rhoT_);
   nh.getParam("rhoVt", rhoVt_);
+  nh.getParam("rhoTf", rhoTf_);
   nh.getParam("rhoP", rhoP_);
   nh.getParam("rhoV", rhoV_);
   nh.getParam("rhoA", rhoA_);
@@ -765,6 +776,9 @@ bool TrajOpt::grad_cost_thrust(const Eigen::Vector3d& a,
     grada = -rhoThrust_ * 2 * grad * thrust_f;
     ret = true;
   }
+
+  // double middle_pen = thrust_f.squaredNorm() - thrust_middle_ * thrust_middle_;
+
 
   return ret;
 }
