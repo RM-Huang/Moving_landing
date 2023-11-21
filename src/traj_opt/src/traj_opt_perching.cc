@@ -137,10 +137,11 @@ static inline double objectiveFunc(void* ptrObj,
   forwardTailV(vt, tailV);
 
   Eigen::MatrixXd tailS(3, 4);
-  // tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_; // cons 4d
-  tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_;
+  tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_; // cons 4d
   tailS.col(1) = tailV;
-  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+  // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+  // tailS.col(1) = vt;
+  tailS.col(2).setZero();
   tailS.col(3).setZero();
 
   auto tic = std::chrono::steady_clock::now();
@@ -167,14 +168,14 @@ static inline double objectiveFunc(void* ptrObj,
 
   obj.mincoOpt_.gdT += obj.mincoOpt_.gdTail.col(0).dot(obj.N_ * car_v_);
   grad_tailV = obj.mincoOpt_.gdTail.col(1);
-  double grad_thrust = obj.mincoOpt_.gdTail.col(2).dot(tail_q_v_);
-  addLayerThrust(tail_f, grad_thrust, grad_f);
+  // double grad_thrust = obj.mincoOpt_.gdTail.col(2).dot(tail_q_v_);
+  // addLayerThrust(tail_f, grad_thrust, grad_f);
 
-  if(obj.rhoTf_ > -1)
-  {
-    cost += obj.rhoTf_ * abs(sin(tail_f));
-    // std::cout<< "Tf_cost = "<<obj.rhoTf_ * abs(sin(tail_f))<<std::endl;
-  }
+  // if(obj.rhoTf_ > -1)
+  // {
+  //   cost += obj.rhoTf_ * abs(sin(tail_f));
+  //   // std::cout<< "Tf_cost = "<<obj.rhoTf_ * abs(sin(tail_f))<<std::endl;
+  // }
 
   if (obj.rhoVt_ > -1) {
     grad_vt.x() = grad_tailV.dot(v_t_x_);
@@ -190,7 +191,7 @@ static inline double objectiveFunc(void* ptrObj,
 
   gradP = obj.mincoOpt_.gdP;
 
-  std::cout<<"cost = "<<cost<<std::endl;
+  // std::cout<<"cost = "<<cost<<std::endl;
   return cost;
 }
 
@@ -324,6 +325,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   //           << land_q.y() << ","
   //           << land_q.z() << "," << std::endl;
   q2v(land_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
+  // tail_q_v_ << 0,0,1; // 泛函修改，将末端姿态改为定值
   thrust_middle_ = (thrust_max_ + thrust_min_) / 2; // 中位
   thrust_half_ = (thrust_max_ - thrust_min_) / 2; // 半增值
 
@@ -443,7 +445,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   tailS.col(1) = tailV;
   tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
   tailS.col(3).setZero();
-  std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
+  // std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
   std::cout << "tailS : " << std::endl;
   std::cout << tailS << std::endl;
   mincoOpt_.generate(initS_, tailS, P, dT);
@@ -684,7 +686,7 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
       }
 
       double dur2now = (i + alpha) * mincoOpt_.t(1);
-      Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测
+      Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
       if (grad_cost_perching_collision(pos, acc, car_p,
                                        grad_tmp, grad_tmp2, grad_tmp3,
                                        cost_tmp)) { // ??

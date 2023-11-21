@@ -572,7 +572,7 @@ inline int line_search_lewisoverton(
   finit = *f; // cost
   dgtest = param->f_dec_coeff * dginit;
 
-  printf("-------------- line search start ----------------\n");
+  // printf("-------------- line search start ----------------\n");
   for (;;) {
     veccpy(x, xp, n);
     vecadd(x, s, *stp, n);
@@ -590,7 +590,7 @@ inline int line_search_lewisoverton(
     }
     /* Check the Armijo condition. Change uprange of the step if not satisfied */
     if (*f > finit + *stp * dgtest) {
-      printf("Armijo condition NOT met     [%18.16lf %18.16lf %18.16lf] [%18.16lf %18.16lf] %18.16lf\n", mu, *stp, nu, finit, *f, dginit);
+      // printf("Armijo condition NOT met     [%18.16lf %18.16lf %18.16lf] [%18.16lf %18.16lf] %18.16lf\n", mu, *stp, nu, finit, *f, dginit);
       nu = *stp;
       brackt = 1;
     } else {
@@ -598,10 +598,10 @@ inline int line_search_lewisoverton(
       vecdot(&dg, g, s, n);
       if (dg < param->s_curv_coeff * dginit) {
         // [lower bound; step; upper bound] [f init; f now]
-        printf("weak Wolfe condition NOT met [%18.16lf %18.16lf %18.16lf] [%18.16lf %18.16lf] %18.16lf\n", mu, *stp, nu, finit, *f, dginit);
+        // printf("weak Wolfe condition NOT met [%18.16lf %18.16lf %18.16lf] [%18.16lf %18.16lf] %18.16lf\n", mu, *stp, nu, finit, *f, dginit);
         mu = *stp;
       } else {
-        printf("-------------- line search exits normally ----------------\n");
+        // printf("-------------- line search exits normally ----------------\n");
         return count;
       }
     }
@@ -1283,7 +1283,7 @@ inline int lbfgs_optimize(int n,
         ls = line_search_morethuente(n, x, &fx, g, &step, d, xp, gp, &step_min, &step_max, &cd, &param);
       } else {
         ls = line_search_lewisoverton(n, x, &fx, g, &step, d, xp, gp, &step_min, &step_max, &cd, &param);
-        std::cout<<"ls = "<<ls<<std::endl;
+        // std::cout<<"ls = "<<ls<<std::endl;
       }
 
       if (ls < 0) {
@@ -1331,7 +1331,7 @@ inline int lbfgs_optimize(int n,
         if (param.past <= k) {
           /* Compute the relative improvement from the past. */
           rate = (pf[k % param.past] - fx) / fx;
-          std::cout<<"fabs(rate) = "<<fabs(rate)<<std::endl;
+          // std::cout<<"fabs(rate) = "<<fabs(rate)<<std::endl;
 
           /* The stopping criterion. */
           if (fabs(rate) < param.delta) {

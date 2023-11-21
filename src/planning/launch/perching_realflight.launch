@@ -44,7 +44,7 @@
       <!-- plan rate = plan_hz, cmd pub rate = plan_hz * 10 -->
       <param name="plan_hz" value="5"/>
       <!-- plan_type：0 for sim， 1 for real -->
-      <param name="plan_type" value="1"/>
+      <param name="plan_type" value="0"/>
       <param name="visualize_sig" value="true"/>
       <!-- true: run with traj_analyse -->
       <param name="ifanalyse" value="false"/>
@@ -85,8 +85,8 @@
       <param name="rhoOmega" value="100000.0"/>
       <param name="rhoPerchingCollision" value="1000000.0"/>
 
-      <param name="perching_px" value="4.95"/>
-      <param name="perching_py" value="0.06"/>
+      <param name="perching_px" value="8.16"/>
+      <param name="perching_py" value="1.25"/>
       <param name="perching_pz" value="0.03"/>
       <!-- <param name="perching_pz" value="1.5"/> -->
       <!-- <param name="perching_pz" value="2.0"/> -->
