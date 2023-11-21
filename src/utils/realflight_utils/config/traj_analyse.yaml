@@ -1,0 +1,5 @@
+dataFile: "/home/gnc-lab/Moving_landing/data/trajAls.txt"
+
+desTopic: "/desire_pose_current_traj"
+
+gtruthTopic: "/odom/remap"

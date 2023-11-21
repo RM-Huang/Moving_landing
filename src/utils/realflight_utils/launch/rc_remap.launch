@@ -1,0 +1,10 @@
+<launch>
+    <!-- <node pkg="nodelet" type="nodelet" name="manager"  args="manager" output="screen">
+      <param name="num_worker_threads" value="16"/>
+    </node> -->
+  <group ns="drone0">
+    <node pkg="nodelet" type="nodelet" name="rcinRemap" args="load rcinRemap/rcRemap manager" output="screen">
+    </node>   
+  </group>       
+
+</launch>

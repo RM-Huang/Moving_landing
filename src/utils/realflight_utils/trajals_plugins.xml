@@ -1,0 +1,5 @@
+ <library path="lib/libtraj_analyse"> 
+      <class name="trajAnalyse/trajAls" type="trajAnalyse::trajAls" base_class_type="nodelet::Nodelet">
+        <description></description>
+      </class>
+ </library>

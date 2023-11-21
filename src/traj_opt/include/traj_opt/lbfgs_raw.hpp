@@ -534,6 +534,8 @@ inline void vec2norminv(double *s, const double *x, const int n) {
  *      Adrian S. Lewis and Michael L. Overton. Nonsmooth optimization
  *      via quasi-Newton methods. Mathematical Programming, Vol 141,
  *      No 1, pp. 135-163, 2013.
+ * 
+ *  input:(n, x, &fx, g, &step, d, xp, gp, &step_min, &step_max, &cd, &param)
  */
 inline int line_search_lewisoverton(
     int n,
@@ -541,7 +543,7 @@ inline int line_search_lewisoverton(
     double *f,
     double *g,
     double *stp,
-    const double *s,
+    const double *s, // direction
     const double *xp,
     const double *gp,
     const double *stpmin,
@@ -567,9 +569,10 @@ inline int line_search_lewisoverton(
   }
 
   /* The initial value of the objective function. */
-  finit = *f;
+  finit = *f; // cost
   dgtest = param->f_dec_coeff * dginit;
 
+  // printf("-------------- line search start ----------------\n");
   for (;;) {
     veccpy(x, xp, n);
     vecadd(x, s, *stp, n);
@@ -585,13 +588,13 @@ inline int line_search_lewisoverton(
     if (std::isinf(*f) || std::isnan(*f)) {
       return LBFGSERR_INVALID_FUNCVAL;
     }
-    /* Check the Armijo condition. */
+    /* Check the Armijo condition. Change uprange of the step if not satisfied */
     if (*f > finit + *stp * dgtest) {
       // printf("Armijo condition NOT met     [%18.16lf %18.16lf %18.16lf] [%18.16lf %18.16lf] %18.16lf\n", mu, *stp, nu, finit, *f, dginit);
       nu = *stp;
       brackt = 1;
     } else {
-      /* Check the weak Wolfe condition. */
+      /* Check the weak Wolfe condition. Change lowrange of the step if not satisfied */
       vecdot(&dg, g, s, n);
       if (dg < param->s_curv_coeff * dginit) {
         // [lower bound; step; upper bound] [f init; f now]
@@ -1157,36 +1160,47 @@ inline int lbfgs_optimize(int n,
 
   /* Check the input parameters for errors. */
   if (n <= 0) {
+    std::cout<<"LBFGSERR_INVALID_N"<<std::endl;
     return LBFGSERR_INVALID_N;
   }
   if (m <= 0) {
+    std::cout<<"LBFGSERR_INVALID_MEMSIZE"<<std::endl;
     return LBFGSERR_INVALID_MEMSIZE;
   }
   if (param.g_epsilon < 0.0) {
+    std::cout<<"LBFGSERR_INVALID_GEPSILON"<<std::endl;
     return LBFGSERR_INVALID_GEPSILON;
   }
   if (param.past < 0) {
+    std::cout<<"LBFGSERR_INVALID_TESTPERIOD"<<std::endl;
     return LBFGSERR_INVALID_TESTPERIOD;
   }
   if (param.delta < 0.0) {
+    std::cout<<"LBFGSERR_INVALID_DELTA"<<std::endl;
     return LBFGSERR_INVALID_DELTA;
   }
   if (param.min_step < 0.0) {
+    std::cout<<"LBFGSERR_INVALID_MINSTEP"<<std::endl;
     return LBFGSERR_INVALID_MINSTEP;
   }
   if (param.max_step < param.min_step) {
+    std::cout<<"LBFGSERR_INVALID_MAXSTEP"<<std::endl;
     return LBFGSERR_INVALID_MAXSTEP;
   }
   if (param.f_dec_coeff < 0.0) {
+    std::cout<<"LBFGSERR_INVALID_FDECCOEFF"<<std::endl;
     return LBFGSERR_INVALID_FDECCOEFF;
   }
   if (param.s_curv_coeff <= param.f_dec_coeff || 1.0 <= param.s_curv_coeff) {
+    std::cout<<"LBFGSERR_INVALID_SCURVCOEFF"<<std::endl;
     return LBFGSERR_INVALID_SCURVCOEFF;
   }
   if (param.xtol < 0.0) {
+    std::cout<<"LBFGSERR_INVALID_XTOL"<<std::endl;
     return LBFGSERR_INVALID_XTOL;
   }
   if (param.max_linesearch <= 0) {
+    std::cout<<"LBFGSERR_INVALID_MAXLINESEARCH"<<std::endl;
     return LBFGSERR_INVALID_MAXLINESEARCH;
   }
 
@@ -1225,7 +1239,7 @@ inline int lbfgs_optimize(int n,
   Compute the direction;
   we assume the initial hessian matrix H_0 as the identity matrix.
   */
-  vecncpy(d, g, n);
+  vecncpy(d, g, n); // d = -g
 
   /*
   Make sure that the initial variables are not a minimizer.
@@ -1265,10 +1279,11 @@ inline int lbfgs_optimize(int n,
       veccpy(gp, g, n);
 
       /* Search for an optimal step. */
-      if (param.line_search_type) {
+      if (param.line_search_type) { // line_search_type = 0 for now
         ls = line_search_morethuente(n, x, &fx, g, &step, d, xp, gp, &step_min, &step_max, &cd, &param);
       } else {
         ls = line_search_lewisoverton(n, x, &fx, g, &step, d, xp, gp, &step_min, &step_max, &cd, &param);
+        // std::cout<<"ls = "<<ls<<std::endl;
       }
 
       if (ls < 0) {
@@ -1316,6 +1331,7 @@ inline int lbfgs_optimize(int n,
         if (param.past <= k) {
           /* Compute the relative improvement from the past. */
           rate = (pf[k % param.past] - fx) / fx;
+          // std::cout<<"fabs(rate) = "<<fabs(rate)<<std::endl;
 
           /* The stopping criterion. */
           if (fabs(rate) < param.delta) {

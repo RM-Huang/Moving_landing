@@ -12,16 +12,26 @@
 
 namespace uav_utils {
 
-inline void extract_odometry(nav_msgs::OdometryConstPtr msg, Eigen::Vector3d& p,
-                      Eigen::Vector3d& v, Eigen::Quaterniond& q)
+inline void extract_odometry_gps(nav_msgs::OdometryConstPtr msg, Eigen::Vector3d& p,
+                                Eigen::Vector3d& v, Eigen::Quaterniond& q)
 {
-    p(0) = msg->pose.pose.position.x;
-    p(1) = msg->pose.pose.position.y;
+    // p(0) = - ( msg->pose.position.x - p_init(0) );
+    // p(1) = - ( msg->pose.position.y - p_init(1) );
+    // p(2) = msg->pose.position.z - p_init(2);
+
+    p(0) = - msg->pose.pose.position.x;
+    p(1) = - msg->pose.pose.position.y;
     p(2) = msg->pose.pose.position.z;
+
+    // v(0) = (p(0) - p_l(0)) / dur;
+    // v(1) = (p(1) - p_l(1)) / dur;
+    // v(2) = (p(2) - p_l(2)) / dur;
 
     v(0) = msg->twist.twist.linear.x;
     v(1) = msg->twist.twist.linear.y;
     v(2) = msg->twist.twist.linear.z;
+
+    // p_l = p;
 
     q.w() = msg->pose.pose.orientation.w;
     q.x() = msg->pose.pose.orientation.x;
@@ -30,13 +40,42 @@ inline void extract_odometry(nav_msgs::OdometryConstPtr msg, Eigen::Vector3d& p,
 }
 
 inline void extract_odometry(nav_msgs::OdometryConstPtr msg, Eigen::Vector3d& p,
-                      Eigen::Vector3d& v, Eigen::Quaterniond& q, Eigen::Vector3d& w)
+                            Eigen::Vector3d& v, Eigen::Quaterniond& q)
 {
-    extract_odometry(msg, p, v, q);
+    p(0) = msg->pose.pose.position.x;
+    p(1) = msg->pose.pose.position.y;
+    p(2) = msg->pose.pose.position.z;
+
+    // v(0) = (p(0) - p_l(0)) / dur;
+    // v(1) = (p(1) - p_l(1)) / dur;
+    // v(2) = (p(2) - p_l(2)) / dur;
+
+    v(0) = msg->twist.twist.linear.x;
+    v(1) = msg->twist.twist.linear.y;
+    v(2) = msg->twist.twist.linear.z;
+
+    // p_l = p;
+
+    q.w() = msg->pose.pose.orientation.w;
+    q.x() = msg->pose.pose.orientation.x;
+    q.y() = msg->pose.pose.orientation.y;
+    q.z() = msg->pose.pose.orientation.z;
+}
+
+inline void extract_odometry(nav_msgs::OdometryConstPtr msg, Eigen::Vector3d& p, 
+                            Eigen::Vector3d& v, Eigen::Quaterniond& q, Eigen::Vector3d& w, int o_s)
+{
+    if(o_s == 1)
+        extract_odometry_gps(msg, p, v, q);
+    else
+        extract_odometry(msg, p, v, q);
 
     w(0) = msg->twist.twist.angular.x;
     w(1) = msg->twist.twist.angular.y;
     w(2) = msg->twist.twist.angular.z;
+    // w(0) = 0;
+    // w(1) = 0;
+    // w(2) = 0;
 }
 
 
