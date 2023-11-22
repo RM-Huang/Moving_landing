@@ -187,7 +187,13 @@ class Nodelet : public nodelet::Nodelet {
       return;
     }
     ROS_WARN("[planning]:start planning!");
+    
     iniState.setZero(3, 4);
+    target_q.x() = 0.0;
+    target_q.y() = 0.0;
+    target_q.z() = 0.0;
+    target_q.w() = 1.0; // target_q表示平台的预设姿态
+    land_q = target_q; 
     predict_success = false;
 
     //TODO plaform predict

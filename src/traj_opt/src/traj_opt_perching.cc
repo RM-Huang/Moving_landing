@@ -302,6 +302,19 @@ static double getMaxOmega(Trajectory& traj) {
   return max_omega;
 }
 
+static double getMaxVel(Trajectory& traj){
+  double dt = 0.01;
+  double max_vel = 0;
+  for(double t = 0; t < traj.getTotalDuration(); t += dt){
+    Eigen::Vector3d v = traj.getVel(t);
+    double vel = v.norm();
+    if(vel > max_vel){
+      max_vel = vel;
+    }
+  }
+  return max_vel;
+}
+
 bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
                             const Eigen::Vector3d& car_p,
                             const Eigen::Vector3d& car_v,
@@ -454,6 +467,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   // std::cout << "tailV: " << tailV.transpose() << std::endl;
   std::cout << "maxOmega: " << getMaxOmega(traj) << std::endl;
   std::cout << "maxThrust: " << traj.getMaxThrust() << std::endl;
+  std::cout << "maxVel: " << getMaxVel(traj) << std::endl;
 
   init_traj_ = traj;
   init_tail_f_ = tail_f;
@@ -732,9 +746,9 @@ TrajOpt::TrajOpt(ros::NodeHandle& nh) {
   nh.getParam("rhoT", rhoT_);
   nh.getParam("rhoVt", rhoVt_);
   nh.getParam("rhoTf", rhoTf_);
-  nh.getParam("rhoP", rhoP_);
+  nh.getParam("rhoP", rhoP_); // force the height of uav
   nh.getParam("rhoV", rhoV_);
-  nh.getParam("rhoA", rhoA_);
+  // nh.getParam("rhoA", rhoA_);
   nh.getParam("rhoThrust", rhoThrust_);
   nh.getParam("rhoOmega", rhoOmega_);
   nh.getParam("rhoPerchingCollision", rhoPerchingCollision_);
