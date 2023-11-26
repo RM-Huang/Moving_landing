@@ -16,7 +16,7 @@ devel/
 
 data/
 
-mavlink_msg/
+src/mavlink_msg/
 
 moving_platform/
 
