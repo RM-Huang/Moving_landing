@@ -5,6 +5,7 @@
 
 # lib.a 除外
 !lib.a
+!mavlink_msg.zip
 
 # 目录下的所有文件
 build/
@@ -14,6 +15,8 @@ devel/
 .vscode/
 
 data/
+
+mavlink_msg/
 
 moving_platform/
 
