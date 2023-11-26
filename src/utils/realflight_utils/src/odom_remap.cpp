@@ -1,4 +1,5 @@
 #include <thread>
+#include <mutex>
 #include <ros/ros.h>
 #include <tf/tf.h>
 #include <Eigen/Eigen>
@@ -10,6 +11,7 @@
 #include <nav_msgs/Odometry.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseWithCovariance.h>
 #include <car_odom_server/car_status.h>
 #include <car_odom_server/SerialPort.h>
 #include </home/pc205/Moving_landing/src/utils/mavlink_msg/common/common/mavlink.h>  // change to your PC
@@ -22,10 +24,11 @@ private:
     polyfit::Fit fit;
 
     std::thread initThread_;
+    std::recursive_mutex mtx;
     ros::Timer odom_timer;
 
     nav_msgs::Odometry gtruth;
-    std::vector<double> uav_lonlat;
+    std::vector<double> uav_global;
     car_odom_server::car_status car_odom;
     geometry_msgs::Vector3 CU_pos_init_differ;
     geometry_msgs::Vector3 gtruth_pos_bias;
@@ -78,11 +81,11 @@ private:
         gtruthsubTri = true;
     }
 
-    void uavglobalCallback(const sensor_msgs::NavSatFix::ConstPtr &globalMsg)
+    void uavglobalCallback(const geometry_msgs::PoseWithCovariance::ConstPtr &globalMsg)
     {
-        uav_lonlat[0] = globalMsg->latitude;
-        uav_lonlat[1] = globalMsg->longitude;
-        uav_lonlat[2] = ros::Time::now().toSec();
+        uav_global[0] = globalMsg->pose.position.x;
+        uav_global[1] = globalMsg->pose.position.y;
+        uav_global[2] = ros::Time::now().toSec();
     }
 
     // void localposeCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg)
@@ -92,7 +95,7 @@ private:
     //     gtruthsubTri = true;
     // }
 
-    void car_odom_Callback(SerialPort &port, car_odom_server::car_status &car_odom, bool &calibration)
+    void car_odom_Callback(SerialPort &port, car_odom_server::car_status &car_odom, bool &carodomsubTri)
     {
         char buffer[512];
         int ret = 0;
@@ -102,6 +105,7 @@ private:
             ret = port.read(buffer, 512);
             if (ret > 0)
             {
+                mtx.lock();
                 // std::cout << "success: buffer=\t" << ret << std::endl;
                 static mavlink_message_t mavlink_msg;
                 static mavlink_status_t status;
@@ -129,6 +133,7 @@ private:
                     }
                 }
                 carodomsubTri = true;
+                mtx.unlock();
             }
         }
     }
@@ -321,7 +326,7 @@ private:
     {
         Eigen::Quaterniond car_orientation;
         Eigen::Vector3d p(car_odom.px, car_odom.py, car_odom.pz);
-        Eigen::Vector3d p_bias(CU_pos_init_differ.y, CU_pos_init_differ.x, CU_pos_init_differ.z);
+        Eigen::Vector3d p_bias(CU_pos_init_differ.x, CU_pos_init_differ.y, CU_pos_init_differ.z);
         Eigen::Vector3d l_v(gtruth.twist.twist.linear.x, gtruth.twist.twist.linear.y, gtruth.twist.twist.linear.z);
         // Eigen::Vector3d l_v(0,0,0);
         // Eigen::Vector3d a_v(0,0,0);
@@ -493,17 +498,17 @@ private:
 
                 if(car_odom_remap)
                 {
+                    mtx.lock();
                     /* car calibrate */
-                    if(!calibration && carodomsubTri && car_odom.status == 11 && abs(uav_lonlat[2] - ros::Time::now().toSec()) < 0.04)
+                    if(!calibration && carodomsubTri && car_odom.status == 11 && abs(uav_global[2] - ros::Time::now().toSec()) < 0.04)
                     {
-                        CU_pos_init_differ.x = car_odom.px - uav_lonlat[0];
-                        CU_pos_init_differ.y = car_odom.py - uav_lonlat[1];
+                        CU_pos_init_differ.x = car_odom.px - uav_global[0]; 
+                        CU_pos_init_differ.y = car_odom.py - uav_global[1]; 
                         CU_pos_init_differ.z = car_odom.pz - gtruth.pose.pose.position.z;
-                        std::cout<<"CU_pos_init_differ = "<<CU_pos_init_differ.x<<" "<<CU_pos_init_differ.y<<std::endl;
+                        std::cout<<"CU_pos_init_differ = "<<CU_pos_init_differ.x<<" "<<CU_pos_init_differ.y<<CU_pos_init_differ.z<<std::endl;
                         calibration = true;
-                        lastreceived = true;
                     }
-                    else if(!carodomsubTri && lastreceived)
+                    else if(!carodomsubTri)
                     {
                         ROS_ERROR("[odom_remap]:Cannot receive car odom");
                     }
@@ -537,6 +542,7 @@ private:
                     {
                         ROS_ERROR("[odom_remap]:car odom calibration haven't finished");
                     }
+                    mtx.unlock();
                 }
             }
         }
@@ -580,6 +586,7 @@ private:
         // port2.openThread(car_odom_Callback);
         SerialPort port2;
         SerialPort::OpenOptions uartOptions;
+        uartOptions = SerialPort::defaultOptions;
         uartOptions.baudRate = SerialPort::BR38400;
         port2.open("/dev/ttyUSB0",uartOptions);
         if (port2.isOpen())
@@ -609,7 +616,7 @@ private:
         gtruth_rpy_bias.x = 0;
         gtruth_rpy_bias.y = 0;
         gtruth_rpy_bias.z = 0;
-        uav_lonlat.resize(3);
+        uav_global.resize(3);
 
         imuSub = nh.subscribe("/mavros/imu/data", 10, &odomRemap::imuCallback, this);
 

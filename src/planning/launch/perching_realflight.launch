@@ -32,7 +32,7 @@
       <!-- 发布控制指令 -->
       <remap from="~cmd" to="planning/cmd"/>
       <!-- 外部程序触发规划接口 -->
-      <remap from="~triger" to="/triger"/>
+      <remap from="~triger" to="/landing_triger"/>
       <!-- 控制模块触发信号 -->
       <remap from="~ctrl_triger" to="/traj_start_trigger"/>
       <!-- 未使用话题 -->

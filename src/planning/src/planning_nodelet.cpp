@@ -187,7 +187,7 @@ class Nodelet : public nodelet::Nodelet {
       return;
     }
     ROS_WARN("[planning]:start planning!");
-    
+
     iniState.setZero(3, 4);
     target_q.x() = 0.0;
     target_q.y() = 0.0;
@@ -215,15 +215,17 @@ class Nodelet : public nodelet::Nodelet {
         ROS_WARN("[planning]:platform predict error");
       }
       else
-      {
-        vector<Eigen::Matrix<double, 6, 1>> predict_state_list = tgpredict.getStateListFromBezier(_PREDICT_SEG);
-      }
-      if(predict_state_list.size() < 1) 
-      {
-          ROS_ERROR("[planning]:Bezier predict failed");
-      }
-      else
         predict_success = true; 
+      // else
+      // {
+      //   vector<Eigen::Matrix<double, 6, 1>> predict_state_list = tgpredict.getStateListFromBezier(_PREDICT_SEG);
+      // }
+      // if(predict_state_list.size() < 1) 
+      // {
+      //     ROS_ERROR("[planning]:Bezier predict failed");
+      // }
+      // else
+      //   predict_success = true; 
     }
     // else
     // {
@@ -500,18 +502,18 @@ class Nodelet : public nodelet::Nodelet {
     target_p = perching_p_;// set initial state
     target_v = perching_v_;
 
-    visPtr_ = std::make_shared<vis_utils::VisUtils>(nh);
+    visPtr_ = std::make_shared<vis_utils::VisUtils>(nh); // debug
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);
 
     target_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("target_odom", 10, &Nodelet::target_odom_callback, this, ros::TransportHints().tcpNoDelay());
     uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 10, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
-    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay());
+    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay()); // debug
     // ctrl_start_tri_sub_ = nh.subscribe<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10, &ctrl_start_tri_callback, this, ros::TransportHints().tcpNoDelay());
     triger_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("triger", 10, &Nodelet::triger_callback, this, ros::TransportHints().tcpNoDelay());
     
     if(ifanalyse)
     {
-      des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
+      des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10); // debug
     }
     cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 10);
     // hover_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
