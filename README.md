@@ -6,10 +6,20 @@ Compiling tests passed on ubuntu 20.04 with ros installed.
 
 install:
 ```
+sudo apt-get install ros-noetic-geodesy
 git clone -b traj_follow https://github.com/RM-Huang/Moving_landing
-cd Moving_landing
+cd Moving_landing/src/utils
+unzip mavlink_msg.zip
+cd ../..
 catkin_make
 source devel/setup.bash
+```
+
+install odometry data transport module on car computer:
+```
+unzip car_data_trans.zip  -d /home
+cd car_data_trans
+catkin_make
 ```
 
 ## Simulation

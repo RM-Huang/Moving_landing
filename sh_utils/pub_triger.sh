@@ -1,4 +1,4 @@
-rostopic pub -1 /triger geometry_msgs/PoseStamped "header:
+rostopic pub -1 /landing_triger geometry_msgs/PoseStamped "header:
   seq: 0
   stamp:
     secs: 1

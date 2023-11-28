@@ -27,12 +27,12 @@
       <remap from="~odom" to="odom"/>
       <remap from="~target" to="planning/target_odom"/>
       <!-- 订阅目标与无人机实际odometry -->
-      <remap from="~target_odom" to="/target/odom"/>
+      <remap from="~target_odom" to="/odom/remap/car"/>
       <remap from="~uav_odom" to="/odom/remap"/>
       <!-- 发布控制指令 -->
       <remap from="~cmd" to="planning/cmd"/>
       <!-- 外部程序触发规划接口 -->
-      <remap from="~triger" to="/triger"/>
+      <remap from="~triger" to="/landing_triger"/>
       <!-- 控制模块触发信号 -->
       <remap from="~ctrl_triger" to="/traj_start_trigger"/>
       <!-- 未使用话题 -->
@@ -57,7 +57,7 @@
       <param name="SpeedEps" value="0.0001"/>
 
       <param name="K" value="16"/>
-      <param name="vmax" value="1.0"/>
+      <param name="vmax" value="1.5"/>
       <!-- <param name="amax" value="0.3"/> -->
 
       <param name="thrust_max" value="12.8"/>
@@ -73,10 +73,10 @@
       <param name="platform_r" value="0.3"/>
       <param name="v_plus" value="0.3"/>
 
-      <param name="rhoT" value="100000.0"/>
+      <param name="rhoT" value="5000.0"/>
       <param name="rhoP" value="10000000.0"/>
-      <param name="rhoV" value="1000.0"/>
-      <param name="rhoA" value="1000.0"/>
+      <param name="rhoV" value="10000.0"/>
+      <!-- <param name="rhoA" value="10000.0"/> -->
       <param name="rhoVt" value="100000.0"/>
       <param name="rhoTf" value="100000.0"/>
       <param name="rhoThrust" value="500000.0"/>
@@ -86,7 +86,7 @@
       <param name="rhoPerchingCollision" value="1000000.0"/>
 
       <param name="perching_px" value="8.16"/>
-      <param name="perching_py" value="1.25"/>
+      <param name="perching_py" value="8.08"/>
       <param name="perching_pz" value="0.03"/>
       <!-- <param name="perching_pz" value="1.5"/> -->
       <!-- <param name="perching_pz" value="2.0"/> -->

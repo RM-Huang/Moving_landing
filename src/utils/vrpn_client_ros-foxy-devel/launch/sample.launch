@@ -18,6 +18,7 @@
       #refresh_tracker_frequency: 1.0
       trackers:
       - uav1
+      - 222
       #- SecondTracker
     </rosparam>
   </node>

@@ -158,12 +158,13 @@ class Nodelet : public nodelet::Nodelet {
 
   void target_odom_callback(const nav_msgs::OdometryConstPtr& msg)
   {
-    target_p << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
-    target_v << msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z;
-    target_q.w() = msg->pose.pose.orientation.w;
-    target_q.x() = msg->pose.pose.orientation.x;
-    target_q.y() = msg->pose.pose.orientation.y;
-    target_q.z() = msg->pose.pose.orientation.z;
+    if(msg->pose.pose.position.x < 10 && msg->pose.pose.position.y < 5 && msg->pose.pose.position.z < 3)
+      target_p << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
+    // target_v << msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z;
+    // target_q.w() = msg->pose.pose.orientation.w;
+    // target_q.x() = msg->pose.pose.orientation.x;
+    // target_q.y() = msg->pose.pose.orientation.y;
+    // target_q.z() = msg->pose.pose.orientation.z;
     if(!target_odom_recrived)
     {
       target_odom_recrived = true;
@@ -187,7 +188,13 @@ class Nodelet : public nodelet::Nodelet {
       return;
     }
     ROS_WARN("[planning]:start planning!");
+
     iniState.setZero(3, 4);
+    target_q.x() = 0.0;
+    target_q.y() = 0.0;
+    target_q.z() = 0.0;
+    target_q.w() = 1.0; // target_q表示平台的预设姿态
+    land_q = target_q; 
     predict_success = false;
 
     //TODO plaform predict
@@ -209,15 +216,17 @@ class Nodelet : public nodelet::Nodelet {
         ROS_WARN("[planning]:platform predict error");
       }
       else
-      {
-        vector<Eigen::Matrix<double, 6, 1>> predict_state_list = tgpredict.getStateListFromBezier(_PREDICT_SEG);
-      }
-      if(predict_state_list.size() < 1) 
-      {
-          ROS_ERROR("[planning]:Bezier predict failed");
-      }
-      else
         predict_success = true; 
+      // else
+      // {
+      //   vector<Eigen::Matrix<double, 6, 1>> predict_state_list = tgpredict.getStateListFromBezier(_PREDICT_SEG);
+      // }
+      // if(predict_state_list.size() < 1) 
+      // {
+      //     ROS_ERROR("[planning]:Bezier predict failed");
+      // }
+      // else
+      //   predict_success = true; 
     }
     // else
     // {
@@ -280,14 +289,14 @@ class Nodelet : public nodelet::Nodelet {
       output：轨迹tarj
     */
     bool generate_new_traj; 
-    if(predict_success == false) // follow state condition
-    {
+    // if(predict_success == false) // follow state condition
+    // {
+    //   generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj);
+    // }
+    // else // land state condition
+    // {
       generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj);
-    }
-    else // land state condition
-    {
-      generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj);
-    }
+    // }
 
     if (generate_new_traj) 
     {
@@ -439,15 +448,6 @@ class Nodelet : public nodelet::Nodelet {
       }
       else if(delta_from_start >= traj.getTotalDuration() && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       {
-        // quadrotor_msgs::MotorlockTriger hoverTri;
-        // hoverTri.triger = true;
-        // land_pub_.publish(hoverTri);
-
-        // ros::Duration(0.01).sleep();
-        // quadrotor_msgs::TakeoffLand landMsg;
-        // landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
-        // land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
-
         force_arm_disarm(false);
 
         ROS_WARN("[planning]: land triger published");
@@ -494,18 +494,18 @@ class Nodelet : public nodelet::Nodelet {
     target_p = perching_p_;// set initial state
     target_v = perching_v_;
 
-    visPtr_ = std::make_shared<vis_utils::VisUtils>(nh);
+    visPtr_ = std::make_shared<vis_utils::VisUtils>(nh); // debug
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);
 
     target_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("target_odom", 10, &Nodelet::target_odom_callback, this, ros::TransportHints().tcpNoDelay());
     uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 10, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
-    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay());
+    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay()); // debug
     // ctrl_start_tri_sub_ = nh.subscribe<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10, &ctrl_start_tri_callback, this, ros::TransportHints().tcpNoDelay());
     triger_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("triger", 10, &Nodelet::triger_callback, this, ros::TransportHints().tcpNoDelay());
     
     if(ifanalyse)
     {
-      des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10);
+      des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10); // debug
     }
     cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 10);
     // hover_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);

@@ -18,6 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   quadrotor_msgs
   nodelet
+  car_odom_server
+  geodesy
 )
 
 ## Generate added messages and services with any dependencies listed here
