@@ -221,7 +221,8 @@ static inline int earlyExit(void* ptrObj,
     Eigen::MatrixXd tailS(3, 4);
     tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * obj.robot_l_;
     tailS.col(1) = tailV;
-    tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+    // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+    tailS.col(2).setZero();
     tailS.col(3).setZero();
 
     obj.mincoOpt_.generate(obj.initS_, tailS, P, dT);
@@ -456,7 +457,8 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   Eigen::MatrixXd tailS(3, 4);
   tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * robot_l_;
   tailS.col(1) = tailV;
-  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+  // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+  tailS.col(2).setZero();
   tailS.col(3).setZero();
   // std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
   std::cout << "tailS : " << std::endl;

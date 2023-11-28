@@ -27,7 +27,7 @@
       <remap from="~odom" to="odom"/>
       <remap from="~target" to="planning/target_odom"/>
       <!-- 订阅目标与无人机实际odometry -->
-      <remap from="~target_odom" to="/target/odom"/>
+      <remap from="~target_odom" to="/odom/remap/car"/>
       <remap from="~uav_odom" to="/odom/remap"/>
       <!-- 发布控制指令 -->
       <remap from="~cmd" to="planning/cmd"/>
@@ -68,7 +68,7 @@
       <param name="omega_max" value="0.3"/>
       <param name="omega_yaw_max" value="0.17"/>
 
-      <param name="robot_l" value="0.05"/>
+      <param name="robot_l" value="0.1"/>
       <param name="robot_r" value="0.14"/>
       <param name="platform_r" value="0.3"/>
       <param name="v_plus" value="0.3"/>

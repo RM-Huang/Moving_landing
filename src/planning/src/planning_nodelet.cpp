@@ -158,12 +158,13 @@ class Nodelet : public nodelet::Nodelet {
 
   void target_odom_callback(const nav_msgs::OdometryConstPtr& msg)
   {
-    target_p << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
-    target_v << msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z;
-    target_q.w() = msg->pose.pose.orientation.w;
-    target_q.x() = msg->pose.pose.orientation.x;
-    target_q.y() = msg->pose.pose.orientation.y;
-    target_q.z() = msg->pose.pose.orientation.z;
+    if(msg->pose.pose.position.x < 10 && msg->pose.pose.position.y < 5 && msg->pose.pose.position.z < 3)
+      target_p << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
+    // target_v << msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z;
+    // target_q.w() = msg->pose.pose.orientation.w;
+    // target_q.x() = msg->pose.pose.orientation.x;
+    // target_q.y() = msg->pose.pose.orientation.y;
+    // target_q.z() = msg->pose.pose.orientation.z;
     if(!target_odom_recrived)
     {
       target_odom_recrived = true;
@@ -288,14 +289,14 @@ class Nodelet : public nodelet::Nodelet {
       output：轨迹tarj
     */
     bool generate_new_traj; 
-    if(predict_success == false) // follow state condition
-    {
+    // if(predict_success == false) // follow state condition
+    // {
+    //   generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj);
+    // }
+    // else // land state condition
+    // {
       generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj);
-    }
-    else // land state condition
-    {
-      generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj);
-    }
+    // }
 
     if (generate_new_traj) 
     {
@@ -447,15 +448,6 @@ class Nodelet : public nodelet::Nodelet {
       }
       else if(delta_from_start >= traj.getTotalDuration() && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       {
-        // quadrotor_msgs::MotorlockTriger hoverTri;
-        // hoverTri.triger = true;
-        // land_pub_.publish(hoverTri);
-
-        // ros::Duration(0.01).sleep();
-        // quadrotor_msgs::TakeoffLand landMsg;
-        // landMsg.takeoff_land_cmd = quadrotor_msgs::TakeoffLand::LAND;
-        // land_pub_.publish(landMsg); // using ctrl autoland for now, consider to swich to rcin_remap lock
-
         force_arm_disarm(false);
 
         ROS_WARN("[planning]: land triger published");
