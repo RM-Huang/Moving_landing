@@ -23,11 +23,21 @@ catkin_make
 ```
 
 ## Simulation
-You need to install PX4-Autopilot, gazebo and rviz with correct ros version. And run the following scripts:
+### Step 1
+You need to install PX4-Autopilot, gazebo and rviz with correct ros version. 
+### Step 2
 ```
-sudo apt install ros-melodic-gazebo-ros-control ros-melodic-ros-control ros-melodic-ros-controllers
+sudo apt install ros-melodic-gazebo-ros-control ros-melodic-ros-control ros-melodic-ros-controllers gfortran doxygen
 ```
-Run the following sctipt to start simulation.
+### Step 3
+un-zip **ma27.zip** and **OOQP.zip**,then use the following commands respecticely to install them to your Ubuntu. 
+```
+./configure
+make 
+sudo make install
+```
+### Static landing simulation
+Run the following sctipt to start static landing simulation.
 ```
 ./sim_traj_follow.sh
 ./takeoff.sh
@@ -36,6 +46,13 @@ After vehicle stablized, run the following script to start planning:
 ```
 ./pub_triger.sh
 ```
+### Target prediction simulation
+Run the following sctipt to start target prediction simulation.
+```
+./test.sh
+./record_sim.sh
+```
+Use keyboard 'wsad' to control the uniform-acceleration-model-car in gazebo
 
 ## Realfight run
 You have to read the _README.md_ file in the px4ctrl package before you run the script.
@@ -49,5 +66,3 @@ Than run the following sctipt to start planning.
 ```
 ./pub_triger.sh
 ```
-
-Traj analyse data would be generated into Moving_landing/data
