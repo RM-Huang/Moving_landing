@@ -23,7 +23,10 @@ catkin_make
 ```
 
 ## Simulation
-You need to install gazebo and rviz with correct ros version.
+You need to install PX4-Autopilot, gazebo and rviz with correct ros version. And run the following scripts:
+```
+sudo apt install ros-melodic-gazebo-ros-control ros-melodic-ros-control ros-melodic-ros-controllers
+```
 Run the following sctipt to start simulation.
 ```
 ./sim_traj_follow.sh

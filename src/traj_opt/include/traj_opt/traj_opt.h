@@ -36,6 +36,13 @@ class TrajOpt {
     Eigen::VectorXd t_;
     double* x_;
 
+   enum plan_s
+   {
+      HOVER = 1,
+      FOLLOW,
+      LAND
+   };
+
     std::vector<Eigen::Vector3d> tracking_ps_;
     std::vector<Eigen::Vector3d> tracking_visible_ps_;
     std::vector<double> tracking_thetas_;
@@ -51,7 +58,8 @@ class TrajOpt {
                         const Eigen::Quaterniond& land_q,
                         const int& N,
                         Trajectory& traj, 
-                        const double& t_replan = -1.0);
+                        plan_s plan_state);
+                        // const double& t_replan = -1.0);
 
     bool generate_test_traj(const std::vector<Eigen::Vector3d> route,
                             Trajectory& traj, 

@@ -1,6 +1,7 @@
 #include <thread>
 #include <fstream>
 #include <iostream>
+#include <Eigen/Eigen>
 #include <tf/tf.h>
 #include <ros/ros.h>
 #include <nodelet/nodelet.h>
@@ -15,6 +16,7 @@
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Vector3.h>
+#include "target_prediction/bezier_predict.h"
 
 namespace trajAnalyse {
 
@@ -22,11 +24,13 @@ class trajAls : public nodelet::Nodelet
 {
   private:
     int als_arg;
+    int bezier_flag = 1;
 
     std::thread initThread_;
     ros::Timer als_timer;
     ros::Time current_t;
     std::ofstream dataWrite;
+    Bezierpredict tgpredict;
 
     quadrotor_msgs::TrajcurDesire des;
     nav_msgs::Odometry gtruth;
@@ -34,11 +38,23 @@ class trajAls : public nodelet::Nodelet
     nav_msgs::Path truthMsg;
     quadrotor_msgs::Px4ctrlDebug ctrldes;
     // nav_msgs::Odometry ctrltruth;
+    geometry_msgs::TwistStamped carvel;
+    geometry_msgs::PoseStamped carpose;
+    std::vector<Eigen::Vector4d> target_detect_list;
+    std::vector<Eigen::MatrixXd> bezier_polyc_list;
+    std::vector<double> bezierT_list;
+    std::vector<double> bezier_init_time_list;
 
     ros::Subscriber desSub;
     ros::Subscriber gtruthSub;
     ros::Subscriber imuSub;
     ros::Subscriber ctrlSub;
+
+    ros::Subscriber carvelSub;
+    ros::Subscriber carposeSub;
+
+    ros::Publisher predictPub;
+    ros::Publisher veldifferPub;
 
     ros::Publisher despathPub;
     ros::Publisher truthpathPub;
@@ -66,6 +82,8 @@ class trajAls : public nodelet::Nodelet
     bool gtruthsubTri = false;
     bool ctrlsubTri = false;
     // bool imusubTri = false;
+    bool carvelsubTri = false;
+    bool carposesubTri = false;
 
     void desCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &Msg)
     {
@@ -267,6 +285,108 @@ class trajAls : public nodelet::Nodelet
         // }
     }
 
+    void carvelCallback(const geometry_msgs::TwistStamped::ConstPtr &velMsg)
+    {
+        carvel = *velMsg;
+        if(!carvelsubTri)
+        {
+            carvelsubTri = true;
+            ROS_INFO("\033[32m[traj_analyse]: car velocity msg received!\033[32m");
+        }
+    }
+
+    void carposeCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg)
+    {
+        carpose = *poseMsg;
+        if(!carposesubTri)
+        {
+            carposesubTri = true;
+            ROS_INFO("\033[32m[traj_analyse]: car pose msg received!\033[32m");
+        }
+    }
+
+    void bezier_analyse(const ros::TimerEvent& time_event)
+    {
+        if(carvelsubTri && carposesubTri)
+        {
+            const double predict_dur = 3.0;
+            const double sample_dur = 3.0;
+            double carpostime = carpose.header.stamp.toSec();
+            Eigen::Vector3d pos_truth;
+            pos_truth[0] = carpose.pose.position.x;
+            pos_truth[1] = carpose.pose.position.y;
+            pos_truth[2] = carpose.pose.position.z;
+            Eigen::Vector3d vel_truth;
+            vel_truth[0] = carvel.twist.linear.x;
+            vel_truth[1] = carvel.twist.linear.y;
+            vel_truth[2] = carvel.twist.linear.z;
+
+            if(abs(carvel.header.stamp.toSec() - carpostime) < 0.02)
+            {
+                target_detect_list.push_back(Eigen::Vector4d(pos_truth[0], pos_truth[1], pos_truth[2], carpostime));
+                if(target_detect_list.size() >= sample_dur * 100)
+                {
+                    bezier_flag = tgpredict.TrackingGeneration(8,1.5,target_detect_list);
+                    if(bezier_flag != 0)
+                    {
+                        ROS_WARN("[planning]:platform predict error");
+                        // using velocity stable assumption while bezier failed
+                    }
+                    else
+                    {
+                        Eigen::MatrixXd PolyCoeff = tgpredict.getPolyCoeff();
+                        bezier_polyc_list.push_back(PolyCoeff);
+                        bezierT_list.push_back(tgpredict.getPolyTime()(0));
+                        bezier_init_time_list.push_back(carpostime);
+                    }
+                    target_detect_list.erase(target_detect_list.begin());
+                }
+            }
+            else
+            {
+                ROS_WARN("data alignment failed");
+            }
+
+            if(!bezier_polyc_list.empty())
+            {
+                std::cout<<"bezier_polyc_list != empty"<<std::endl;
+                if(bezier_init_time_list.size() > predict_dur * 100)
+                {
+                    bezier_polyc_list.erase(bezier_polyc_list.begin());
+                    bezier_init_time_list.erase(bezier_init_time_list.begin());
+                    bezierT_list.erase(bezierT_list.begin());
+                }
+                
+                double t_from_start = carpostime - bezier_init_time_list[0];
+                if(abs(t_from_start) - predict_dur < 0.02 )
+                {
+                    Eigen::Vector3d pos_predict = tgpredict.getTPosFromBezier(t_from_start, bezierT_list[0], bezier_polyc_list[0]);
+                    Eigen::Vector3d vel_predict = tgpredict.getTVelFromBezier(t_from_start, bezierT_list[0], bezier_polyc_list[0]);
+
+                    nav_msgs::Odometry predict_msg;
+                    predict_msg.header.stamp.fromSec(carpostime);
+                    predict_msg.pose.pose.position.x = pos_predict[0];
+                    predict_msg.pose.pose.position.y = pos_predict[1];
+                    predict_msg.pose.pose.position.z = pos_predict[2];
+                    predict_msg.twist.twist.linear.x = vel_predict[0];
+                    predict_msg.twist.twist.linear.y = vel_predict[1];
+                    predict_msg.twist.twist.linear.z = vel_predict[2];
+
+                    std_msgs::Float64 posdiffer;
+                    posdiffer.data = (pos_truth - pos_predict).norm();
+
+                    std_msgs::Float64 veldiffer;
+                    veldiffer.data = (vel_truth - vel_predict).norm();
+
+                    predictPub.publish(predict_msg);
+                    posdifferPub.publish(posdiffer);
+                    veldifferPub.publish(veldiffer);
+                }
+            }
+        }
+        
+    }
+
     void init(ros::NodeHandle& nh)
     {
         nh.getParam("dataFile", datafile);
@@ -274,11 +394,10 @@ class trajAls : public nodelet::Nodelet
         nh.getParam("gtruthTopic", gtruthTopic);
         nh.param("analyse_arg", als_arg, 0);
         
-        gtruthSub = nh.subscribe(gtruthTopic, 10, &trajAls::gtruthCallback, this,
-                                   ros::TransportHints().tcpNoDelay());
-        
         if (als_arg == 0)
         {
+            gtruthSub = nh.subscribe(gtruthTopic, 10, &trajAls::gtruthCallback, this,
+                                   ros::TransportHints().tcpNoDelay());
             desSub = nh.subscribe(desTopic, 10, &trajAls::desCallback, this,
                                    ros::TransportHints().tcpNoDelay());
 
@@ -306,10 +425,25 @@ class trajAls : public nodelet::Nodelet
             ctrlquaPub = nh.advertise<geometry_msgs::QuaternionStamped>("/analyse/qua_ctrl",10);
             rpytruthPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_truth",10);
 
+            gtruthSub = nh.subscribe(gtruthTopic, 10, &trajAls::gtruthCallback, this,
+                                   ros::TransportHints().tcpNoDelay());
             imuSub = nh.subscribe("/mavros/imu/data", 10, &trajAls::imuCallback, this);
             ctrlSub = nh.subscribe("/debugPx4ctrl", 10, &trajAls::ctrlCallback, this);
 
             als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::imu_analyse, this);
+        }
+        else if (als_arg == 2)
+        {
+            carvelSub = nh.subscribe("/smart/velocity", 5, &trajAls::carvelCallback, this,
+                                     ros::TransportHints().tcpNoDelay());
+            carposeSub = nh.subscribe("/smart/center_pose", 5, &trajAls::carposeCallback, this,
+                                     ros::TransportHints().tcpNoDelay());
+
+            posdifferPub = nh.advertise<std_msgs::Float64>("/analyse/posdiffer", 100);
+            veldifferPub = nh.advertise<std_msgs::Float64>("/analyse/veldiffer", 100);
+            predictPub = nh.advertise<nav_msgs::Odometry>("/analyse/bezierpredict", 10);
+
+            als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::bezier_analyse, this);
         }
     }
 

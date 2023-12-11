@@ -11,6 +11,7 @@ static Eigen::Vector3d land_v_;
 static Eigen::Vector3d v_t_x_, v_t_y_;
 static Trajectory init_traj_;
 static double init_tail_f_;
+static double optimal_obs_alt = 1.5; // Optimal observation altitude
 static Eigen::Vector2d init_vt_;
 static bool initial_guess_ = false;
 
@@ -322,7 +323,9 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
                             const Eigen::Quaterniond& land_q,
                             const int& N,
                             Trajectory& traj,
-                            const double& t_replan) {
+                            plan_s plan_state)
+                            // const double& t_replan) 
+{
   N_ = N;
   dim_t_ = 1;
   dim_p_ = N_ - 1;
@@ -333,6 +336,10 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   Eigen::Map<Eigen::Vector2d> vt(x_ + dim_t_ + 3 * dim_p_ + 1);
   car_p_ = car_p;
   car_v_ = car_v;
+  if(plan_state == FOLLOW)
+  {
+    car_p_[2] = optimal_obs_alt;
+  }
   // std::cout << "land_q: "
   //           << land_q.w() << ","
   //           << land_q.x() << ","
@@ -364,51 +371,51 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   tail_f = 0;
 
-  bool opt_once = initial_guess_ && t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
-  if (opt_once) {
-    double init_T = init_traj_.getTotalDuration() - t_replan;
-    t = logC2(init_T / N_);
-    for (int i = 1; i < N_; ++i) {
-      double tt0 = (i * 1.0 / N_) * init_T;
-      P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
+  // bool opt_once = initial_guess_ && t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
+  // if (opt_once) {
+  //   double init_T = init_traj_.getTotalDuration() - t_replan;
+  //   t = logC2(init_T / N_);
+  //   for (int i = 1; i < N_; ++i) {
+  //     double tt0 = (i * 1.0 / N_) * init_T;
+  //     P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
+  //   }
+  //   tail_f = init_tail_f_;
+  //   vt = init_vt_;
+  // } else {
+  Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
+  Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
+  bvp_f.col(0) = car_p_;
+  bvp_f.col(1) = car_v_;
+  // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+  bvp_f.col(2).setZero();
+  bvp_f.col(3).setZero();
+  double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
+  CoefficientMat coeffMat;
+  double max_omega = 0;
+  do {
+    T_bvp += 1.0;
+    bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
+    bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
+    std::vector<double> durs{T_bvp};
+    std::vector<CoefficientMat> coeffs{coeffMat};
+    // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+    Trajectory traj(durs, coeffs); // 保存粗轨迹
+    max_omega = getMaxOmega(traj);
+  } while (max_omega > 1.5 * omega_max_);
+  Eigen::VectorXd tt(8);
+  tt(7) = 1.0;
+  for (int i = 1; i < N_; ++i) {
+    double tt0 = (i * 1.0 / N_) * T_bvp;
+    for (int j = 6; j >= 0; j -= 1) {
+      tt(j) = tt(j + 1) * tt0;
     }
-    tail_f = init_tail_f_;
-    vt = init_vt_;
-  } else {
-    Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
-    Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
-    bvp_f.col(0) = car_p_;
-    bvp_f.col(1) = car_v_;
-    // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
-    bvp_f.col(2).setZero();
-    bvp_f.col(3).setZero();
-    double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
-    CoefficientMat coeffMat;
-    double max_omega = 0;
-    do {
-      T_bvp += 1.0;
-      bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
-      bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
-      std::vector<double> durs{T_bvp};
-      std::vector<CoefficientMat> coeffs{coeffMat};
-      // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-      Trajectory traj(durs, coeffs); // 保存粗轨迹
-      max_omega = getMaxOmega(traj);
-    } while (max_omega > 1.5 * omega_max_);
-    Eigen::VectorXd tt(8);
-    tt(7) = 1.0;
-    for (int i = 1; i < N_; ++i) {
-      double tt0 = (i * 1.0 / N_) * T_bvp;
-      for (int j = 6; j >= 0; j -= 1) {
-        tt(j) = tt(j + 1) * tt0;
-      }
-      P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
-      // std::cout<<"tt:"<<tt.transpose()<<std::endl;
-      // std::cout<<"P:"<<std::endl;
-      // std::cout<<P<<std::endl;
-    }
-    t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
+    P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
+    // std::cout<<"tt:"<<tt.transpose()<<std::endl;
+    // std::cout<<"P:"<<std::endl;
+    // std::cout<<P<<std::endl;
   }
+  t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
+  // }
   // std::cout << "initial guess >>> t: " << t << std::endl;
   // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
   // std::cout << "initial guess >>> vt: " << vt.transpose() << std::endl;

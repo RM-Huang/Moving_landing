@@ -44,7 +44,7 @@
       <!-- plan rate = plan_hz, cmd pub rate = plan_hz * 10 -->
       <param name="plan_hz" value="5"/>
       <!-- plan_type：0 for sim， 1 for real -->
-      <param name="plan_type" value="0"/>
+      <param name="plan_type" value="1"/>
       <param name="visualize_sig" value="true"/>
       <!-- true: run with traj_analyse -->
       <param name="ifanalyse" value="false"/>
@@ -60,8 +60,8 @@
       <param name="vmax" value="1.5"/>
       <!-- <param name="amax" value="0.3"/> -->
 
-      <param name="thrust_max" value="12.8"/>
-      <param name="thrust_min" value="6.8"/>
+      <param name="thrust_max" value="11.8"/>
+      <param name="thrust_min" value="7.8"/>
       <!-- <param name="thrust_max" value="12.0"/>
       <param name="thrust_min" value="6.0"/> -->
 
@@ -73,7 +73,7 @@
       <param name="platform_r" value="0.3"/>
       <param name="v_plus" value="0.3"/>
 
-      <param name="rhoT" value="5000.0"/>
+      <param name="rhoT" value="7000.0"/>
       <param name="rhoP" value="10000000.0"/>
       <param name="rhoV" value="10000.0"/>
       <!-- <param name="rhoA" value="10000.0"/> -->

@@ -1,4 +1,4 @@
-#include "target_prediction/bezier_predict.h"
+#include <target_prediction/bezier_predict.h>
 #include <stdio.h>
 #include <ros/console.h>
 #include <iostream>
@@ -40,14 +40,7 @@ Eigen::MatrixXd Bezierpredict::getM(const int vars_number, const vector<double> 
     }
     return M_k;
 } 
-/**
- * @brief 输入最大速度、加速度以及存储一定数量的目标行走过的路径点
- * 
- * @param max_vel 输入参数
- * @param max_acc 输入参数
- * @param predict_list_complete 目标行走过的路径点
- * @return int 
- */
+
 int Bezierpredict::TrackingGeneration(
         const double max_vel,
         const double max_acc,
@@ -72,10 +65,10 @@ int Bezierpredict::TrackingGeneration(
             init_flag = 1;
         }
         history_time_total = predict_list_complete[i][3] - history_time_init;
-        predict_list_time.push_back(history_time_total); // the duration of i_th data from the 0_th in the list 
+        predict_list_time.push_back(history_time_total);
         //ROS_INFO_STREAM("pre_time: " << predict_list_time[i]);
     }
-    //ROS_INFO_STREAM("tanh weight: " );
+    std::cout<<"weight = "<<std::endl;
     for(int i = 0; i < _MAX_SEG; i++){
         double tanh_input = predict_list_time[_MAX_SEG - 1] - predict_list_time[i];
         if(!tanh_input){
@@ -84,14 +77,16 @@ int Bezierpredict::TrackingGeneration(
         else{
             tanh_input = 1.0 / tanh_input;
             history_weight_list.push_back(tanh(1.2 * tanh_input));
+            std::cout<<tanh_input<<" "<<history_weight_list[i]<<" ||  ";
             //ROS_INFO_STREAM("round: " <<i << " " << tanh(6 * tanh_input));
         }
     }
+    std::cout<<std::endl;
    
-    for(int i=0;i<segs;i++){ // segs = 1
+    for(int i=0;i<segs;i++){
         //time_intervals.push_back(time(i));
-        time_intervals.push_back(history_time_total); // T_MAX_SEG_th - T_0_th 
-        total_time_intervals.push_back(time_intervals[i] + (_TIME_INTERVAL* _PREDICT_SEG)); // duration of the whole curve
+        time_intervals.push_back(history_time_total); //0.1秒
+        total_time_intervals.push_back(time_intervals[i] + (_TIME_INTERVAL* _PREDICT_SEG));
     }
     
  
