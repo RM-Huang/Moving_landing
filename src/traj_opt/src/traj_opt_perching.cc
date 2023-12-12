@@ -317,15 +317,28 @@ static double getMaxVel(Trajectory& traj){
   return max_vel;
 }
 
+static double getPredictYaw(const Eigen::MatrixXd& PolyCoeff, const Eigen::Vector3d& vel, const double& t)
+{
+  int singul = 1;
+  if(vel[0] < 0)
+  {
+    int singul = -1; // backward moving
+  }
+
+  double yaw = std::atan2(singul * vel[1], singul * vel[0]);
+}
+
 bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
                             const Eigen::Vector3d& car_p,
                             const Eigen::Vector3d& car_v,
                             const Eigen::Quaterniond& land_q,
+                            Bezierpredict *bezier_predict,
                             const int& N,
                             Trajectory& traj,
                             plan_s plan_state)
                             // const double& t_replan) 
 {
+  bezier_ptr = bezier_predict;
   N_ = N;
   dim_t_ = 1;
   dim_p_ = N_ - 1;

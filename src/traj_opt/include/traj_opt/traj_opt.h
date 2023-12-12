@@ -6,6 +6,7 @@
 #include <vis_utils/vis_utils.hpp>
 
 #include "minco.hpp"
+#include "target_prediction/bezier_predict.h"
 
 namespace traj_opt {
 
@@ -35,6 +36,7 @@ class TrajOpt {
     // duration of each piece of the trajectory
     Eigen::VectorXd t_;
     double* x_;
+    Bezierpredict* bezier_ptr;
 
    enum plan_s
    {
@@ -56,6 +58,7 @@ class TrajOpt {
                         const Eigen::Vector3d& car_p,
                         const Eigen::Vector3d& car_v,
                         const Eigen::Quaterniond& land_q,
+                        Bezierpredict *bezier_predict,
                         const int& N,
                         Trajectory& traj, 
                         plan_s plan_state);

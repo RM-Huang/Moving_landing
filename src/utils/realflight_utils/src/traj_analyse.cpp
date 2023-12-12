@@ -383,8 +383,7 @@ class trajAls : public nodelet::Nodelet
                     veldifferPub.publish(veldiffer);
                 }
             }
-        }
-        
+        }     
     }
 
     void init(ros::NodeHandle& nh)

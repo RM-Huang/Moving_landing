@@ -7,6 +7,8 @@
 !lib.a
 !mavlink_msg.zip
 !car_data_trans.zip
+!ma27.zip
+!OOQP.zip
 
 # 目录下的所有文件
 build/

@@ -46,8 +46,13 @@ class Nodelet : public nodelet::Nodelet {
 
   // Using for prediction
   // int predict_seg;
+  double sample_dur;
+  double predict_dur;
   Bezierpredict tgpredict;
   std::vector<Eigen::Vector4d> target_detect_list;
+  // std::vector<Eigen::MatrixXd> bezier_polyc_list;
+  // std::vector<double> bezierT_list;
+  // std::vector<double> bezier_init_time_list;
 
   // Using for planning timer
   Eigen::MatrixXd iniState;
@@ -60,12 +65,6 @@ class Nodelet : public nodelet::Nodelet {
   Eigen::Vector3d target_p, target_v, uav_p, uav_v;
   Eigen::Quaterniond target_q;
   Eigen::Quaterniond land_q;
-  // enum plan_s
-  // {
-  //   FOLLOW = 1,
-  //   HOVER,
-  //   LAND
-  // };
   traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::HOVER;
 
   // Using for flatness
@@ -157,7 +156,6 @@ class Nodelet : public nodelet::Nodelet {
     target_q.w() = 1.0; // target_q表示平台的预设姿态
     land_q = target_q; 
     bool predict_success = false;
-    bool replan_from_hover;
     bool static_landing = true; // test
 
     //TODO plaform predict
@@ -165,34 +163,41 @@ class Nodelet : public nodelet::Nodelet {
     bool prediction_flag = false; // for static landing test, always false
     if(prediction_flag)
     {
-      target_detect_list.push_back(Eigen::Vector4d(target_p[0], target_p[1], target_p[2], target_odom_time));
-      // vector<Eigen::Matrix<double, 6, 1>> predict_state_list;
-      int bezier_flag = tgpredict.TrackingGeneration(5,5,target_detect_list);
-      // if(bezier_flag==0){
-      //     predict_state_list = tgpredict.getStateListFromBezier(_PREDICT_SEG);//最终用的预测轨迹数据存放在此 包含位置速度
-      //     Sample_list = tgpredict.SamplePoslist_bezier(_PREDICT_SEG);
-      // }
-      // else{
-      //     ROS_WARN("bezier predict error");
-      // }
-      if(bezier_flag != 0)
+      double detect_time = target_odom_time;
+      if(abs(detect_time - ros::Time::now().toSec()) < 0.02)
       {
-        ROS_WARN("[planning]:platform predict error");
-        // using velocity stable assumption while bezier failed
+        target_detect_list.push_back(Eigen::Vector4d(target_p[0], target_p[1], target_p[2], detect_time));
+        if(target_detect_list.size() >= sample_dur * plan_hz_)
+        {
+          int bezier_flag = tgpredict.TrackingGeneration(4,1.5,target_detect_list);
+          if(bezier_flag != 0)
+          {
+            ROS_WARN("[planning]:platform predict error");
+            // using velocity stable assumption while bezier failed
+            // static_landing = true;
+          }
+          else
+          {
+            // bezier_polyc_list.push_back(tgpredict.getPolyCoeff());
+            // bezierT_list.push_back(tgpredict.getPolyTime()(0));
+            // bezier_init_time_list.push_back(detect_time);
+
+            // if(bezier_init_time_list.size() > predict_dur * plan_hz_)
+            // {
+            //     bezier_polyc_list.erase(bezier_polyc_list.begin());
+            //     bezier_init_time_list.erase(bezier_init_time_list.begin());
+            //     bezierT_list.erase(bezierT_list.begin());
+            // }
+            predict_success = true; 
+          }
+          target_detect_list.erase(target_detect_list.begin());
+        }
       }
       else
-        predict_success = true; 
-      // else
-      // {
-      //   vector<Eigen::Matrix<double, 6, 1>> predict_state_list = tgpredict.getStateListFromBezier(_PREDICT_SEG);
-      // }
-      // if(predict_state_list.size() < 1) 
-      // {
-      //     ROS_ERROR("[planning]:Bezier predict failed");
-      // }
-      // else
-      //   predict_success = true; 
-      return;
+      {
+        ROS_ERROR("[planning]:predict error, failed to align target odom");
+        return; // for test
+      }
     }
     
     /* ________________________________________ FSM ________________________________________________ */
@@ -289,7 +294,7 @@ class Nodelet : public nodelet::Nodelet {
     */
     bool generate_new_traj; 
     
-    generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj, plan_state); // TODO change init param
+    // generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, 10, traj, plan_state); // TODO change init param
 
     if (generate_new_traj) 
     {
@@ -482,6 +487,9 @@ class Nodelet : public nodelet::Nodelet {
     nh.getParam("ParasDrag", parasDrag);
     nh.getParam("SpeedEps", speedEps);
     nh.getParam("robot_l", robot_l_);
+    nh.param("bezier_sample_dur", sample_dur, 3.0);
+    nh.param("bezier_predict_dur", predict_dur, 3.0);
+
     // nh.param("Predic_seg", predict_seg, 30); // platform observations used to genetrate prediction curves
     target_p = perching_p_;// set initial state
     target_v = perching_v_;
