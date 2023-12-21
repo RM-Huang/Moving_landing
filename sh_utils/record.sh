@@ -10,6 +10,7 @@ rosbag record --tcpnodelay \
 /desire_pose_current_traj \
 /mavros/imu/data \
 /odom/remap \
+/odom/remap/car \
 /analyse/posdiffer \
 /analyse/yawdiffer \
 /analyse/pitchdiffer \

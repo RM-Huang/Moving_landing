@@ -35,6 +35,7 @@ src/${PROJECT_NAME}_nodelet.cpp
 
 target_link_libraries(${PROJECT_NAME}_nodelet
   ${catkin_LIBRARIES}
+  bezier_predict
 )
 
 add_dependencies(${PROJECT_NAME}_nodelet

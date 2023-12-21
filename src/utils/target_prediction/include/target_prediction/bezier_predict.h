@@ -16,17 +16,17 @@
 #include <ooqp/GondzioSolver.h>
 #include <ooqp/QpGenSparseMa27.h>
 #include <std_msgs/Float64.h>
-#define _MAX_SEG 30         
-#define _PREDICT_SEG  30    
+// #define max_seg 300         
+// #define _PREDICT_SEG  300    
 #define _TIME_INTERVAL 0.05 
 #define Lambda_ACC  1.5     
 #define SAMPLE_INTERVALS 0.001
 
-
-
 class Bezierpredict{
   private:
         double obj;
+        int max_seg = 300;
+        int predict_seg = 300;
         Eigen::MatrixXd PolyCoeff;
         Eigen::VectorXd PolyTime;
         Eigen::MatrixXd M;
@@ -34,6 +34,7 @@ class Bezierpredict{
         vector<int> C_;
         int segs;
         int traj_order;
+        // int ierr = 5;
         double history_time_total;
         double history_time_init;
         vector<double> time_each_seg;
@@ -48,8 +49,9 @@ class Bezierpredict{
       }
       int  combinatorial(int n, int k) {
         return factorial(n) / (factorial(k) * factorial(n - k));}
+
       Bezierpredict(){
-        traj_order = 5;            
+        traj_order = 5;         
         M = Eigen::MatrixXd::Zero(6,6);
         M << 1,   0,   0,   0,  0,  0,
             -5,   5,   0,   0,  0,  0,
@@ -60,13 +62,18 @@ class Bezierpredict{
           for(int i=0;i<=5;i++){
             C_.push_back(combinatorial(5,i));
           }
-        for(int i = 0; i < _MAX_SEG; i++){
+        for(int i = 0; i < max_seg; i++){
           time_each_seg.push_back(i * _TIME_INTERVAL);
         }    
         }
 
         ~Bezierpredict(){}
 
+        void init(int max, int predict)
+        {
+          max_seg = max;
+          predict_seg = predict; 
+        }
 
         int TrackingGeneration(
         const double max_vel,
@@ -89,6 +96,7 @@ class Bezierpredict{
         {
             return obj;
         };
+
         inline Eigen::Vector3d getPosFromBezier(const double & t_now, const int & seg_now ){
 		      Eigen::Vector3d ret = Eigen::VectorXd::Zero(3);
           double T = PolyTime(seg_now);
@@ -101,12 +109,27 @@ class Bezierpredict{
               // ROS_INFO("ret=%f  %f  %f",ret(0),ret(1),ret(2));
 		      return ret;  
 		    };
+
+        inline Eigen::Vector3d getTPosFromBezier(const double & t_now, const double& T, const Eigen::MatrixXd& Coeff ) // t_now: time at cur curve, seg_now: ser of cur curve
+        {
+          Eigen::Vector3d ret = Eigen::VectorXd::Zero(3);
+          // double T = PolyTime(seg_now); // total duration of cur curve
+          // T=1;
+          // cout<<PolyCoeff;
+          for(int i = 0; i < 3; i++)
+            for(int j = 0; j < traj_order+1; j++)
+              ret(i) += C_[j] * Coeff(0, i * (traj_order+1) + j) * pow(t_now/T, j) * pow((1 - t_now/T), (traj_order - j) ); 
+              //ROS_INFO_STREAM("asdf" << t_now/T);
+              // ROS_INFO("ret=%f  %f  %f",ret(0),ret(1),ret(2));
+          return ret;  
+        };
+
         inline vector<Eigen::Vector3d> getPosListFromBezier(const int & predict_seg){
           int seg = 1;
           vector<Eigen::Vector3d> PosList;
           
           for(int i = 0; i < seg; i++){
-            // for (double t = _TIME_INTERVAL * _MAX_SEG; t < _TIME_INTERVAL * (_MAX_SEG + predict_seg); t += _TIME_INTERVAL){
+            // for (double t = _TIME_INTERVAL * max_seg; t < _TIME_INTERVAL * (max_seg + predict_seg); t += _TIME_INTERVAL){
             for (double t = history_time_total; t < _TIME_INTERVAL * predict_seg + history_time_total; t += _TIME_INTERVAL){
               //ROS_INFO_STREAM("index: " << t);
               Eigen::Vector3d pos = getPosFromBezier(t,i);
@@ -116,12 +139,13 @@ class Bezierpredict{
           //ROS_INFO_STREAM("asdffsdf   " << PosList.size());
           return PosList;
         }
+
         inline vector<Eigen::Vector3d> getPosListFromBezier(int a, const int & predict_seg){
           int seg = 1;
           vector<Eigen::Vector3d> PosList;
          
           for(int i = 0; i < seg; i++){
-            // for (double t = _TIME_INTERVAL * _MAX_SEG; t < _TIME_INTERVAL * (_MAX_SEG + predict_seg); t += _TIME_INTERVAL){
+            // for (double t = _TIME_INTERVAL * max_seg; t < _TIME_INTERVAL * (max_seg + predict_seg); t += _TIME_INTERVAL){
             for (double t = 0; t < history_time_total; t += _TIME_INTERVAL){
               //ROS_INFO_STREAM("index: " << t);
               Eigen::Vector3d pos = getPosFromBezier(t,i);
@@ -131,14 +155,15 @@ class Bezierpredict{
           //ROS_INFO_STREAM("asdffsdf   " << PosList.size());
           return PosList;
         }
+
         inline vector<Eigen::Vector3d> SamplePoslist_bezier(const int & predict_seg){
           int seg = 1;
           vector<Eigen::Vector3d> PosList;
          
           for(int i = 0; i < seg; i++){
-            // for (double t = _TIME_INTERVAL * _MAX_SEG; t < _TIME_INTERVAL * (_MAX_SEG + predict_seg); t += _TIME_INTERVAL){
+            // for (double t = _TIME_INTERVAL * max_seg; t < _TIME_INTERVAL * (max_seg + predict_seg); t += _TIME_INTERVAL){
             for (double t = history_time_total; t < _TIME_INTERVAL * predict_seg + history_time_total; t += SAMPLE_INTERVALS){
-            //for (double t = 0; t < _TIME_INTERVAL * _MAX_SEG; t += SAMPLE_INTERVALS){
+            //for (double t = 0; t < _TIME_INTERVAL * max_seg; t += SAMPLE_INTERVALS){
               Eigen::Vector3d pos = getPosFromBezier(t,i);
               PosList.push_back(pos);
             }
@@ -146,6 +171,7 @@ class Bezierpredict{
           //ROS_INFO_STREAM("asdffsdf   " << PosList.size());
           return PosList;
         }
+
         inline Eigen::Vector3d getVelFromBezier(const double & t_now, const int & seg_now ){
 		      Eigen::Vector3d ret = Eigen::VectorXd::Zero(3);
           double T = PolyTime(seg_now);
@@ -160,7 +186,24 @@ class Bezierpredict{
 		          // ret(i) += C_[j] * PolyCoeff(seg_now, i * (traj_order+1) + j) * pow(t_now/T, j) * pow((1 - t_now/T), (traj_order - j) ); 
               // ROS_INFO("ret=%f  %f  %f",ret(0),ret(1),ret(2));
 		      return ret;  
-		};
+        };
+
+        inline Eigen::Vector3d getTVelFromBezier(const double & t_now, const double& T, const Eigen::MatrixXd& Coeff ){
+          Eigen::Vector3d ret = Eigen::VectorXd::Zero(3);
+          // double T = PolyTime(seg_now);
+          // T=1;
+          // cout<<PolyCoeff;
+          for(int i = 0; i < 3; i++)
+            for(int j = 0; j < traj_order; j++)
+            {
+              double c_n=traj_order*(Coeff(0, i * (traj_order+1) + j + 1)-Coeff(0, i * (traj_order+1) + j))/T;
+              ret(i)+=combinatorial(traj_order-1,j)*c_n*pow(t_now/T, j) * pow((1 - t_now/T), (traj_order-1 - j) );
+            }
+              // ret(i) += C_[j] * PolyCoeff(seg_now, i * (traj_order+1) + j) * pow(t_now/T, j) * pow((1 - t_now/T), (traj_order - j) ); 
+              // ROS_INFO("ret=%f  %f  %f",ret(0),ret(1),ret(2));
+          return ret;  
+        }
+
         inline vector<Eigen::Matrix<double, 6, 1>> getStateListFromBezier(const int & predict_seg){
           int seg = 1;
           vector<Eigen::Matrix<double,6,1>> predict_traj_state;
@@ -176,7 +219,8 @@ class Bezierpredict{
             }
           }
           return predict_traj_state;
-        }
+        };
+
         inline Eigen::Vector3d getAccFromBezier(const double & t_now, const int & seg_now ){
 		      Eigen::Vector3d ret = Eigen::VectorXd::Zero(3);
           double T = PolyTime(seg_now);
@@ -191,7 +235,8 @@ class Bezierpredict{
 		          // ret(i) += C_[j] * PolyCoeff(seg_now, i * (traj_order+1) + j) * pow(t_now/T, j) * pow((1 - t_now/T), (traj_order - j) ); 
               // ROS_INFO("ret=%f  %f  %f",ret(0),ret(1),ret(2));
 		      return ret;  
-		};
+        };
+
         inline Eigen::Vector3d getJerkFromBezier(const double & t_now, const int & seg_now ){
 		      Eigen::Vector3d ret = Eigen::VectorXd::Zero(3);
           double T = PolyTime(seg_now);
@@ -206,7 +251,8 @@ class Bezierpredict{
 		          // ret(i) += C_[j] * PolyCoeff(seg_now, i * (traj_order+1) + j) * pow(t_now/T, j) * pow((1 - t_now/T), (traj_order - j) ); 
               // ROS_INFO("ret=%f  %f  %f",ret(0),ret(1),ret(2));
 		      return ret;  
-		};
+        };
+
         inline Eigen::MatrixXd getCt(double curr_time,Eigen::Vector3d curr_pos){
   
           Eigen::MatrixXd Ct = Eigen::MatrixXd::Zero(1, 3*(traj_order + 1));
@@ -218,7 +264,8 @@ class Bezierpredict{
           } 
           //ROS_INFO_STREAM("Ct: "<<Ct);
           return Ct; 
-        }
+        };
+
         inline Eigen::MatrixXd getdistance_Q(double curr_time){
       
           Eigen::MatrixXd distance_Q = Eigen::MatrixXd::Zero(3*(traj_order + 1),3*(traj_order + 1));
@@ -236,8 +283,10 @@ class Bezierpredict{
 
           return distance_Q;
         };
+
         inline Eigen::Vector3d getinitial_vel(){
           return getVelFromBezier(history_time_total,0);
-        } 
+        };
+
 };
 #endif

@@ -5,21 +5,31 @@
 namespace traj_opt {
 
 static Eigen::Vector3d car_p_, car_v_;
+static Eigen::Quaterniond uav_q_, car_q_;
+Eigen::Quaterniond land_q;
 static Eigen::Vector3d tail_q_v_;
 static Eigen::Vector3d g_(0, 0, -9.8);
-static Eigen::Vector3d land_v_;
+// static Eigen::Vector3d land_v_;
 static Eigen::Vector3d v_t_x_, v_t_y_;
 static Trajectory init_traj_;
 static double init_tail_f_;
+static double optimal_obs_alt = 1.5; // Optimal observation altitude
 static Eigen::Vector2d init_vt_;
 static bool initial_guess_ = false;
+
+static Bezierpredict* bezier_ptr;
+static TrajOpt::plan_s* plan_state_;
 
 static double thrust_middle_, thrust_half_;
 
 static double tictoc_innerloop_;
 static double tictoc_integral_;
 
+static double v_plus_;
+
 static int iter_times_;
+
+static bool predict_suc = false;
 
 static bool q2v(const Eigen::Quaterniond& q,
                 Eigen::Vector3d& v) {
@@ -27,13 +37,16 @@ static bool q2v(const Eigen::Quaterniond& q,
   v = R.col(2);
   return true;
 }
+
 static Eigen::Vector3d f_N(const Eigen::Vector3d& x) {
   return x.normalized();
 }
+
 static Eigen::MatrixXd f_DN(const Eigen::Vector3d& x) {
   double x_norm_2 = x.squaredNorm();
   return (Eigen::MatrixXd::Identity(3, 3) - x * x.transpose() / x_norm_2) / sqrt(x_norm_2); // 公式9b
 }
+
 static Eigen::MatrixXd f_D2N(const Eigen::Vector3d& x, const Eigen::Vector3d& y) {
   double x_norm_2 = x.squaredNorm();
   double x_norm_3 = x_norm_2 * x.norm();
@@ -108,9 +121,92 @@ static void addLayerThrust(const double& f,
   grad_f = thrust_half_ * cos(f) * grad_thrust; // 公式22
   // grad_f = grad_thrust;
 }
-static void forwardTailV(const Eigen::Ref<const Eigen::Vector2d>& xy,
+static void forwardTailV(const double& t,
+                         const Eigen::Vector3d& car_tail_v_,
+                         const Eigen::Ref<const Eigen::Vector2d>& xy,
                          Eigen::Ref<Eigen::Vector3d> tailV) {
+  Eigen::Vector3d land_v_ = car_tail_v_ - tail_q_v_ * v_plus_;
   tailV = land_v_ + xy.x() * v_t_x_ + xy.y() * v_t_y_; // 公式19,land_v_ = car_v - tail_q_v_ * v_plus_
+}
+
+static void forwardTailQua(const double& t)
+{
+  // Eigen::Quaterniond land_q = getPredictYQua(vel, t);
+  q2v(land_q, tail_q_v_);
+  v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 0, 1));
+  if (v_t_x_.squaredNorm() == 0) {
+    v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 1, 0));
+  }
+  v_t_x_.normalize();
+  v_t_y_ = tail_q_v_.cross(v_t_x_);
+  v_t_y_.normalize(); //这一段定义了以tail_q_v_为z轴的坐标系
+}
+
+static Eigen::Quaterniond getPredictYQua(const Eigen::Vector3d& vel, const double& t) // vel here is relative to the absolute coordinate
+{
+  Eigen::Quaterniond orientation;
+  if(*plan_state_ == TrajOpt::plan_s::LAND || !predict_suc)
+  { 
+    orientation = car_q_;
+    // Eigen::Matrix3d rx = car_q_.toRotationMatrix();
+    // Eigen::Vector3d car_eular = rx.eulerAngles(0,1,2);
+    // r = (Eigen::AngleAxisd(car_eular[0],Eigen::Vector3d::UnitX()));
+    // p = (Eigen::AngleAxisd(car_eular[1],Eigen::Vector3d::UnitY()));
+  }
+  else
+  {
+    double yaw;
+    if(vel[0] >= 0 and vel[1] >= 0)
+      yaw = std::atan(vel[1] / vel[0]);
+    else if(vel[0] >= 0 and vel[1]< 0)
+      yaw = 2 * 3.14159265 - std::atan(- vel[1] / vel[0]);
+    else if(vel[0] < 0 and vel[1] >= 0)
+      yaw = 3.14159265 - std::atan(vel[1] / - vel[0]);
+    else if(vel[0] < 0 and vel[1] < 0)
+      yaw = std::atan(- vel[1] / - vel[0]) + 3.14159265;
+      
+    Eigen::AngleAxisd r;
+    Eigen::AngleAxisd p;
+
+    Eigen::Matrix3d rx = uav_q_.toRotationMatrix();
+    Eigen::Vector3d uav_eular = rx.eulerAngles(0,1,2);
+    r = (Eigen::AngleAxisd(uav_eular[0],Eigen::Vector3d::UnitX()));
+    p = (Eigen::AngleAxisd(uav_eular[1],Eigen::Vector3d::UnitY()));
+    Eigen::AngleAxisd y(Eigen::AngleAxisd(yaw,Eigen::Vector3d::UnitZ()));
+    orientation = r * p * y;
+  }
+
+  // std::cout<<"predict_qua = "<<orientation.w()<<" "<<orientation.x()<<" "<<orientation.y()<<" "<<orientation.z()<<" "<<std::endl;
+  
+  return orientation;
+}
+
+static void getPVA(const double& t, Eigen::Vector3d& car_p, Eigen::Vector3d& car_v, Eigen::Vector3d& car_a)
+{
+  if(predict_suc)
+  {
+    car_p = bezier_ptr->getPosFromBezier(t,0);
+    car_v = bezier_ptr->getVelFromBezier(t,0);
+    car_a = bezier_ptr->getAccFromBezier(t,0);
+  }
+  else
+  {
+    car_p = car_p_ + t * car_v_;
+    car_v = car_v_;
+    car_a = Eigen::Vector3d(0,0,0);
+  }
+
+  if(*plan_state_ == TrajOpt::plan_s::FOLLOW || *plan_state_ == TrajOpt::plan_s::HOVER)
+  {
+    car_p[2] = optimal_obs_alt;
+  }
+}
+
+static void getTailPVAQ(const double& t, Eigen::Vector3d& car_p, Eigen::Vector3d& car_v, Eigen::Vector3d& car_a)
+{
+  getPVA(t, car_p, car_v, car_a);
+
+  land_q = getPredictYQua(car_v, t);
 }
 
 // !SECTION variables transformation and gradient transmission
@@ -133,11 +229,19 @@ static inline double objectiveFunc(void* ptrObj,
   Eigen::Map<Eigen::Vector2d> grad_vt(grad + obj.dim_t_ + 3 * obj.dim_p_ + 1);
 
   double dT = expC2(t);
-  Eigen::Vector3d tailV, grad_tailV;
-  forwardTailV(vt, tailV);
+  double T = obj.N_ * dT;
+  Eigen::Vector3d tailV, grad_tailV, tail_p_, tail_v_, car_a_;
+  // land_v_ = bezier_ptr->getVelFromBezier(t,0) - tail_q_v_ * v_plus_;
+  getTailPVAQ(T, tail_p_, tail_v_, car_a_);
+  forwardTailQua(T);
+  forwardTailV(T, tail_v_, vt, tailV);
+
+  // std::cout<<"T = "<<T<<" ";
+  // std::cout<<"car_v_tail = "<<tail_v_.transpose()<<std::endl;
 
   Eigen::MatrixXd tailS(3, 4);
-  tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_; // cons 4d
+  // tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_; // cons 4d
+  tailS.col(0) = tail_p_ + tail_q_v_ * obj.robot_l_;
   tailS.col(1) = tailV;
   // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
   // tailS.col(1) = vt;
@@ -167,6 +271,8 @@ static inline double objectiveFunc(void* ptrObj,
   // std::cout << "cost of penalty: " << cost - cost_with_only_energy << std::endl;
 
   obj.mincoOpt_.gdT += obj.mincoOpt_.gdTail.col(0).dot(obj.N_ * car_v_);
+  // obj.mincoOpt_.gdT += obj.mincoOpt_.gdTail.col(0).dot(obj.N_ * car_v_ + obj.N_ * car_a_ * dT);
+  // obj.mincoOpt_.gdT += obj.mincoOpt_.gdTail.col(1).dot(obj.N_ * car_a_);
   grad_tailV = obj.mincoOpt_.gdTail.col(1);
   // double grad_thrust = obj.mincoOpt_.gdTail.col(2).dot(tail_q_v_);
   // addLayerThrust(tail_f, grad_thrust, grad_f);
@@ -191,7 +297,7 @@ static inline double objectiveFunc(void* ptrObj,
 
   gradP = obj.mincoOpt_.gdP;
 
-  // std::cout<<"cost = "<<cost<<std::endl;
+  // std::cout<<"cost = "<<cost<<" grad_t = "<<gradt<<" grad_vt = "<<grad_vt.transpose()<<std::endl;;
   return cost;
 }
 
@@ -215,11 +321,13 @@ static inline int earlyExit(void* ptrObj,
 
     double dT = expC2(t);
     double T = obj.N_ * dT;
-    Eigen::Vector3d tailV;
-    forwardTailV(vt, tailV);
+    Eigen::Vector3d tailV, tail_p_, tail_v_, car_a_;
+    getTailPVAQ(T, tail_p_, tail_v_, car_a_);
+    forwardTailQua(T);
+    forwardTailV(T, tail_v_, vt, tailV);
 
     Eigen::MatrixXd tailS(3, 4);
-    tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * obj.robot_l_;
+    tailS.col(0) = tail_p_ + tail_q_v_ * obj.robot_l_;
     tailS.col(1) = tailV;
     // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
     tailS.col(2).setZero();
@@ -319,10 +427,23 @@ static double getMaxVel(Trajectory& traj){
 bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
                             const Eigen::Vector3d& car_p,
                             const Eigen::Vector3d& car_v,
-                            const Eigen::Quaterniond& land_q,
+                            const Eigen::Quaterniond& car_q,
+                            const Eigen::Quaterniond& uav_q,
+                            Bezierpredict *bezier_predict,
+                            const bool& predict_flag,
                             const int& N,
                             Trajectory& traj,
-                            const double& t_replan) {
+                            plan_s *plan_state)
+                            // const double& t_replan) 
+{
+  predict_suc = predict_flag;
+  plan_state_ = plan_state;
+  uav_q_ = uav_q;
+  car_q_ = car_q;
+  if(predict_suc)
+  {
+    bezier_ptr = bezier_predict;
+  }
   N_ = N;
   dim_t_ = 1;
   dim_p_ = N_ - 1;
@@ -338,21 +459,10 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   //           << land_q.x() << ","
   //           << land_q.y() << ","
   //           << land_q.z() << "," << std::endl;
-  q2v(land_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
-  // tail_q_v_ << 0,0,1; // 泛函修改，将末端姿态改为定值
+  // q2v(land_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
+  // // tail_q_v_ << 0,0,1; // 泛函修改，将末端姿态改为定值
   thrust_middle_ = (thrust_max_ + thrust_min_) / 2; // 中位
   thrust_half_ = (thrust_max_ - thrust_min_) / 2; // 半增值
-
-  land_v_ = car_v - tail_q_v_ * v_plus_; // 在平台运动速度基础上减去降落平面方向上的微小速度
-  // std::cout << "tail_q_v_: " << tail_q_v_.transpose() << std::endl;
-
-  v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 0, 1));
-  if (v_t_x_.squaredNorm() == 0) {
-    v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 1, 0));
-  }
-  v_t_x_.normalize();
-  v_t_y_ = tail_q_v_.cross(v_t_x_);
-  v_t_y_.normalize(); //这一段定义了以tail_q_v_为z轴的坐标系
 
   vt.setConstant(0.0);
 
@@ -364,51 +474,57 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   tail_f = 0;
 
-  bool opt_once = initial_guess_ && t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
-  if (opt_once) {
-    double init_T = init_traj_.getTotalDuration() - t_replan;
-    t = logC2(init_T / N_);
-    for (int i = 1; i < N_; ++i) {
-      double tt0 = (i * 1.0 / N_) * init_T;
-      P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
-    }
-    tail_f = init_tail_f_;
-    vt = init_vt_;
-  } else {
-    Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
-    Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
-    bvp_f.col(0) = car_p_;
-    bvp_f.col(1) = car_v_;
-    // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
-    bvp_f.col(2).setZero();
-    bvp_f.col(3).setZero();
-    double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
-    CoefficientMat coeffMat;
-    double max_omega = 0;
-    do {
-      T_bvp += 1.0;
-      bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
-      bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
-      std::vector<double> durs{T_bvp};
-      std::vector<CoefficientMat> coeffs{coeffMat};
-      // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-      Trajectory traj(durs, coeffs); // 保存粗轨迹
-      max_omega = getMaxOmega(traj);
-    } while (max_omega > 1.5 * omega_max_);
-    Eigen::VectorXd tt(8);
-    tt(7) = 1.0;
-    for (int i = 1; i < N_; ++i) {
-      double tt0 = (i * 1.0 / N_) * T_bvp;
-      for (int j = 6; j >= 0; j -= 1) {
-        tt(j) = tt(j + 1) * tt0;
-      }
-      P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
-      // std::cout<<"tt:"<<tt.transpose()<<std::endl;
-      // std::cout<<"P:"<<std::endl;
-      // std::cout<<P<<std::endl;
-    }
-    t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
+  Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
+  Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
+  bvp_f.col(0) = car_p_;
+  if(*plan_state == FOLLOW)
+  {
+    bvp_f.col(0)[2] = optimal_obs_alt;
   }
+  bvp_f.col(1) = car_v_;
+  // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+  bvp_f.col(2).setZero();
+  bvp_f.col(3).setZero();
+  double T_min = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_;
+  double T_bvp = T_min; // 得到初始相对距离最小时间
+  Eigen::Vector3d tail_p_, tail_v_, car_a_;
+  CoefficientMat coeffMat;
+  double max_omega = 0;
+  do {
+    if(*plan_state_ == TrajOpt::plan_s::LAND)
+      T_bvp += 0.05; // 1.0
+    else
+      T_bvp += 1.0;
+    
+    if(T_bvp > 100 * T_min)
+    {
+      std::cout<<"minumsnap T cost too high"<<std::endl;
+      return false;
+    }
+    getPVA(T_bvp, tail_p_, tail_v_, car_a_);
+    bvp_f.col(0) = tail_p_;
+    bvp_f.col(1) = tail_v_;
+    bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
+    std::vector<double> durs{T_bvp};
+    std::vector<CoefficientMat> coeffs{coeffMat};
+    // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+    Trajectory traj(durs, coeffs); // 保存粗轨迹
+    max_omega = getMaxOmega(traj);
+  } while (max_omega > 1.5 * omega_max_);
+  Eigen::VectorXd tt(8);
+  tt(7) = 1.0;
+  for (int i = 1; i < N_; ++i) {
+    double tt0 = (i * 1.0 / N_) * T_bvp;
+    for (int j = 6; j >= 0; j -= 1) {
+      tt(j) = tt(j + 1) * tt0;
+    }
+    P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
+    // std::cout<<"tt:"<<tt.transpose()<<std::endl;
+    // std::cout<<"P:"<<std::endl;
+    // std::cout<<P<<std::endl;
+  }
+  t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
+  // }
   // std::cout << "initial guess >>> t: " << t << std::endl;
   // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
   // std::cout << "initial guess >>> vt: " << vt.transpose() << std::endl;
@@ -439,8 +555,8 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   std::cout << "\033[32m>ret: " << opt_ret << "\033[0m" << std::endl;
 
-  // std::cout << "innerloop costs: " << tictoc_innerloop_ * 1e-6 << "ms" << std::endl;
-  // std::cout << "integral costs: " << tictoc_integral_ * 1e-6 << "ms" << std::endl;
+  std::cout << "innerloop costs: " << tictoc_innerloop_ * 1e-6 << "ms" << std::endl;
+  std::cout << "integral costs: " << tictoc_integral_ * 1e-6 << "ms" << std::endl;
   std::cout << "optmization costs: " << (toc - tic).count() * 1e-6 << "ms" << std::endl;
   // std::cout << "\033[32m>iter times: " << iter_times_ << "\033[0m" << std::endl;
   if (pause_debug_) {
@@ -453,9 +569,12 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   double dT = expC2(t);
   double T = N_ * dT;
   Eigen::Vector3d tailV;
-  forwardTailV(vt, tailV);
+  getTailPVAQ(T, tail_p_, tail_v_, car_a_);
+  forwardTailQua(T);
+  forwardTailV(T, tail_v_, vt, tailV);
   Eigen::MatrixXd tailS(3, 4);
-  tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * robot_l_;
+  // tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * robot_l_;
+  tailS.col(0) = tail_p_ + tail_q_v_ * robot_l_;
   tailS.col(1) = tailV;
   // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
   tailS.col(2).setZero();
@@ -479,26 +598,43 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   return true;
 }
 
-// bool TrajOpt::generate_test_traj(const std::vector<Eigen::Vector3d> route,
-//                                 Trajectory& traj,
-//                                 const double& t_replan) {
-  
-//   N_ = route.size(); // pieces
+// bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
+//                             const Eigen::Vector3d& car_p,
+//                             const Eigen::Vector3d& car_v,
+//                             const Eigen::Quaterniond& land_q,
+//                             Bezierpredict *bezier_predict,
+//                             const int& N,
+//                             Trajectory& traj,
+//                             const plan_s& plan_state)
+//                             // const double& t_replan) 
+// {
+//   bezier_ptr = bezier_predict;
+//   std::cout<<"bezier_ptr = "<<bezier_ptr<<std::endl;
+//   N_ = N;
 //   dim_t_ = 1;
 //   dim_p_ = N_ - 1;
 //   x_ = new double[dim_t_ + 3 * dim_p_ + 1 + 2];  // 1: tail thrust; 2: tail vt
 //   double& t = x_[0];
 //   Eigen::Map<Eigen::MatrixXd> P(x_ + dim_t_, 3, dim_p_); // P为x_的映射矩阵，3行dim_p_列，从第dim_t_组开始取
 //   double& tail_f = x_[dim_t_ + 3 * dim_p_];
-//   Eigen::Map<Eigen::Vector2d> vt(x_ + dim_t_ + 3 * dim_p_ + 1); //
-//   car_p_ = fin_p;
-//   car_v_ = fin_v;
-
-//   q2v(fin_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
+//   Eigen::Map<Eigen::Vector2d> vt(x_ + dim_t_ + 3 * dim_p_ + 1);
+//   car_p_ = car_p;
+//   car_v_ = car_v;
+//   if(plan_state == FOLLOW)
+//   {
+//     car_p_[2] = optimal_obs_alt;
+//   }
+//   // std::cout << "land_q: "
+//   //           << land_q.w() << ","
+//   //           << land_q.x() << ","
+//   //           << land_q.y() << ","
+//   //           << land_q.z() << "," << std::endl;
+//   q2v(land_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
+//   // tail_q_v_ << 0,0,1; // 泛函修改，将末端姿态改为定值
 //   thrust_middle_ = (thrust_max_ + thrust_min_) / 2; // 中位
 //   thrust_half_ = (thrust_max_ - thrust_min_) / 2; // 半增值
 
-//   land_v_ = fin_v - tail_q_v_ * v_plus_; // 在平台运动速度基础上减去降落平面方向上的微小速度，避免碰撞
+//   land_v_ = car_v - tail_q_v_ * v_plus_; // 在平台运动速度基础上减去降落平面方向上的微小速度
 //   // std::cout << "tail_q_v_: " << tail_q_v_.transpose() << std::endl;
 
 //   v_t_x_ = tail_q_v_.cross(Eigen::Vector3d(0, 0, 1));
@@ -519,47 +655,53 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
 //   tail_f = 0;
 
-//   bool opt_once = initial_guess_ && t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
-//   if (opt_once) { // if t_replan is true and not for first plan
-//     double init_T = init_traj_.getTotalDuration() - t_replan;
-//     t = logC2(init_T / N_);
-//     for (int i = 1; i < N_; ++i) {
-//       double tt0 = (i * 1.0 / N_) * init_T;
-//       P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
+//   // bool opt_once = initial_guess_ && t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
+//   // if (opt_once) {
+//   //   double init_T = init_traj_.getTotalDuration() - t_replan;
+//   //   t = logC2(init_T / N_);
+//   //   for (int i = 1; i < N_; ++i) {
+//   //     double tt0 = (i * 1.0 / N_) * init_T;
+//   //     P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
+//   //   }
+//   //   tail_f = init_tail_f_;
+//   //   vt = init_vt_;
+//   // } else {
+//   Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
+//   Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
+//   bvp_f.col(0) = car_p_;
+//   bvp_f.col(1) = car_v_;
+//   // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+//   bvp_f.col(2).setZero();
+//   bvp_f.col(3).setZero();
+//   double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
+//   CoefficientMat coeffMat;
+//   double max_omega = 0;
+//   do {
+//     T_bvp += 1.0;
+//     // bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
+//     bvp_f.col(0) = bezier_ptr->getPosFromBezier(T_bvp,0);
+//     bvp_f.col(1) = bezier_ptr->getVelFromBezier(T_bvp,0);
+//     bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
+//     std::vector<double> durs{T_bvp};
+//     std::vector<CoefficientMat> coeffs{coeffMat};
+//     // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+//     Trajectory traj(durs, coeffs); // 保存粗轨迹
+//     max_omega = getMaxOmega(traj);
+//   } while (max_omega > 1.5 * omega_max_);
+//   Eigen::VectorXd tt(8);
+//   tt(7) = 1.0;
+//   for (int i = 1; i < N_; ++i) {
+//     double tt0 = (i * 1.0 / N_) * T_bvp;
+//     for (int j = 6; j >= 0; j -= 1) {
+//       tt(j) = tt(j + 1) * tt0;
 //     }
-//     tail_f = init_tail_f_;
-//     vt = init_vt_;
-//   } else {
-//     Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
-//     Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
-//     bvp_f.col(0) = car_p_;
-//     bvp_f.col(1) = car_v_;
-//     bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
-//     bvp_f.col(3).setZero();
-//     double T_bvp = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_; // 得到初始相对距离最小时间
-//     CoefficientMat coeffMat;
-//     double max_omega = 0;
-//     do {
-//       T_bvp += 1.0;
-//       bvp_f.col(0) = car_p_ + car_v_ * T_bvp; // 获得n时刻后平台位置
-//       bvp(T_bvp, bvp_i, bvp_f, coeffMat); //得到多项式阶数
-//       std::vector<double> durs{T_bvp};
-//       std::vector<CoefficientMat> coeffs{coeffMat};
-//       std::cout<<"T_bvp = "<<T_bvp<<" "<<"durs.size = "<<durs.size()<<" coeffs.size = "<<coeffs.size()<<std::endl;
-//       Trajectory traj(durs, coeffs); //获得多项式粗轨迹
-//       max_omega = getMaxOmega(traj);
-//     } while (max_omega > 1.5 * omega_max_);
-//     Eigen::VectorXd tt(8);
-//     tt(7) = 1.0;
-//     for (int i = 1; i < N_; ++i) {
-//       double tt0 = (i * 1.0 / N_) * T_bvp;
-//       for (int j = 6; j >= 0; j -= 1) {
-//         tt(j) = tt(j + 1) * tt0;
-//       }
-//       P.col(i - 1) = coeffMat * tt;
-//     }
-//     t = logC2(T_bvp / N_);
+//     P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
+//     // std::cout<<"tt:"<<tt.transpose()<<std::endl;
+//     // std::cout<<"P:"<<std::endl;
+//     // std::cout<<P<<std::endl;
 //   }
+//   t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
+//   // }
 //   // std::cout << "initial guess >>> t: " << t << std::endl;
 //   // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
 //   // std::cout << "initial guess >>> vt: " << vt.transpose() << std::endl;
@@ -608,16 +750,19 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 //   Eigen::MatrixXd tailS(3, 4);
 //   tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * robot_l_;
 //   tailS.col(1) = tailV;
-//   tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+//   // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+//   tailS.col(2).setZero();
 //   tailS.col(3).setZero();
 //   // std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
-//   // std::cout << tailS << std::endl;
+//   std::cout << "tailS : " << std::endl;
+//   std::cout << tailS << std::endl;
 //   mincoOpt_.generate(initS_, tailS, P, dT);
 //   traj = mincoOpt_.getTraj(); //调用MINCO轨迹类生成轨迹
 
-//   std::cout << "tailV: " << tailV.transpose() << std::endl;
+//   // std::cout << "tailV: " << tailV.transpose() << std::endl;
 //   std::cout << "maxOmega: " << getMaxOmega(traj) << std::endl;
 //   std::cout << "maxThrust: " << traj.getMaxThrust() << std::endl;
+//   std::cout << "maxVel: " << getMaxVel(traj) << std::endl;
 
 //   init_traj_ = traj;
 //   init_tail_f_ = tail_f;
@@ -629,7 +774,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
 void TrajOpt::addTimeIntPenalty(double& cost) {
   Eigen::Vector3d pos, vel, acc, jer, snp;
-  Eigen::Vector3d grad_tmp, grad_tmp2, grad_tmp3, grad_p, grad_v, grad_a, grad_j;
+  Eigen::Vector3d grad_tmp, grad_tmp2, grad_tmp3, grad_p, grad_v, grad_a, grad_j, grad_car_p;
   double cost_tmp, cost_inner;
   Eigen::Matrix<double, 8, 1> beta0, beta1, beta2, beta3, beta4;
   double s1, s2, s3, s4, s5, s6, s7;
@@ -659,6 +804,10 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
     omg = (j == 0 || j == innerLoop - 1) ? 0.5 : 1.0;
 
     for (int i = 0; i < N_; ++i) {
+      Eigen::Vector3d car_p, car_v, car_a_;
+      double dur2now = (i + alpha) * mincoOpt_.t(1);
+      getPVA(dur2now, car_p, car_v, car_a_);
+
       const auto& c = mincoOpt_.c.block<8, 3>(i * 8, 0); // 第i段多项式系数
 
       pos = c.transpose() * beta0;
@@ -672,6 +821,7 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
       grad_a.setZero();
       grad_j.setZero();
       grad_tmp3.setZero();
+      grad_car_p.setZero();
       cost_inner = 0.0;
 
       if (grad_cost_floor(pos, grad_tmp, cost_tmp)) {
@@ -679,7 +829,17 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
         cost_inner += cost_tmp;
       }
 
+      if (grad_cost_top(pos, grad_tmp, cost_tmp)) {
+        grad_p += grad_tmp;
+        cost_inner += cost_tmp;
+      }
+
       if (grad_cost_v(vel, grad_tmp, cost_tmp)) {
+        grad_v += grad_tmp;
+        cost_inner += cost_tmp;
+      }
+
+      if(grad_cost_v_z(vel, grad_tmp, cost_tmp)){
         grad_v += grad_tmp;
         cost_inner += cost_tmp;
       }
@@ -701,16 +861,33 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
         cost_inner += cost_tmp;
       }
 
-      double dur2now = (i + alpha) * mincoOpt_.t(1);
-      Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
+      // if(*plan_state_ == TrajOpt::plan_s::LAND)
+      // {
+      //   double dist_sqr = (pos - car_p).squaredNorm();
+      //   double pend_dist = landpBound_ * landpBound_ - dist_sqr;
+      //   if(grad_cost_v_land(vel, grad_tmp, cost_tmp)){
+      //     grad_v += grad_tmp;
+      //     cost_inner += cost_tmp;
+
+      //     std::cout<<pend_dist<<" "<<cost_tmp<< " | ";
+      //   }
+      //   else
+      //   {
+      //     std::cout<<pend_dist<<" "<<0<< " | ";
+      //   }
+      // }
+
+      // Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
       if (grad_cost_perching_collision(pos, acc, car_p,
                                        grad_tmp, grad_tmp2, grad_tmp3,
                                        cost_tmp)) { // ??
         grad_p += grad_tmp;
         grad_a += grad_tmp2;
+        grad_car_p += grad_tmp3;
         cost_inner += cost_tmp;
       }
-      double grad_car_t = grad_tmp3.dot(car_v_);
+
+      double grad_car_t = grad_car_p.dot(car_v);
 
       gradViola_c = beta0 * grad_p.transpose();
       gradViola_t = grad_p.transpose() * vel;
@@ -748,8 +925,12 @@ TrajOpt::TrajOpt(ros::NodeHandle& nh) {
   nh.getParam("rhoT", rhoT_);
   nh.getParam("rhoVt", rhoVt_);
   nh.getParam("rhoTf", rhoTf_);
-  nh.getParam("rhoP", rhoP_); // force the height of uav
+  nh.getParam("rhoPf", rhoPf_); // force the lowest height of uav
+  nh.getParam("rhoPt", rhoPt_);
   nh.getParam("rhoV", rhoV_);
+  nh.getParam("rhoVZ", rhoVZ_); // add vz pen
+  nh.getParam("rhoVland", rhoVland_); // add vland pen
+  nh.getParam("landpBound", landpBound_);
   // nh.getParam("rhoA", rhoA_);
   nh.getParam("rhoThrust", rhoThrust_);
   nh.getParam("rhoOmega", rhoOmega_);
@@ -758,15 +939,43 @@ TrajOpt::TrajOpt(ros::NodeHandle& nh) {
   visPtr_ = std::make_shared<vis_utils::VisUtils>(nh);
 }
 
+// bool TrajOpt::grad_cost_v(const Eigen::Vector3d& v,
+//                           Eigen::Vector3d& gradv,
+//                           double& costv) {
+//   double vpen = v.squaredNorm() - vmax_ * vmax_;
+//   if (vpen > 0) {
+//     double grad = 0;
+//     costv = smoothedL1(vpen, grad);
+//     gradv = rhoV_ * grad * 2 * v;
+//     costv *= rhoV_;
+//     return true;
+//   }
+//   return false;
+// }
+
 bool TrajOpt::grad_cost_v(const Eigen::Vector3d& v,
                           Eigen::Vector3d& gradv,
                           double& costv) {
-  double vpen = v.squaredNorm() - vmax_ * vmax_;
-  if (vpen > 0) {
+  double vxypen = v.x() * v.x() + v.y() * v.y() - vmax_ * vmax_;
+  if (vxypen > 0) {
     double grad = 0;
-    costv = smoothedL1(vpen, grad);
-    gradv = rhoV_ * grad * 2 * v;
+    costv = smoothedL1(vxypen, grad);
+    gradv = rhoV_ * grad * 2 * Eigen::Vector3d(v.x(), v.y(), 0);
     costv *= rhoV_;
+    return true;
+  }
+  return false;
+}
+
+bool TrajOpt::grad_cost_v_z(const Eigen::Vector3d& v,
+                          Eigen::Vector3d& gradvz,
+                          double& costvz) {
+  double vzpen = v.z() * v.z();
+  if (vzpen > 0) {
+    double grad = 0;
+    costvz = smoothedL1(vzpen, grad);
+    gradvz = rhoVZ_ * grad * Eigen::Vector3d(0,0,v.z());
+    costvz *= rhoVZ_;
     return true;
   }
   return false;
@@ -794,9 +1003,6 @@ bool TrajOpt::grad_cost_thrust(const Eigen::Vector3d& a,
     grada = -rhoThrust_ * 2 * grad * thrust_f;
     ret = true;
   }
-
-  // double middle_pen = thrust_f.squaredNorm() - thrust_middle_ * thrust_middle_;
-
 
   return ret;
 }
@@ -835,6 +1041,7 @@ bool TrajOpt::grad_cost_omega(const Eigen::Vector3d& a,
   }
   return false;
 }
+
 bool TrajOpt::grad_cost_omega_yaw(const Eigen::Vector3d& a,
                                   const Eigen::Vector3d& j,
                                   Eigen::Vector3d& grada,
@@ -847,14 +1054,31 @@ bool TrajOpt::grad_cost_omega_yaw(const Eigen::Vector3d& a,
 bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_floor = 0.4;
+  static double z_floor = 0.2;
   double pen = z_floor - p.z(); // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
     costp = smoothedL1(pen, grad);
-    costp *= rhoP_;
+    costp *= rhoPf_;
     gradp.setZero();
-    gradp.z() = -rhoP_ * grad;
+    gradp.z() = -rhoPf_ * grad;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool TrajOpt::grad_cost_top(const Eigen::Vector3d& p,
+                              Eigen::Vector3d& gradp,
+                              double& costp) {
+  static double z_top = car_p_.z() + 3.0; // max height set to a fixed values related to the initial state
+  double pen = p.z() - z_top; // 公式12为[z_f^2 - p.z^2]
+  if (pen > 0) {
+    double grad = 0;
+    costp = smoothedL1(pen, grad);
+    costp *= rhoPt_;
+    gradp.setZero();
+    gradp.z() = rhoPt_ * grad;
     return true;
   } else {
     return false;
@@ -914,7 +1138,7 @@ bool TrajOpt::grad_cost_perching_collision(const Eigen::Vector3d& pos,
   BTRT(0, 2) = -a;
   BTRT(1, 0) = -a * b * c_1;
   BTRT(1, 1) = 1 - b * b * c_1;
-  BTRT(1, 2) = -b;
+  BTRT(1, 2) = -b;  // BTRT denote the uav rotation without yaw
 
   Eigen::Vector2d v2 = BTRT * a_i;
   double v2_norm = sqrt(v2.squaredNorm() + eps);

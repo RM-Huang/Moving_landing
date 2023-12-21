@@ -65,7 +65,7 @@ int Bezierpredict::TrackingGeneration(
     vector<double> history_weight_list; 
     history_time_total = 0;
     int init_flag = 0;
-    for(int i = 0; i < _MAX_SEG; i++){
+    for(int i = 0; i < max_seg; i++){
         predict_list.push_back(predict_list_complete[i].head(3));
         if(!init_flag){
             history_time_init = predict_list_complete[i][3];
@@ -76,8 +76,8 @@ int Bezierpredict::TrackingGeneration(
         //ROS_INFO_STREAM("pre_time: " << predict_list_time[i]);
     }
     //ROS_INFO_STREAM("tanh weight: " );
-    for(int i = 0; i < _MAX_SEG; i++){
-        double tanh_input = predict_list_time[_MAX_SEG - 1] - predict_list_time[i];
+    for(int i = 0; i < max_seg; i++){
+        double tanh_input = predict_list_time[max_seg - 1] - predict_list_time[i];
         if(!tanh_input){
             history_weight_list.push_back(1);
         }
@@ -91,14 +91,14 @@ int Bezierpredict::TrackingGeneration(
     for(int i=0;i<segs;i++){ // segs = 1
         //time_intervals.push_back(time(i));
         time_intervals.push_back(history_time_total); // T_MAX_SEG_th - T_0_th 
-        total_time_intervals.push_back(time_intervals[i] + (_TIME_INTERVAL* _PREDICT_SEG)); // duration of the whole curve
+        total_time_intervals.push_back(time_intervals[i] + (_TIME_INTERVAL* predict_seg)); // duration of the whole curve
     }
     
  
-    Vector3d end_p = predict_list[_MAX_SEG - 1];
+    Vector3d end_p = predict_list[max_seg - 1];
 
     int constrain_flag = 0;
-    // double time_diff = (ros::Time::now().toSec() - history_time_init)- predict_list_time[_MAX_SEG-1];
+    // double time_diff = (ros::Time::now().toSec() - history_time_init)- predict_list_time[max_seg-1];
     // //ROS_INFO_STREAM("time diff: " << time_diff);
     // if(time_diff >= 0.25){
     //     constrain_flag = 1;
@@ -249,7 +249,7 @@ int Bezierpredict::TrackingGeneration(
     for(int i= 0;i<segs;i++){
         if(i>=1)
             t_base  += time_intervals[i-1]; 
-        for(double j = 0;j<_MAX_SEG;j+=1){
+        for(double j = 0;j<max_seg;j+=1){
             Ct.block(0,i*3*(traj_order+1),1,3*(traj_order+1)) 
                 += getCt(predict_list_time[j], predict_list[j]) * history_weight_list[j];
             distance_Q.block(all_vars_number*i,all_vars_number*i,all_vars_number,all_vars_number)
@@ -266,7 +266,7 @@ int Bezierpredict::TrackingGeneration(
     for(int i = 0; i < nx; i++)
         c[i] = Ct(0,i);
     
-    _Q = 2 * (Lambda_ACC * _MAX_SEG * _Q  + distance_Q);
+    _Q = 2 * (Lambda_ACC * max_seg * _Q  + distance_Q);
     //ROS_INFO_STREAM("asdf" << _Q);
 
     MatrixXd M_QM;

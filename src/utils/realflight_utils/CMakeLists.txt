@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   car_odom_server
   geodesy
+  target_prediction
 )
 
 ## Generate added messages and services with any dependencies listed here
@@ -82,6 +83,7 @@ target_link_libraries(rcin_remap
 )
 target_link_libraries(traj_analyse
   ${catkin_LIBRARIES}
+  bezier_predict
 )
 target_link_libraries(odom_remap
   ${catkin_LIBRARIES}
