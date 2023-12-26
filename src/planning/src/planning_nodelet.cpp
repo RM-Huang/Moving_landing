@@ -429,9 +429,10 @@ class Nodelet : public nodelet::Nodelet {
           cmdMsg->jerk.y = jer(1);
           cmdMsg->jerk.z = jer(2);
 
-          Eigen::Matrix3d rx = target_q.toRotationMatrix();
-          Eigen::Vector3d uav_eular = rx.eulerAngles(0,1,2); // 此处需要修改
-          cmdMsg->yaw = uav_eular[2];
+          // Eigen::Matrix3d rx = target_q.toRotationMatrix();
+          // Eigen::Vector3d uav_eular = rx.eulerAngles(0,1,2); // 此处需要修改
+          // cmdMsg->yaw = uav_eular[2];
+          cmdMsg->yaw = atan2(2.0*(target_q.x()*target_q.y() + target_q.w()*target_q.z()), 1.0 - 2.0 * (target_q.y() * target_q.y() + target_q.z() * target_q.z())); // quat=[w,x,y,z]
           // cmdMsg->yaw = atan2(2.0*(quat(1)*quat(2) + quat(0)*quat(3)), 1.0 - 2.0 * (quat(2) * quat(2) + quat(3) * quat(3))); // quat=[w,x,y,z]
           // cmdMsg->yaw_dot = omg[2];
 

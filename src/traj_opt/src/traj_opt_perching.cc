@@ -924,7 +924,7 @@ TrajOpt::TrajOpt(ros::NodeHandle& nh) {
   nh.getParam("platform_r", platform_r_);
   nh.getParam("rhoT", rhoT_);
   nh.getParam("rhoVt", rhoVt_);
-  nh.getParam("rhoTf", rhoTf_);
+  // nh.getParam("rhoTf", rhoTf_);
   nh.getParam("rhoPf", rhoPf_); // force the lowest height of uav
   nh.getParam("rhoPt", rhoPt_);
   nh.getParam("rhoV", rhoV_);
