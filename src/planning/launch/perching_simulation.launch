@@ -78,8 +78,8 @@
       <param name="platform_r" value="0.3"/>
       <param name="v_plus" value="0.3"/>
 
-      <param name="rhoT" value="10000.0"/>
-      <param name="rhoPf" value="10000000.0"/>
+      <param name="rhoT" value="20000.0"/>
+      <param name="rhoPf" value="1000000.0"/>
       <param name="rhoPt" value="30000.0"/>
       <param name="rhoV" value="50000.0"/>
       <param name="rhoVZ" value="60000.0"/>
@@ -87,12 +87,12 @@
       <!-- <param name="rhoA" value="10000.0"/> -->
       <param name="rhoVt" value="120000.0"/>
       <!-- <param name="rhoTf" value="10000.0"/> -->
-      <param name="rhoThrust" value="500000.0"/>
+      <param name="rhoThrust" value="1000000.0"/>
       <!-- <param name="rhoThrust" value="10000.0"/> -->
-      <param name="rhoOmega" value="500000.0"/>
-      <param name="rhoVisibleDomain" value="30000.0"/>
+      <param name="rhoOmega" value="1000000.0"/>
+      <param name="rhoVisibleDomain" value="1000.0"/>
       <!-- <param name="rhoPerchingCollision" value="1000000.0"/> -->
-      <param name="rhoPerchingCollision" value="100000.0"/>
+      <param name="rhoPerchingCollision" value="1000000.0"/>
 
       <param name="perching_px" value="8.16"/>
       <param name="perching_py" value="8.08"/>

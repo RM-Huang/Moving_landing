@@ -230,14 +230,15 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::FOLLOW:
       {
-        if(generate_new_traj_success && delta_from_last < 0.2) // replan from last traj after 0.2s
+        if(generate_new_traj_success && delta_from_last < 0.3) // replan from last traj after 0.2s
         {
           return;
         }
-        else if((static_landing || predict_success) && sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 0.5 ) //TODO state trans condition from follow to land
+        else if((static_landing || predict_success) && sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.5 ) //TODO state trans condition from follow to land
         {
           plan_state = traj_opt::TrajOpt::LAND;
           ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
+          ros::Duration(0.2).sleep();
           return;
         }
         else if(delta_from_last > traj.getTotalDuration() - 0.4)
@@ -266,6 +267,7 @@ class Nodelet : public nodelet::Nodelet {
         {
           plan_state = traj_opt::TrajOpt::FOLLOW;
           ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
+          return;
         }
         else if(delta_from_last - 0.05 > traj.getTotalDuration())
         {
@@ -273,14 +275,28 @@ class Nodelet : public nodelet::Nodelet {
           ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
           return;
         }
-        else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
+        // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
+        else if(( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.1 )
         {
-          return;
+          ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
+          if( (target_p - uav_p).norm() < 0.2)
+          {
+            return;
+          }
+          else if(delta_from_last < 0.2)
+          {
+            return;
+          }
         }
-        else if(traj.getTotalDuration() < 0.4)
-        {
-          return; // if ready to land
-        }
+        // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
+        // {
+        //   ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
+        //   return;
+        // }
+        // else if(traj.getTotalDuration() < 0.4)
+        // {
+        //   return; // if ready to land
+        // }
 
         // TODO a future state maybe out of range while close to the car
         // double delta_from_last = ros::Time::now().toSec() + 0.2 - trajStamp; // get a future state as replan initial state
