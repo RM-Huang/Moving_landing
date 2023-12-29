@@ -24,6 +24,7 @@ class TrajOpt {
     double vmax_, amax_;
     double rhoPf_, rhoPt_, rhoV_, rhoA_, rhoVZ_, rhoVland_;
     double landpBound_;
+    double rhoVisibleDomain_;
     double rhoThrust_, rhoOmega_;
     double rhoPerchingCollision_;
     // landing parameters
@@ -114,6 +115,15 @@ class TrajOpt {
                                         Eigen::Vector3d& grada,
                                         Eigen::Vector3d& grad_car_p,
                                         double& cost);
+                                        
+    bool grad_cost_visible_domain(const Eigen::Vector3d& pos,
+                                        const Eigen::Vector3d& acc,
+                                        const Eigen::Vector3d& car_p,
+                                        Eigen::Vector3d& gradp,
+                                        Eigen::Vector3d& grada,
+                                        Eigen::Vector3d& grad_car_p,
+                                        double& cost);
+
     bool check_collilsion(const Eigen::Vector3d& pos,
                             const Eigen::Vector3d& acc,
                             const Eigen::Vector3d& car_p);

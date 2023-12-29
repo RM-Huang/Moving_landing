@@ -62,36 +62,37 @@
       <param name="landpBound" value="1.5"/>
 
       <param name="K" value="16"/>
-      <param name="vmax" value="3.0"/>
+      <param name="vmax" value="2.0"/>
       <!-- <param name="amax" value="0.3"/> -->
 
-      <param name="thrust_max" value="12.8"/>
-      <param name="thrust_min" value="6.8"/>
+      <param name="thrust_max" value="10.8"/>
+      <param name="thrust_min" value="8.8"/>
       <!-- <param name="thrust_max" value="12.0"/>
       <param name="thrust_min" value="6.0"/> -->
 
       <param name="omega_max" value="0.3"/>
       <param name="omega_yaw_max" value="0.17"/>
 
-      <param name="robot_l" value="0.1"/>
+      <param name="robot_l" value="0.04"/>
       <param name="robot_r" value="0.14"/>
       <param name="platform_r" value="0.3"/>
       <param name="v_plus" value="0.3"/>
 
-      <param name="rhoT" value="20000.0"/>
+      <param name="rhoT" value="10000.0"/>
       <param name="rhoPf" value="10000000.0"/>
-      <param name="rhoPt" value="10000000.0"/>
-      <param name="rhoV" value="10000.0"/>
-      <param name="rhoVZ" value="40000.0"/>
+      <param name="rhoPt" value="30000.0"/>
+      <param name="rhoV" value="50000.0"/>
+      <param name="rhoVZ" value="60000.0"/>
       <!-- <param name="rhoVland" value="10000.0"/> -->
       <!-- <param name="rhoA" value="10000.0"/> -->
-      <param name="rhoVt" value="100000.0"/>
+      <param name="rhoVt" value="120000.0"/>
       <!-- <param name="rhoTf" value="10000.0"/> -->
-      <param name="rhoThrust" value="100000.0"/>
-      <!-- <param name="rhotailThrust" value="500000.0"/> -->
+      <param name="rhoThrust" value="500000.0"/>
       <!-- <param name="rhoThrust" value="10000.0"/> -->
-      <param name="rhoOmega" value="100000.0"/>
-      <param name="rhoPerchingCollision" value="1000000.0"/>
+      <param name="rhoOmega" value="500000.0"/>
+      <param name="rhoVisibleDomain" value="30000.0"/>
+      <!-- <param name="rhoPerchingCollision" value="1000000.0"/> -->
+      <param name="rhoPerchingCollision" value="100000.0"/>
 
       <param name="perching_px" value="8.16"/>
       <param name="perching_py" value="8.08"/>
