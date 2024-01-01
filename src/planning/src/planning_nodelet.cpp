@@ -29,6 +29,7 @@ class Nodelet : public nodelet::Nodelet {
   std::thread initThread_;
   ros::Subscriber triger_sub_;
   ros::Subscriber target_odom_sub_;
+  ros::Subscriber vision_statu_sub_;
   ros::Subscriber uav_odom_sub_;
   ros::Subscriber ctrl_ready_tri_sub_;
 
@@ -67,6 +68,7 @@ class Nodelet : public nodelet::Nodelet {
   Trajectory traj;
   Eigen::Vector3d target_p, target_v, uav_p, uav_v;
   Eigen::Vector3d target_p_last, target_v_last;
+  double vision_stamp = 0;
   double trajStamp_observe;
   Eigen::Quaterniond target_q, uav_q;
   traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::HOVER;
@@ -80,6 +82,7 @@ class Nodelet : public nodelet::Nodelet {
   double speedEps;
   double robot_l_;
   double land_r_;
+  double omega_yaw_max_;
 
   // NOTE just for debug
   bool debug_replan_ = false;
@@ -119,6 +122,11 @@ class Nodelet : public nodelet::Nodelet {
     uav_q.x() = msg->pose.pose.orientation.x;
     uav_q.y() = msg->pose.pose.orientation.y;
     uav_q.z() = msg->pose.pose.orientation.z;
+  }
+
+  void vision_statu_callback(const std_msgs::Float64ConstPtr& msg)
+  {
+    vision_stamp = msg->data;
   }
 
   void target_odom_callback(const nav_msgs::OdometryConstPtr& msg)
@@ -213,6 +221,7 @@ class Nodelet : public nodelet::Nodelet {
     
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
+    vision_stamp = ros::Time::now().toSec(); //test
     switch(plan_state)
     {
       case traj_opt::TrajOpt::HOVER:
@@ -230,11 +239,7 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::FOLLOW:
       {
-        if(generate_new_traj_success && delta_from_last < 0.3) // replan from last traj after 0.2s
-        {
-          return;
-        }
-        else if((static_landing || predict_success) && sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.5 ) //TODO state trans condition from follow to land
+        if((static_landing || predict_success) && (ros::Time::now().toSec() - vision_stamp < 0.1) && sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.5 ) //TODO state trans condition from follow to land
         {
           plan_state = traj_opt::TrajOpt::LAND;
           ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
@@ -244,7 +249,12 @@ class Nodelet : public nodelet::Nodelet {
         else if(delta_from_last > traj.getTotalDuration() - 0.4)
         {
           plan_state = traj_opt::TrajOpt::HOVER;
+          generate_new_traj_success = false;
           ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
+          return;
+        }
+        else if(generate_new_traj_success && delta_from_last < 0.2) // replan from last traj after 0.2s
+        {
           return;
         }
         // else if(predict_success)
@@ -259,35 +269,38 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::LAND:
       {
-        // if(generate_new_traj_success && (ros::Time::now().toSec() - trajStamp) < 0.1 || (uav_p - target_p).norm() < 0.5) // replan from last traj after 0.1s
-        // {
-        //   return;
-        // }
-        if(plan_type == 1 && ros::Time::now().toSec() - target_odom_time > 0.1) // if target msg dosen't refresh
+        double T = traj.getTotalDuration();
+        if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
         {
           plan_state = traj_opt::TrajOpt::FOLLOW;
           ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
           return;
         }
-        else if(delta_from_last - 0.05 > traj.getTotalDuration())
+        else if(delta_from_last > T)
         {
           plan_state = traj_opt::TrajOpt::HOVER;
+          generate_new_traj_success = false;
           ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
           return;
         }
-        // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
-        else if(( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.1 )
+        // // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
+        else if( (target_p - uav_p).norm() < 1.2 && ((target_p + target_v * (T - delta_from_last)) - traj.getPos(T)).norm() < 0.1 )
         {
           ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
-          if( (target_p - uav_p).norm() < 0.2)
-          {
-            return;
-          }
-          else if(delta_from_last < 0.2)
-          {
-            return;
-          }
+          return;
         }
+        else if( (target_p - uav_p).norm() < 0.5 &&  delta_from_last < T)
+        {
+          return;
+        }
+        // else if( (target_p - uav_p).norm() < 0.5 &&  delta_from_last < T - 0.2)
+        // {
+        //   return;
+        // }
+        // else if( (target_p - uav_p).norm() < 0.5)
+        // {
+        //   return;
+        // }
         // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
         // {
         //   ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
@@ -345,15 +358,18 @@ class Nodelet : public nodelet::Nodelet {
       output：轨迹tarj
     */
     bool generate_new_traj; 
+    double stamp_tmp = ros::Time::now().toSec();
+    Eigen::Vector3d target_p_tmp = target_p;
+    Eigen::Vector3d target_v_tmp = target_v;
     
     generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, target_q, uav_q_, 
                                                    &tgpredict, predict_success, 10, traj, &plan_state); 
 
     if (generate_new_traj) 
     {
-      trajStamp = ros::Time::now().toSec();
-      target_v_last = target_v;
-      target_p_last = target_p;
+      trajStamp = stamp_tmp;
+      target_v_last = target_v_tmp;
+      target_p_last = target_p_tmp;
       generate_new_traj_success = true;
       ROS_INFO("\033[32m[planning]:Traj generate succeed\033[32m");
       std::cout<<"traj_duration = "<<traj.getTotalDuration()<<std::endl;
@@ -392,7 +408,14 @@ class Nodelet : public nodelet::Nodelet {
   {
     if(ctrl_ready_triger)
     {
-      if(abs(uav_p[0] - target_p[0]) < land_r_ && abs(uav_p[1] - target_p[1]) < land_r_ && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
+      // Eigen::Vector3d pc = - target_p + uav_p;
+      // Eigen::Vector3d pc_norm = pc / pc.norm(); // normalize pc
+      // double costheta = pc_norm.dot(Eigen::Vector3d(0,0,1));
+      // double pen = 1 - costheta;
+      // std::cout<<"pen_norm = "<<pen<<" pen = "<<pen * pen <<std::endl;
+      // if(abs(uav_p[0] - target_p[0]) < land_r_ + 0.1 && abs(uav_p[1] - target_p[1]) < land_r_ + 0.1 && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
+      // if(abs(uav_v[0] - target_v[0]) < 0.1 && abs(uav_v[1] - target_v[1]) < 0.1 && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
+      if(abs(uav_p[0] - target_p[0]) < land_r_ + 0.1 && abs(uav_p[1] - target_p[1]) < land_r_ + 0.1 && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       {
         force_arm_disarm(false);
 
@@ -460,10 +483,27 @@ class Nodelet : public nodelet::Nodelet {
           cmdMsg->jerk.y = jer(1);
           cmdMsg->jerk.z = jer(2);
 
-          // Eigen::Matrix3d rx = target_q.toRotationMatrix();
-          // Eigen::Vector3d uav_eular = rx.eulerAngles(0,1,2); // 此处需要修改
-          // cmdMsg->yaw = uav_eular[2];
-          cmdMsg->yaw = atan2(2.0*(target_q.x()*target_q.y() + target_q.w()*target_q.z()), 1.0 - 2.0 * (target_q.y() * target_q.y() + target_q.z() * target_q.z())); // quat=[w,x,y,z]
+          double yaw_des = atan2(2.0*(target_q.x()*target_q.y() + target_q.w()*target_q.z()), 1.0 - 2.0 * (target_q.y() * target_q.y() + target_q.z() * target_q.z())); // quat=[w,x,y,z]
+          double yaw_cur = atan2(2.0*(uav_q.x()*uav_q.y() + uav_q.w()*uav_q.z()), 1.0 - 2.0 * (uav_q.y() * uav_q.y() + uav_q.z() * uav_q.z()));
+          // double yaw_delta = acos(uav_q.dot(target_q));
+          // double yaw_delta = yaw_des - yaw_cur;
+          // if(yaw_delta > M_PI)
+          // {
+          //   yaw_delta = yaw_delta -  2 * M_PI;
+          // }
+          // else if(yaw_delta < - M_PI)
+          // {
+          //   yaw_delta = 2 * 6.283185307 + yaw_delta;
+          // }
+
+          if(yaw_des > 0)
+          {
+            cmdMsg->yaw = min(yaw_cur + omega_yaw_max_ , yaw_des);
+          }
+          else
+          {
+            cmdMsg->yaw = max(yaw_cur - omega_yaw_max_ , yaw_des);
+          }
           // cmdMsg->yaw = atan2(2.0*(quat(1)*quat(2) + quat(0)*quat(3)), 1.0 - 2.0 * (quat(2) * quat(2) + quat(3) * quat(3))); // quat=[w,x,y,z]
           // cmdMsg->yaw_dot = omg[2];
 
@@ -564,6 +604,7 @@ class Nodelet : public nodelet::Nodelet {
     nh.getParam("perching_axis_y", perching_axis_.y());
     nh.getParam("perching_axis_z", perching_axis_.z());
     nh.getParam("perching_theta", perching_theta_);
+    nh.getParam("omega_yaw_max", omega_yaw_max_);
     nh.param("visualize_sig", visualize_sig, true); // true for visualize
     nh.getParam("VehicleMass", vehicleMass);
     nh.getParam("GravAcc", gravAcc);
@@ -589,6 +630,7 @@ class Nodelet : public nodelet::Nodelet {
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);
 
     target_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("target_odom", 10, &Nodelet::target_odom_callback, this, ros::TransportHints().tcpNoDelay());
+    vision_statu_sub_ = nh.subscribe<std_msgs::Float64>("/vision_received", 1, &Nodelet::vision_statu_callback, this, ros::TransportHints().tcpNoDelay());
     uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 10, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
     ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay()); // debug
     // ctrl_start_tri_sub_ = nh.subscribe<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10, &ctrl_start_tri_callback, this, ros::TransportHints().tcpNoDelay());
