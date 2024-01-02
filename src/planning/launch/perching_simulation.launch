@@ -62,7 +62,7 @@
       <param name="landpBound" value="1.5"/>
 
       <param name="K" value="16"/>
-      <param name="vmax" value="2.5"/>
+      <param name="vmax" value="2.0"/>
       <!-- <param name="amax" value="0.3"/> -->
 
       <param name="thrust_max" value="10.8"/>
@@ -73,23 +73,24 @@
       <param name="omega_max" value="0.2"/>
       <param name="omega_yaw_max" value="0.3"/>
 
-      <param name="robot_l" value="0.2"/>
+      <param name="robot_l" value="0.15"/>
       <param name="robot_r" value="0.15"/>
       <param name="platform_r" value="0.3"/>
+      <param name="platform_l" value="0.0"/>
       <param name="v_plus" value="0.3"/>
 
-      <param name="rhoT" value="70000.0"/>
-      <param name="rhoPf" value="80000.0"/>
+      <param name="rhoT" value="100000.0"/>
+      <param name="rhoPf" value="800000.0"/>
       <param name="rhoPt" value="30000.0"/>
-      <param name="rhoV" value="30000.0"/>
+      <param name="rhoV" value="60000.0"/>
       <param name="rhoVZ" value="150000.0"/>
-      <param name="rhoVt" value="200000.0"/>
+      <param name="rhoVt" value="500000.0"/>
       <!-- <param name="rhoVt" value="800000.0"/> -->
       <!-- <param name="rhoTf" value="10000.0"/> -->
       <param name="rhoThrust" value="400000.0"/>
       <!-- <param name="rhoThrust" value="10000.0"/> -->
-      <param name="rhoOmega" value="600000.0"/>
-      <param name="rhoVisibleDomain" value="50000.0"/>
+      <param name="rhoOmega" value="800000.0"/>
+      <param name="rhoVisibleDomain" value="60000.0"/>
       <!-- <param name="rhoPerchingCollision" value="1000000.0"/> -->
       <param name="rhoPerchingCollision" value="1000000.0"/>
 

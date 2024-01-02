@@ -28,7 +28,7 @@ class TrajOpt {
     double rhoThrust_, rhoOmega_;
     double rhoPerchingCollision_;
     // landing parameters
-    double robot_l_, robot_r_, platform_r_;
+    double robot_l_, robot_r_, platform_r_, platform_l_;
     // SE3 dynamic limitation parameters
     double thrust_max_, thrust_min_;
     double omega_max_, omega_yaw_max_;

@@ -13,7 +13,7 @@ static Eigen::Vector3d g_(0, 0, -9.8);
 static Eigen::Vector3d v_t_x_, v_t_y_;
 static Trajectory init_traj_;
 static double init_tail_f_;
-static double traj_tail_alt = 1.0;
+static double traj_tail_alt = 1.2;
 static Eigen::Vector2d init_vt_;
 static bool initial_guess_ = false;
 
@@ -471,16 +471,16 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   // NOTE set boundary conditions
   initS_ = iniState;
 
-  if(*plan_state == FOLLOW || *plan_state_ == HOVER)
-  {
-    traj_tail_alt = 0.8;
-    // bvp_f.col(1) = car_v_ / 2;
-  }
-  else if(*plan_state == LAND)
-  {
-    traj_tail_alt = car_p_[2];
-  }
-  // traj_tail_alt = car_p_[2];
+  // if(*plan_state == FOLLOW || *plan_state_ == HOVER)
+  // {
+  //   traj_tail_alt = platform_r_;
+  //   // bvp_f.col(1) = car_v_ / 2;
+  // }
+  // else if(*plan_state == LAND)
+  // {
+  //   traj_tail_alt = car_p_[2];
+  // }
+  traj_tail_alt = car_p_[2];
   // else if(*plan_state == LAND && initS_.col(0)[2] - car_p_[2] > 0.5)
   // {
   //   traj_tail_alt = initS_.col(0)[2] - 0.5;
@@ -542,7 +542,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     Trajectory traj(durs, coeffs); // 保存粗轨迹
     max_omega = getMaxOmega(traj);
     // std::cout<<T_bvp<<" "<<max_omega<<" , ";
-  } while (max_omega > 1.5 * omega_max_);
+  } while (max_omega > 2.0 * omega_max_);
   // std:;cout<<std::endl;
   std::cout<<"T_bvp = "<<T_bvp<<std::endl;
 
@@ -658,11 +658,18 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   mincoOpt_.generate(initS_, tailS, P, dT);
   traj = mincoOpt_.getTraj(); //调用MINCO轨迹类生成轨迹
 
+  // max_omega = getMaxOmega(traj);
   // std::cout << "tailV: " << tailV.transpose() << std::endl;
   std::cout << "maxOmega: " << getMaxOmega(traj) << std::endl;
   std::cout << "maxThrust: " << traj.getMaxThrust() << std::endl;
   std::cout << "maxVel: " << getMaxVel(traj) << std::endl;
   std::cout << "maxVel_Z:" << getMaxVelZ(traj) << std::endl;
+
+  // if(max_omega > omega_max_)
+  // {
+  //   std::cout<<"[planning]: Omega too high"<<std::endl;
+  //   return false;
+  // }
 
   init_traj_ = traj;
   init_tail_f_ = tail_f;
@@ -1000,6 +1007,7 @@ TrajOpt::TrajOpt(ros::NodeHandle& nh) {
   nh.getParam("robot_l", robot_l_);
   nh.getParam("robot_r", robot_r_);
   nh.getParam("platform_r", platform_r_);
+  nh.getParam("platform_l", platform_l_);
   nh.getParam("rhoT", rhoT_);
   nh.getParam("rhoVt", rhoVt_);
   // nh.getParam("rhoTf", rhoTf_);
@@ -1289,7 +1297,7 @@ bool TrajOpt::grad_cost_omega(const Eigen::Vector3d& a,
 bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_floor = 0.4;
+  static double z_floor = platform_l_ + 0.1;
   double pen = z_floor - p.z(); // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
