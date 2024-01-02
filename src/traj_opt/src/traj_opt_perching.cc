@@ -17,7 +17,7 @@ static double traj_tail_alt = 1.5;
 static Eigen::Vector2d init_vt_;
 static bool initial_guess_ = false;
 
-static Bezierpredict* bezier_ptr;
+// static Bezierpredict* bezier_ptr;
 static TrajOpt::plan_s* plan_state_;
 
 static double thrust_middle_, thrust_half_;
@@ -183,19 +183,19 @@ static Eigen::Quaterniond getPredictYQua(const Eigen::Vector3d& vel, const doubl
 
 static void getPVA(const double& t, Eigen::Vector3d& car_p, Eigen::Vector3d& car_v, Eigen::Vector3d& car_a)
 {
-  if(predict_suc)
-  {
-    car_p = bezier_ptr->getPosFromBezier(t,0);
-    car_v = bezier_ptr->getVelFromBezier(t,0);
-    car_a = bezier_ptr->getAccFromBezier(t,0);
-  }
-  else
-  {
-    car_p = car_p_ + t * car_v_;
-    car_p[2] = traj_tail_alt;
-    car_v = car_v_;
-    car_a = Eigen::Vector3d(0,0,0);
-  }
+  // if(predict_suc)
+  // {
+  //   car_p = bezier_ptr->getPosFromBezier(t,0);
+  //   car_v = bezier_ptr->getVelFromBezier(t,0);
+  //   car_a = bezier_ptr->getAccFromBezier(t,0);
+  // }
+  // else
+  // {
+  car_p = car_p_ + t * car_v_;
+  car_p[2] = traj_tail_alt;
+  car_v = car_v_;
+  car_a = Eigen::Vector3d(0,0,0);
+  // }
 
   // if(*plan_state_ == TrajOpt::plan_s::FOLLOW || *plan_state_ == TrajOpt::plan_s::HOVER)
   // {
@@ -443,7 +443,6 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
                             const Eigen::Vector3d& car_v,
                             const Eigen::Quaterniond& car_q,
                             const Eigen::Quaterniond& uav_q,
-                            Bezierpredict *bezier_predict,
                             const bool& predict_flag,
                             const int& N,
                             Trajectory& traj,
@@ -454,10 +453,10 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   plan_state_ = plan_state;
   uav_q_ = uav_q;
   car_q_ = car_q;
-  if(predict_suc)
-  {
-    bezier_ptr = bezier_predict;
-  }
+  // if(predict_suc)
+  // {
+  //   bezier_ptr = bezier_predict;
+  // }
   N_ = N;
   dim_t_ = 1;
   dim_p_ = N_ - 1;

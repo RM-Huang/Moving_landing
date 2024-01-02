@@ -6,7 +6,7 @@
 #include <vis_utils/vis_utils.hpp>
 
 #include "minco.hpp"
-#include "target_prediction/bezier_predict.h"
+// #include "target_prediction/bezier_predict.h"
 
 namespace traj_opt {
 
@@ -60,7 +60,6 @@ class TrajOpt {
                         const Eigen::Vector3d& car_v,
                         const Eigen::Quaterniond& car_q,
                         const Eigen::Quaterniond& uav_q,
-                        Bezierpredict *bezier_predict,
                         const bool& predict_flag,
                         const int& N,
                         Trajectory& traj, 

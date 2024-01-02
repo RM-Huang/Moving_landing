@@ -1,7 +1,0 @@
-
-    <library path="lib/libglobal_planning">
-      <class name="gcopter/GlobalPlanner" type="gcopter::GlobalPlanner" base_class_type="nodelet::Nodelet">
-        <description>
-        </description>
-      </class>
-    </library>

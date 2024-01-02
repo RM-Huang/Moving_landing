@@ -20,7 +20,6 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   car_odom_server
   geodesy
-  target_prediction
 )
 
 ## Generate added messages and services with any dependencies listed here
@@ -58,7 +57,6 @@ include_directories(
 )
 
 add_library(rcin_remap src/rcin_remap.cpp)
-add_library(traj_analyse src/traj_analyse.cpp)
 add_library(odom_remap src/odom_remap.cpp)
 
 ## Rename C++ executable without prefix
@@ -70,7 +68,6 @@ add_library(odom_remap src/odom_remap.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
  add_dependencies(rcin_remap ${catkin_EXPORTED_TARGETS})
- add_dependencies(traj_analyse ${catkin_EXPORTED_TARGETS})
  add_dependencies(odom_remap ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
@@ -81,10 +78,7 @@ add_library(odom_remap src/odom_remap.cpp)
 target_link_libraries(rcin_remap
   ${catkin_LIBRARIES}
 )
-target_link_libraries(traj_analyse
-  ${catkin_LIBRARIES}
-  bezier_predict
-)
+
 target_link_libraries(odom_remap
   ${catkin_LIBRARIES}
 )

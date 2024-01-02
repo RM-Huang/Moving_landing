@@ -9,8 +9,9 @@
 #include <ros/package.h>
 #include <ros/ros.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/Float64.h>
 #include <traj_opt/traj_opt.h>
-#include "target_prediction/bezier_predict.h"
+// #include "target_prediction/bezier_predict.h"
 
 #include <Eigen/Core>
 #include <atomic>
@@ -51,7 +52,7 @@ class Nodelet : public nodelet::Nodelet {
   // int predict_seg;
   double sample_dur;
   double predict_dur;
-  Bezierpredict tgpredict;
+  // Bezierpredict tgpredict;
   std::vector<Eigen::Vector4d> target_detect_list;
   bool predict_success = false;
   // std::vector<Eigen::MatrixXd> bezier_polyc_list;
@@ -172,43 +173,43 @@ class Nodelet : public nodelet::Nodelet {
     bool prediction_flag = false; // for static landing test, always false
     if(prediction_flag)
     {
-      double detect_time = target_odom_time;
-      if(abs(detect_time - ros::Time::now().toSec()) < 0.1)
-      {
-        target_detect_list.push_back(Eigen::Vector4d(target_p[0], target_p[1], target_p[2], detect_time));
-        if(target_detect_list.size() >= sample_dur * plan_hz_)
-        {
-          int bezier_flag = tgpredict.TrackingGeneration(4,1.5,target_detect_list);
-          if(bezier_flag != 0)
-          {
-            ROS_WARN("[planning]:platform predict error");
-            // using velocity stable assumption while bezier failed
-            // static_landing = true;
-          }
-          else
-          {
-            // bezier_polyc_list.push_back(tgpredict.getPolyCoeff());
-            // bezierT_list.push_back(tgpredict.getPolyTime()(0));
-            // bezier_init_time_list.push_back(detect_time);
+      // double detect_time = target_odom_time;
+      // if(abs(detect_time - ros::Time::now().toSec()) < 0.1)
+      // {
+      //   target_detect_list.push_back(Eigen::Vector4d(target_p[0], target_p[1], target_p[2], detect_time));
+      //   if(target_detect_list.size() >= sample_dur * plan_hz_)
+      //   {
+      //     int bezier_flag = tgpredict.TrackingGeneration(4,1.5,target_detect_list);
+      //     if(bezier_flag != 0)
+      //     {
+      //       ROS_WARN("[planning]:platform predict error");
+      //       // using velocity stable assumption while bezier failed
+      //       // static_landing = true;
+      //     }
+      //     else
+      //     {
+      //       // bezier_polyc_list.push_back(tgpredict.getPolyCoeff());
+      //       // bezierT_list.push_back(tgpredict.getPolyTime()(0));
+      //       // bezier_init_time_list.push_back(detect_time);
 
-            // if(bezier_init_time_list.size() > predict_dur * plan_hz_)
-            // {
-            //     bezier_polyc_list.erase(bezier_polyc_list.begin());
-            //     bezier_init_time_list.erase(bezier_init_time_list.begin());
-            //     bezierT_list.erase(bezierT_list.begin());
-            // }
-            predict_success = true; 
-          }
-          target_detect_list.erase(target_detect_list.begin());
-        }
-      }
-      else
-      {
-        predict_success = false;
-        std::cout<<"detect_time = "<<detect_time<<" now_time = "<<ros::Time::now().toSec()<<std::endl;
-        ROS_ERROR("[planning]:predict error, failed to align target odom, target odom delay:%f", abs(detect_time - ros::Time::now().toSec()));
-        return; // for test
-      }
+      //       // if(bezier_init_time_list.size() > predict_dur * plan_hz_)
+      //       // {
+      //       //     bezier_polyc_list.erase(bezier_polyc_list.begin());
+      //       //     bezier_init_time_list.erase(bezier_init_time_list.begin());
+      //       //     bezierT_list.erase(bezierT_list.begin());
+      //       // }
+      //       predict_success = true; 
+      //     }
+      //     target_detect_list.erase(target_detect_list.begin());
+      //   }
+      // }
+      // else
+      // {
+      //   predict_success = false;
+      //   std::cout<<"detect_time = "<<detect_time<<" now_time = "<<ros::Time::now().toSec()<<std::endl;
+      //   ROS_ERROR("[planning]:predict error, failed to align target odom, target odom delay:%f", abs(detect_time - ros::Time::now().toSec()));
+      //   return; // for test
+      // }
     }
 
     /* ________________________________ plan entry condition _________________________________ */
@@ -363,7 +364,7 @@ class Nodelet : public nodelet::Nodelet {
     Eigen::Vector3d target_v_tmp = target_v;
     
     generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, target_q, uav_q_, 
-                                                   &tgpredict, predict_success, 10, traj, &plan_state); 
+                                                   predict_success, 10, traj, &plan_state); 
 
     if (generate_new_traj) 
     {
@@ -498,11 +499,11 @@ class Nodelet : public nodelet::Nodelet {
 
           if(yaw_des > 0)
           {
-            cmdMsg->yaw = min(yaw_cur + omega_yaw_max_ , yaw_des);
+            cmdMsg->yaw = std::min(yaw_cur + omega_yaw_max_ , yaw_des);
           }
           else
           {
-            cmdMsg->yaw = max(yaw_cur - omega_yaw_max_ , yaw_des);
+            cmdMsg->yaw = std::max(yaw_cur - omega_yaw_max_ , yaw_des);
           }
           // cmdMsg->yaw = atan2(2.0*(quat(1)*quat(2) + quat(0)*quat(3)), 1.0 - 2.0 * (quat(2) * quat(2) + quat(3) * quat(3))); // quat=[w,x,y,z]
           // cmdMsg->yaw_dot = omg[2];
@@ -572,15 +573,15 @@ class Nodelet : public nodelet::Nodelet {
         visPtr_->pub_msg(msg, "target");
       }
 
-      if(predict_success)
-      {
-        std::vector<Eigen::Vector3d> path;
-        auto duration = tgpredict.getPolyTime()(0);
-        for (double t = 0; t < duration; t += 0.01) {
-          path.push_back(tgpredict.getPosFromBezier(t,0));
-        }
-        visPtr_->visualize_path(path, "target_bezier");
-      } 
+      // if(predict_success)
+      // {
+      //   std::vector<Eigen::Vector3d> path;
+      //   auto duration = tgpredict.getPolyTime()(0);
+      //   for (double t = 0; t < duration; t += 0.01) {
+      //     path.push_back(tgpredict.getPosFromBezier(t,0));
+      //   }
+      //   visPtr_->visualize_path(path, "target_bezier");
+      // } 
     }
   }
 
@@ -624,7 +625,7 @@ class Nodelet : public nodelet::Nodelet {
 
     land_r_ = (platform_r_ - robot_r_) / 2;
 
-    tgpredict.init(sample_dur * plan_hz_,predict_dur * plan_hz_);
+    // tgpredict.init(sample_dur * plan_hz_,predict_dur * plan_hz_);
 
     visPtr_ = std::make_shared<vis_utils::VisUtils>(nh); // debug
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);

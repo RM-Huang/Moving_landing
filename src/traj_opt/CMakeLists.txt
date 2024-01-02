@@ -9,7 +9,6 @@ find_package(Eigen3 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   vis_utils
-  target_prediction
 )
 
 catkin_package(
@@ -31,5 +30,4 @@ add_library(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
-  bezier_predict
 )
