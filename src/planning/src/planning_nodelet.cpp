@@ -240,14 +240,14 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::FOLLOW:
       {
-        if((static_landing || predict_success) && (ros::Time::now().toSec() - vision_stamp < 0.1) && sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.5 ) //TODO state trans condition from follow to land
+        if((static_landing || predict_success) && (ros::Time::now().toSec() - vision_stamp < 0.1) && sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0 ) //TODO state trans condition from follow to land
         {
           plan_state = traj_opt::TrajOpt::LAND;
           ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
           ros::Duration(0.2).sleep();
           return;
         }
-        else if(delta_from_last > traj.getTotalDuration() - 0.4)
+        else if(delta_from_last > traj.getTotalDuration() - 0.2)
         {
           plan_state = traj_opt::TrajOpt::HOVER;
           generate_new_traj_success = false;
@@ -277,7 +277,7 @@ class Nodelet : public nodelet::Nodelet {
           ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
           return;
         }
-        else if(delta_from_last > T)
+        else if(delta_from_last > T + 0.05)
         {
           plan_state = traj_opt::TrajOpt::HOVER;
           generate_new_traj_success = false;
@@ -290,7 +290,7 @@ class Nodelet : public nodelet::Nodelet {
           ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
           return;
         }
-        else if( (target_p - uav_p).norm() < 0.5 &&  delta_from_last < T)
+        else if( abs(target_p[2] - uav_p[2]) < 0.5 && delta_from_last < 0.2 )
         {
           return;
         }
@@ -369,8 +369,8 @@ class Nodelet : public nodelet::Nodelet {
     if (generate_new_traj) 
     {
       trajStamp = stamp_tmp;
-      target_v_last = target_v_tmp;
-      target_p_last = target_p_tmp;
+      target_v_last = target_p_tmp;
+      target_p_last = target_v_tmp;
       generate_new_traj_success = true;
       ROS_INFO("\033[32m[planning]:Traj generate succeed\033[32m");
       std::cout<<"traj_duration = "<<traj.getTotalDuration()<<std::endl;
@@ -416,11 +416,11 @@ class Nodelet : public nodelet::Nodelet {
       // std::cout<<"pen_norm = "<<pen<<" pen = "<<pen * pen <<std::endl;
       // if(abs(uav_p[0] - target_p[0]) < land_r_ + 0.1 && abs(uav_p[1] - target_p[1]) < land_r_ + 0.1 && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       // if(abs(uav_v[0] - target_v[0]) < 0.1 && abs(uav_v[1] - target_v[1]) < 0.1 && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
-      if(abs(uav_p[0] - target_p[0]) < land_r_ + 0.1 && abs(uav_p[1] - target_p[1]) < land_r_ + 0.1 && abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
+      if(abs(uav_p[2] - target_p[2]) <= robot_l_ + 0.01)
       {
         force_arm_disarm(false);
 
-        double posi_differ = (uav_p - target_p).norm();
+        double posi_differ = abs(uav_p[0] - target_p[0]) + abs(uav_p[1] - target_p[1]);
         std::cout<<"uav_p = "<<uav_p.transpose()<<" car_p = "<<target_p.transpose()<<" differ = "<<posi_differ<<std::endl;
 
         ROS_INFO("\033[32m [planning]: land triger published \033[32m");
