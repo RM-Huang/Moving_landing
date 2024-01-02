@@ -297,7 +297,7 @@ class Nodelet : public nodelet::Nodelet {
         //   ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
         //   return;
         // }
-        else if( abs(target_p[2] - uav_p[2]) < 0.8 && delta_from_last < 0.2 )
+        else if( abs(target_p[2] - uav_p[2]) < 1.0 && delta_from_last < 0.2 )
         {
           return;
         }

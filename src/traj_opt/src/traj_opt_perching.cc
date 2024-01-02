@@ -1297,7 +1297,7 @@ bool TrajOpt::grad_cost_omega(const Eigen::Vector3d& a,
 bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_floor = platform_l_ + 0.1;
+  static double z_floor = car_p_.z() + platform_l_ + 0.1;
   double pen = z_floor - p.z(); // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
@@ -1314,7 +1314,7 @@ bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
 bool TrajOpt::grad_cost_top(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_top = car_p_.z() + 3.0; // max height set to a fixed values related to the initial state
+  static double z_top = car_p_.z() + platform_l_ + 1.5; // max height set to a fixed values related to the initial state
   double pen = p.z() - z_top; // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
