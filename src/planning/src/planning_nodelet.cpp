@@ -66,6 +66,7 @@ class Nodelet : public nodelet::Nodelet {
   bool generate_new_traj_success = false;
   bool visualize_sig;
   bool target_odom_recrived = false;
+  bool land_first = false;
   Trajectory traj;
   Eigen::Vector3d target_p, target_v, uav_p, uav_v;
   Eigen::Vector3d target_p_last, target_v_last;
@@ -73,6 +74,9 @@ class Nodelet : public nodelet::Nodelet {
   double trajStamp_observe;
   Eigen::Quaterniond target_q, uav_q;
   traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::HOVER;
+
+  Eigen::Vector3d follow_p;
+  Eigen::Vector3d follow_v;
 
   // static param
   double vehicleMass;
@@ -234,6 +238,7 @@ class Nodelet : public nodelet::Nodelet {
           ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
           return;
         }
+        delta_from_last = -1.0;
         // planning from hover state     
         iniState.col(0) = uav_p;
         iniState.col(1) = uav_v;
@@ -244,23 +249,29 @@ class Nodelet : public nodelet::Nodelet {
         double T = traj.getTotalDuration();
         if((static_landing || predict_success) && (ros::Time::now().toSec() - vision_stamp < 0.1)) // 0.3 = platform_r_
         {
-
-          if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0)
+          if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 0.8)
           {
+            // Eigen::Vector3d acc = traj.getAcc(delta_from_last);
+            // Eigen::Vector3d jer = traj.getJer(delta_from_last);
+            // if(acc[0] < 0.1 && acc[1] < 0.1 && jer.norm() < 0.1)
+            // {
+            ros::Duration(0.1).sleep();
+            land_first = true;
             plan_state = traj_opt::TrajOpt::LAND;
             ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
             // ros::Duration(0.2).sleep();
             return;
+            // }
           }
         }
-        else if(delta_from_last > traj.getTotalDuration() - 0.2)
+        else if(delta_from_last > traj.getTotalDuration())
         {
           plan_state = traj_opt::TrajOpt::HOVER;
           generate_new_traj_success = false;
           ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
           return;
         }
-        else if(generate_new_traj_success && delta_from_last < 0.2) // replan from last traj after 0.2s
+        else if(generate_new_traj_success && delta_from_last < 0.5) // replan from last traj after 0.2s
         {
           return;
         }
@@ -276,39 +287,48 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::LAND:
       {
-        double T = traj.getTotalDuration();
-        Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-        if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
+        if(!land_first)
         {
-          plan_state = traj_opt::TrajOpt::FOLLOW;
-          ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
-          return;
+          double T = traj.getTotalDuration();
+          Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
+          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
+          {
+            plan_state = traj_opt::TrajOpt::FOLLOW;
+            ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
+            return;
+          }
+          else if(delta_from_last > T)
+          {
+            plan_state = traj_opt::TrajOpt::HOVER;
+            generate_new_traj_success = false;
+            ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
+            return;
+          }
+          // // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
+          // else if(abs(delta_p[0]) < land_r_ && abs(delta_p[1] < land_r_) ) 
+          // {
+          //   ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
+          //   return;
+          // }
+          else if( abs(target_p[2] - uav_p[2]) < 1.0 && delta_from_last < 0.2 )
+          {
+            return;
+          }
+
+          // TODO a future state maybe out of range while close to the car
+          // double delta_from_last = ros::Time::now().toSec() + 0.2 - trajStamp; // get a future state as replan initial state
         }
-        else if(delta_from_last > T + 0.2)
+        else
         {
-          plan_state = traj_opt::TrajOpt::HOVER;
-          generate_new_traj_success = false;
-          ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
-          return;
-        }
-        // // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
-        // else if(abs(delta_p[0]) < land_r_ && abs(delta_p[1] < land_r_) ) 
-        // {
-        //   ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
-        //   return;
-        // }
-        else if( abs(target_p[2] - uav_p[2]) < 1.0 && delta_from_last < 0.2 )
-        {
-          return;
+          delta_from_last = -1.0;
         }
 
-        // TODO a future state maybe out of range while close to the car
-        // double delta_from_last = ros::Time::now().toSec() + 0.2 - trajStamp; // get a future state as replan initial state
-        delta_from_last = ros::Time::now().toSec() - trajStamp;
+        delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
         iniState.col(0) = traj.getPos(delta_from_last);
         iniState.col(1) = traj.getVel(delta_from_last);
         iniState.col(2) = traj.getAcc(delta_from_last);
         iniState.col(3) = traj.getJer(delta_from_last);
+
         break;
       }
     }
@@ -354,7 +374,7 @@ class Nodelet : public nodelet::Nodelet {
     Eigen::Vector3d target_v_tmp = target_v;
     
     generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, target_q, uav_q_, 
-                                                   predict_success, 10, traj, &plan_state); 
+                                                   predict_success, 10, traj, &plan_state, delta_from_last); 
 
     if (generate_new_traj) 
     {
@@ -407,15 +427,14 @@ class Nodelet : public nodelet::Nodelet {
       // abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
       if(abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
       {
-        force_arm_disarm(false);
-
-        std::cout<<"uav_p = "<<uav_p.transpose()<<" car_p = "<<target_p.transpose()<<" differ = "<< abs(uav_p[0] - target_p[0]) <<" "<< abs(uav_p[1] - target_p[1])<<std::endl;
-
-        ROS_INFO("\033[32m [planning]: land triger published \033[32m");
-
         generate_new_traj_success = false;
         triger_received_ = false;
         ctrl_ready_triger = false;
+
+        std::cout<<"uav_p = "<<uav_p.transpose()<<" car_p = "<<target_p.transpose()<<" differ = "<< abs(uav_p[0] - target_p[0]) <<" "<< abs(uav_p[1] - target_p[1])<<std::endl;
+
+        force_arm_disarm(false);
+        ROS_INFO("\033[32m [planning]: land triger published \033[32m");
       }
       // publishing_cmd = false;
 

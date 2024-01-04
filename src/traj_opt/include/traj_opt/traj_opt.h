@@ -63,8 +63,8 @@ class TrajOpt {
                         const bool& predict_flag,
                         const int& N,
                         Trajectory& traj, 
-                        plan_s *plan_state);
-                        // const double& t_replan = -1.0);
+                        plan_s *plan_state,
+                        const double& t_replan = -1.0);
 
     bool generate_test_traj(const std::vector<Eigen::Vector3d> route,
                             Trajectory& traj, 

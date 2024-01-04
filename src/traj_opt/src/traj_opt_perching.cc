@@ -446,8 +446,8 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
                             const bool& predict_flag,
                             const int& N,
                             Trajectory& traj,
-                            plan_s *plan_state)
-                            // const double& t_replan) 
+                            plan_s *plan_state,
+                            const double& t_replan) 
 {
   predict_suc = predict_flag;
   plan_state_ = plan_state;
@@ -468,19 +468,23 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   car_p_ = car_p;
   car_v_ = car_v;
 
+  Eigen::Vector3d tail_p_, tail_v_, car_a_;
+
+  double max_omega = 0;
+
   // NOTE set boundary conditions
   initS_ = iniState;
 
-  // if(*plan_state == FOLLOW || *plan_state_ == HOVER)
-  // {
-  //   traj_tail_alt = platform_r_;
-  //   // bvp_f.col(1) = car_v_ / 2;
-  // }
-  // else if(*plan_state == LAND)
-  // {
-  //   traj_tail_alt = car_p_[2];
-  // }
-  traj_tail_alt = car_p_[2];
+  if(*plan_state == FOLLOW || *plan_state_ == HOVER)
+  {
+    traj_tail_alt = car_p_[2] + 0.5 + robot_l_;
+    // bvp_f.col(1) = car_v_ / 2;
+  }
+  else if(*plan_state == LAND)
+  {
+    traj_tail_alt = car_p_[2];
+  }
+  // traj_tail_alt = car_p_[2];
   // else if(*plan_state == LAND && initS_.col(0)[2] - car_p_[2] > 0.5)
   // {
   //   traj_tail_alt = initS_.col(0)[2] - 0.5;
@@ -507,100 +511,109 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   tail_f = 0;
 
-  Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
-  Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
-  bvp_f.col(0) = car_p_;
-  bvp_f.col(1) = car_v_;
-  bvp_f.col(0)[2] = traj_tail_alt;
-  // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
-  bvp_f.col(2).setZero();
-  bvp_f.col(3).setZero();
-  double T_min = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_;
-  double T_bvp = T_min; // 得到初始相对距离最小时间
-  Eigen::Vector3d tail_p_, tail_v_, car_a_;
-  CoefficientMat coeffMat;
-  double max_omega = 0;
-  // std::cout<<"T , omega = "<<std::endl;
-  do {
-    if(*plan_state_ == TrajOpt::plan_s::LAND)
-      T_bvp += 0.1; // 1.0
-    else
-      T_bvp += 1.0;
-    
-    if(T_bvp > 50 * T_min)
-    {
-      std::cout<<"minumsnap T cost too high"<<" T = "<<T_bvp<<" max_omega = "<<max_omega<<std::endl;
-      return false;
+  bool opt_once = t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
+  if (opt_once) {
+    double init_T = init_traj_.getTotalDuration() - t_replan;
+    t = logC2(init_T / N_);
+    for (int i = 1; i < N_; ++i) {
+      double tt0 = (i * 1.0 / N_) * init_T;
+      P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
     }
-    getPVA(T_bvp, tail_p_, tail_v_, car_a_);
-    bvp_f.col(0) = tail_p_;
-    bvp_f.col(1) = tail_v_;
-    bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
-    std::vector<double> durs{T_bvp};
-    std::vector<CoefficientMat> coeffs{coeffMat};
+    tail_f = init_tail_f_;
+    vt = init_vt_;
+  } else {
+    Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
+    Eigen::MatrixXd bvp_f(3, 4); // 1、降落点位置，2、降落点速度，3、降落点加速度，4、jerk
+    bvp_f.col(0) = car_p_;
+    bvp_f.col(1) = car_v_;
+    bvp_f.col(0)[2] = traj_tail_alt;
+    // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+    bvp_f.col(2).setZero();
+    bvp_f.col(3).setZero();
+    double T_min = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_;
+    double T_bvp = T_min; // 得到初始相对距离最小时间
+    CoefficientMat coeffMat;
+    // std::cout<<"T , omega = "<<std::endl;
+    do {
+      if(*plan_state_ == TrajOpt::plan_s::LAND)
+        T_bvp += 0.1; // 1.0
+      else
+        T_bvp += 1.0;
+      
+      if(T_bvp > 50 * T_min)
+      {
+        std::cout<<"minumsnap T cost too high"<<" T = "<<T_bvp<<" max_omega = "<<max_omega<<std::endl;
+        return false;
+      }
+      getPVA(T_bvp, tail_p_, tail_v_, car_a_);
+      bvp_f.col(0) = tail_p_;
+      bvp_f.col(1) = tail_v_;
+      bvp(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
+      std::vector<double> durs{T_bvp};
+      std::vector<CoefficientMat> coeffs{coeffMat};
+      // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+      Trajectory traj(durs, coeffs); // 保存粗轨迹
+      max_omega = getMaxOmega(traj);
+      // std::cout<<T_bvp<<" "<<max_omega<<" , ";
+    } while (max_omega > 2.0 * omega_max_);
+    // std:;cout<<std::endl;
+    std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+    // auto tic_snap = std::chrono::steady_clock::now();
+    // double T_head = T_min;
+    // double T_tail = 80 * T_min;
+    // double T_tmp = T_head;
+    // bool found_res = false;
+    // CoefficientMat coeffMat_tmp;
+    // do{
+    //   getPVA(T_tmp, tail_p_, tail_v_, car_a_);
+    //   bvp_f.col(0) = tail_p_;
+    //   bvp_f.col(1) = tail_v_;
+    //   bvp(T_tmp, bvp_i, bvp_f, coeffMat_tmp); // 得到多项式系数
+    //   std::vector<double> durs{T_tmp};
+    //   std::vector<CoefficientMat> coeffs{coeffMat_tmp};
+    //   // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
+    //   Trajectory traj(durs, coeffs); // 保存粗轨迹
+    //   max_omega = getMaxOmega(traj);
+    //   if(max_omega > 1.5)
+    //   {
+    //     T_head = T_tmp;
+    //   }
+    //   else
+    //   {
+    //     found_res = true;
+    //     T_tail = T_tmp;
+    //     coeffMat = coeffMat_tmp;
+    //   }
+    //   T_tmp = (T_head + T_tail) / 2;
+    // }while(T_tail - T_head > 0.1);
+    // if(!found_res)
+    // {
+    //   std::cout<<"minumsnap T cost too high"<<" t_tail = "<<T_tmp<<" t_min = "<< T_min<<std::endl;
+    //   return false;
+    // }
+    // T_bvp = T_tail;
     // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-    Trajectory traj(durs, coeffs); // 保存粗轨迹
-    max_omega = getMaxOmega(traj);
-    // std::cout<<T_bvp<<" "<<max_omega<<" , ";
-  } while (max_omega > 2.0 * omega_max_);
-  // std:;cout<<std::endl;
-  std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-
-  // auto tic_snap = std::chrono::steady_clock::now();
-  // double T_head = T_min;
-  // double T_tail = 80 * T_min;
-  // double T_tmp = T_head;
-  // bool found_res = false;
-  // CoefficientMat coeffMat_tmp;
-  // do{
-  //   getPVA(T_tmp, tail_p_, tail_v_, car_a_);
-  //   bvp_f.col(0) = tail_p_;
-  //   bvp_f.col(1) = tail_v_;
-  //   bvp(T_tmp, bvp_i, bvp_f, coeffMat_tmp); // 得到多项式系数
-  //   std::vector<double> durs{T_tmp};
-  //   std::vector<CoefficientMat> coeffs{coeffMat_tmp};
-  //   // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-  //   Trajectory traj(durs, coeffs); // 保存粗轨迹
-  //   max_omega = getMaxOmega(traj);
-  //   if(max_omega > 1.5)
-  //   {
-  //     T_head = T_tmp;
-  //   }
-  //   else
-  //   {
-  //     found_res = true;
-  //     T_tail = T_tmp;
-  //     coeffMat = coeffMat_tmp;
-  //   }
-  //   T_tmp = (T_head + T_tail) / 2;
-  // }while(T_tail - T_head > 0.1);
-  // if(!found_res)
-  // {
-  //   std::cout<<"minumsnap T cost too high"<<" t_tail = "<<T_tmp<<" t_min = "<< T_min<<std::endl;
-  //   return false;
-  // }
-  // T_bvp = T_tail;
-  // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-  // auto toc_snap = std::chrono::steady_clock::now();
-  // std::cout << "snap costs: " << (toc_snap - tic_snap).count() * 1e-6 << "ms" << std::endl;
-  Eigen::VectorXd tt(8);
-  tt(7) = 1.0;
-  for (int i = 1; i < N_; ++i) {
-    double tt0 = (i * 1.0 / N_) * T_bvp;
-    for (int j = 6; j >= 0; j -= 1) {
-      tt(j) = tt(j + 1) * tt0;
+    // auto toc_snap = std::chrono::steady_clock::now();
+    // std::cout << "snap costs: " << (toc_snap - tic_snap).count() * 1e-6 << "ms" << std::endl;
+    Eigen::VectorXd tt(8);
+    tt(7) = 1.0;
+    for (int i = 1; i < N_; ++i) {
+      double tt0 = (i * 1.0 / N_) * T_bvp;
+      for (int j = 6; j >= 0; j -= 1) {
+        tt(j) = tt(j + 1) * tt0;
+      }
+      P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
+      // std::cout<<"tt:"<<tt.transpose()<<std::endl;
+      // std::cout<<"P:"<<std::endl;
+      // std::cout<<P<<std::endl;
     }
-    P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
-    // std::cout<<"tt:"<<tt.transpose()<<std::endl;
-    // std::cout<<"P:"<<std::endl;
-    // std::cout<<P<<std::endl;
-  }
 
-  t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
-  // }
-  // std::cout << "initial guess >>> t: " << t << std::endl;
-  // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
-  // std::cout << "initial guess >>> vt: " << vt.transpose() << std::endl;
+    t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
+    // }
+    // std::cout << "initial guess >>> t: " << t << std::endl;
+    // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
+    // std::cout << "initial guess >>> vt: " << vt.transpose() << std::endl;
+  }
 
   // NOTE optimization
   lbfgs::lbfgs_parameter_t lbfgs_params;
@@ -656,21 +669,25 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   std::cout << "tailS : " << std::endl;
   std::cout << tailS << std::endl;
   mincoOpt_.generate(initS_, tailS, P, dT);
-  traj = mincoOpt_.getTraj(); //调用MINCO轨迹类生成轨迹
+  Trajectory traj_tmp = mincoOpt_.getTraj(); //调用MINCO轨迹类生成轨迹
 
-  // max_omega = getMaxOmega(traj);
+  max_omega = getMaxOmega(traj_tmp);
   // std::cout << "tailV: " << tailV.transpose() << std::endl;
-  std::cout << "maxOmega: " << getMaxOmega(traj) << std::endl;
-  std::cout << "maxThrust: " << traj.getMaxThrust() << std::endl;
-  std::cout << "maxVel: " << getMaxVel(traj) << std::endl;
-  std::cout << "maxVel_Z:" << getMaxVelZ(traj) << std::endl;
+  std::cout << "maxOmega: " << max_omega << std::endl;
+  std::cout << "maxThrust: " << traj_tmp.getMaxThrust() << std::endl;
+  std::cout << "maxVel: " << getMaxVel(traj_tmp) << std::endl;
+  std::cout << "maxVel_Z:" << getMaxVelZ(traj_tmp) << std::endl;
 
-  // if(max_omega > omega_max_)
+  // if(*plan_state == LAND)
   // {
-  //   std::cout<<"[planning]: Omega too high"<<std::endl;
-  //   return false;
+  if(max_omega > 10 * omega_max_)
+  {
+    std::cout<<"[planning]: Omega too high"<<std::endl;
+    return false;
+  }
   // }
-
+  
+  traj = traj_tmp;
   init_traj_ = traj;
   init_tail_f_ = tail_f;
   init_vt_ = vt;
@@ -942,8 +959,8 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
       //   cost_inner += cost_tmp;
       // }
 
-      // if(*plan_state_ == TrajOpt::plan_s::LAND)
-      // {
+      if(*plan_state_ == TrajOpt::plan_s::LAND)
+      {
         // if(grad_cost_visible_domain(pos, car_p, grad_tmp, grad_tmp2, cost_tmp)){
         // grad_p += grad_tmp;
         // grad_car_p += grad_tmp2;
@@ -959,17 +976,17 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
           // grad_car_t += grad_tmp3.dot(car_v);
         }
         // std::cout<<" , ";
-      // }
 
-      // Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
-      if (grad_cost_perching_collision(pos, acc, car_p,
-                                       grad_tmp, grad_tmp2, grad_tmp3,
-                                       cost_tmp)) { // ??
-        grad_p += grad_tmp;
-        grad_a += grad_tmp2;
-        grad_car_p += grad_tmp3;
-        cost_inner += cost_tmp;
-        // grad_car_t += grad_tmp3.dot(car_v);
+        // Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
+        if (grad_cost_perching_collision(pos, acc, car_p,
+                                        grad_tmp, grad_tmp2, grad_tmp3,
+                                        cost_tmp)) { // ??
+          grad_p += grad_tmp;
+          grad_a += grad_tmp2;
+          grad_car_p += grad_tmp3;
+          cost_inner += cost_tmp;
+          // grad_car_t += grad_tmp3.dot(car_v);
+        }
       }
 
       double grad_car_t = grad_car_p.transpose() * car_v_;
@@ -1297,7 +1314,7 @@ bool TrajOpt::grad_cost_omega(const Eigen::Vector3d& a,
 bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_floor = car_p_.z() + platform_l_ + 0.1;
+  static double z_floor = car_p_.z() + robot_l_ + 0.2;
   double pen = z_floor - p.z(); // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
@@ -1314,7 +1331,7 @@ bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
 bool TrajOpt::grad_cost_top(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_top = car_p_.z() + platform_l_ + 1.5; // max height set to a fixed values related to the initial state
+  static double z_top = car_p_.z() + robot_l_ + 1.0; // max height set to a fixed values related to the initial state
   double pen = p.z() - z_top; // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
