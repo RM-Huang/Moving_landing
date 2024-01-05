@@ -277,7 +277,6 @@ class Nodelet : public nodelet::Nodelet {
         }
         // else if(predict_success)
 
-        // TODO a future state maybe out of range while close to the car
         delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
         iniState.col(0) = traj.getPos(delta_from_last);
         iniState.col(1) = traj.getVel(delta_from_last);
@@ -291,7 +290,13 @@ class Nodelet : public nodelet::Nodelet {
         {
           double T = traj.getTotalDuration();
           Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
+          if( T < 1.0 )
+          {
+            ROS_INFO("[planning]: close to platform!");
+            ros::Duration(T).sleep();
+            return;
+          }
+          else if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
           {
             plan_state = traj_opt::TrajOpt::FOLLOW;
             ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
@@ -310,13 +315,10 @@ class Nodelet : public nodelet::Nodelet {
           //   ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
           //   return;
           // }
-          else if( abs(target_p[2] - uav_p[2]) < 1.0 && delta_from_last < 0.2 )
-          {
-            return;
-          }
-
-          // TODO a future state maybe out of range while close to the car
-          // double delta_from_last = ros::Time::now().toSec() + 0.2 - trajStamp; // get a future state as replan initial state
+          // else if( abs(target_p[2] - uav_p[2]) < 1.0 && delta_from_last < 0.2 )
+          // {
+          //   return;
+          // }
         }
         else
         {
@@ -419,13 +421,8 @@ class Nodelet : public nodelet::Nodelet {
   {
     if(ctrl_ready_triger)
     {
-      // Eigen::Vector3d pc = - target_p + uav_p;
-      // Eigen::Vector3d pc_norm = pc / pc.norm(); // normalize pc
-      // double costheta = pc_norm.dot(Eigen::Vector3d(0,0,1));
-      // double pen = 1 - costheta;
-      // std::cout<<"pen_norm = "<<pen<<" pen = "<<pen * pen <<std::endl;
       // abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
-      if(abs(uav_p[2] - target_p[2]) < 0.01 + robot_l_)
+      if(abs(uav_p[2] - target_p[2]) <= robot_l_ + 0.05) // set horizental restrictions if odom msg highly reliable
       {
         generate_new_traj_success = false;
         triger_received_ = false;
@@ -444,23 +441,23 @@ class Nodelet : public nodelet::Nodelet {
         ros::Time current_time = ros::Time::now();
         double delta_from_start = current_time.toSec() - trajStamp;
         // quadrotor_msgs::PositionCommandPtr cmdMsg(new quadrotor_msgs::PositionCommand());
-        if (delta_from_start > 0.0 && delta_from_start < traj.getTotalDuration())
+        if (delta_from_start > 0.0 && delta_from_start <= traj.getTotalDuration())
         {
-          Eigen::VectorXd physicalParams(6); //物理参数
-          physicalParams(0) = vehicleMass;//质量
-          physicalParams(1) = gravAcc;//重力加速度
-          physicalParams(2) = horizDrag;//水平阻力系数
-          physicalParams(3) = vertDrag;//垂直阻力系数
-          physicalParams(4) = parasDrag;//附加阻力系数
-          physicalParams(5) = speedEps;//速度平滑因子
+          // Eigen::VectorXd physicalParams(6); //物理参数
+          // physicalParams(0) = vehicleMass;//质量
+          // physicalParams(1) = gravAcc;//重力加速度
+          // physicalParams(2) = horizDrag;//水平阻力系数
+          // physicalParams(3) = vertDrag;//垂直阻力系数
+          // physicalParams(4) = parasDrag;//附加阻力系数
+          // physicalParams(5) = speedEps;//速度平滑因子
 
-          flatness::FlatnessMap flatmap;
-          flatmap.reset(physicalParams(0), physicalParams(1), physicalParams(2),
-                          physicalParams(3), physicalParams(4), physicalParams(5));//将物理参数赋值给微分平坦的私有变量
+          // flatness::FlatnessMap flatmap;
+          // flatmap.reset(physicalParams(0), physicalParams(1), physicalParams(2),
+          //                 physicalParams(3), physicalParams(4), physicalParams(5));//将物理参数赋值给微分平坦的私有变量
 
-          double thr;//总推力
+          // double thr;//总推力
           // Eigen::Vector4d quat;//四元数
-          Eigen::Vector3d omg;//角速率
+          // Eigen::Vector3d omg;//角速率
           Eigen::Vector3d pos;
           Eigen::Vector3d vel;
           Eigen::Vector3d acc;
@@ -470,6 +467,19 @@ class Nodelet : public nodelet::Nodelet {
           vel = traj.getVel(delta_from_start);
           acc = traj.getAcc(delta_from_start);
           jer = traj.getJer(delta_from_start);
+
+          // if(abs(uav_p[2] - target_p[2]) <= robot_l_ + 0.05)
+          // if(abs(pos[2] - target_p[2]) <= robot_l_ + 0.05)
+          // {
+          //   generate_new_traj_success = false;
+          //   triger_received_ = false;
+          //   ctrl_ready_triger = false;
+
+          //   std::cout<<"uav_p = "<<uav_p.transpose()<<" car_p = "<<target_p.transpose()<<" differ = "<< abs(uav_p[0] - target_p[0]) <<" "<< abs(uav_p[1] - target_p[1])<<std::endl;
+
+          //   force_arm_disarm(false);
+          //   ROS_INFO("\033[32m [planning]: land triger published \033[32m");
+          // }
 
           // flatmap.forward(vel,
           //                 acc,
