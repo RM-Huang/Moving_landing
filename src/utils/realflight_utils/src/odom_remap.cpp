@@ -421,6 +421,7 @@ private:
             Eigen::AngleAxisd yaw(Eigen::AngleAxisd(car_odom.yaw - car_rpy_bias.z,Eigen::Vector3d::UnitZ()));
 
             car_orientation = roll * pitch * yaw;
+            // qua = gtruth_qua_bias.inverse() * car_orientation;
 
             qua.x() = 0;
             qua.y() = 0;
@@ -466,7 +467,7 @@ private:
             qua.z() = -qua.z();
             source = 1;
         }
-        lin_vel = qua * l_v;
+        lin_vel = gtruth_qua_bias.inverse() * l_v; 
         // lin_vel = l_v;
         
         if(sour_last != source)
@@ -674,7 +675,7 @@ private:
                             car_qua_bias.z = car_odom_sim.pose.pose.orientation.z;
                             calibration = true;
                         }
-                        else if(!issimulation && !calibration && carodomsubTri && car_odom.status == 1)
+                        else if(!issimulation && !calibration && carodomsubTri)
                         {
                             // geometry_msgs::Vector3 car_utm_pt, uav_utm_pt;
                             // LLTtoUTM(car_odom.px, car_odom.py, car_utm_pt);
