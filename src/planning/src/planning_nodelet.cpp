@@ -226,7 +226,7 @@ class Nodelet : public nodelet::Nodelet {
     
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
-    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0)
+    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4));
       vision_stamp = ros::Time::now().toSec(); //test
     switch(plan_state)
     {
@@ -246,7 +246,7 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::FOLLOW:
       {
-        double T = traj.getTotalDuration();
+        // double T = traj.getTotalDuration();
         if((static_landing || predict_success) && (ros::Time::now().toSec() - vision_stamp < 0.1)) // 0.3 = platform_r_
         {
           if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 0.8)
@@ -256,7 +256,7 @@ class Nodelet : public nodelet::Nodelet {
             // if(acc[0] < 0.1 && acc[1] < 0.1 && jer.norm() < 0.1)
             // {
             ros::Duration(0.1).sleep();
-            land_first = true;
+            land_first = false;
             plan_state = traj_opt::TrajOpt::LAND;
             ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
             // ros::Duration(0.2).sleep();
@@ -271,7 +271,7 @@ class Nodelet : public nodelet::Nodelet {
           ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
           return;
         }
-        else if(generate_new_traj_success && delta_from_last < 0.5) // replan from last traj after 0.2s
+        else if(generate_new_traj_success && delta_from_last < 0.2) // replan from last traj after 0.2s
         {
           return;
         }
@@ -290,18 +290,22 @@ class Nodelet : public nodelet::Nodelet {
         {
           double T = traj.getTotalDuration();
           Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-          if( T < 1.0 )
-          {
-            ROS_INFO("[planning]: close to platform!");
-            ros::Duration(T).sleep();
-            return;
-          }
-          else if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
+          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
           {
             plan_state = traj_opt::TrajOpt::FOLLOW;
             ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
             return;
           }
+          // else if( delta_from_last < 0.2 )
+          // {
+          //   return;
+          // }
+          // else if( T < 0.6 )
+          // {
+          //   ROS_INFO("[planning]: close to platform!");
+          //   ros::Duration(T).sleep();
+          //   return;
+          // }
           else if(delta_from_last > T)
           {
             plan_state = traj_opt::TrajOpt::HOVER;
@@ -309,6 +313,8 @@ class Nodelet : public nodelet::Nodelet {
             ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
             return;
           }
+
+          delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
           // // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
           // else if(abs(delta_p[0]) < land_r_ && abs(delta_p[1] < land_r_) ) 
           // {
@@ -320,12 +326,13 @@ class Nodelet : public nodelet::Nodelet {
           //   return;
           // }
         }
-        else
+        else if(land_first)
         {
           delta_from_last = -1.0;
+          land_first = false;
         }
 
-        delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
+        // delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
         iniState.col(0) = traj.getPos(delta_from_last);
         iniState.col(1) = traj.getVel(delta_from_last);
         iniState.col(2) = traj.getAcc(delta_from_last);
@@ -419,7 +426,7 @@ class Nodelet : public nodelet::Nodelet {
 
   void cmd_pub(const ros::TimerEvent& event)
   {
-    if(ctrl_ready_triger)
+    if(ctrl_ready_triger && triger_received_)
     {
       // abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
       if(abs(uav_p[2] - target_p[2]) <= robot_l_ + 0.05) // set horizental restrictions if odom msg highly reliable

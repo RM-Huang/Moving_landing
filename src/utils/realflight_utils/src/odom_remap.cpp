@@ -427,7 +427,7 @@ private:
             qua.z() = 0;
             qua.w() = 1;
             pos = gtruth_qua_bias.inverse() * (p - p_bias);
-            pos[2] = pos[2] - 0.25;
+            pos[2] = pos[2] - 0.25; // move gps center to camera
             
             source = 0;
         }

@@ -58,6 +58,7 @@ include_directories(
 
 add_library(rcin_remap src/rcin_remap.cpp)
 add_library(odom_remap src/odom_remap.cpp)
+add_library(traj_analyse src/traj_analyse.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -69,6 +70,7 @@ add_library(odom_remap src/odom_remap.cpp)
 ## same as for the library above
  add_dependencies(rcin_remap ${catkin_EXPORTED_TARGETS})
  add_dependencies(odom_remap ${catkin_EXPORTED_TARGETS})
+ add_dependencies(traj_analyse ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(${PROJECT_NAME}_node
@@ -80,5 +82,9 @@ target_link_libraries(rcin_remap
 )
 
 target_link_libraries(odom_remap
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(traj_analyse
   ${catkin_LIBRARIES}
 )
