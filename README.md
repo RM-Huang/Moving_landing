@@ -29,9 +29,8 @@ Run the following script to start simulation.
 ./sim_traj_follow.sh
 ```
 *Run following script on the second terminator if it dosen't run as expect.*
-*```*
 *rosrun simulation_utils cmdvel2rviz_keyboard.py*
-*```*
+
 You can use ***WSAD*** in the second terminator to adjust velocity and attitude of the car.Then use the following script to takeoff UAV.
 ```
 ./takeoff.sh
