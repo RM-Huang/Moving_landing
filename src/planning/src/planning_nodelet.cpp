@@ -264,7 +264,7 @@ class Nodelet : public nodelet::Nodelet {
             // }
           }
         }
-        else if(delta_from_last > traj.getTotalDuration())
+        else if(delta_from_last > traj.getTotalDuration() + 0.1)
         {
           plan_state = traj_opt::TrajOpt::HOVER;
           generate_new_traj_success = false;
@@ -306,7 +306,7 @@ class Nodelet : public nodelet::Nodelet {
           //   ros::Duration(T).sleep();
           //   return;
           // }
-          else if(delta_from_last > T)
+          else if(delta_from_last > T + 0.1)
           {
             plan_state = traj_opt::TrajOpt::HOVER;
             generate_new_traj_success = false;
@@ -396,7 +396,7 @@ class Nodelet : public nodelet::Nodelet {
     }
     else if(!generate_new_traj)
     {
-      generate_new_traj_success = false;
+      // generate_new_traj_success = false;
       ROS_ERROR("[planning]:Traj generate fail!");
     }
     // triger_received_ = false;
