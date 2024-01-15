@@ -87,6 +87,7 @@ private:
     Eigen::Vector3d uav_position;        
     std_msgs::Float64 vision_statu;
     int source = 0;
+    int vision_source = 0;
     Eigen::Quaterniond vision_ori;
     Eigen::Vector3d vision_position;
 
@@ -107,6 +108,20 @@ private:
 
         //这里处理视觉数据和飞机定位数据，也就是说飞机的坐标变量是全局的。以后全局变量后面都需要增加
         //只需要考虑视觉数据，后面的代码只要考虑定义就好，还有一系列信号，增加info和warn等字符    
+    }
+
+    void irCallback(const geometry_msgs::PoseStamped::ConstPtr &irmsg)
+    {
+        vision_position.x() = irmsg->pose.position.x;
+        vision_position.y() = irmsg->pose.position.y;
+        vision_position.z() = irmsg->pose.position.z;
+
+        vision_ori.w() = irmsg->pose.orientation.w;
+        vision_ori.x() = irmsg->pose.orientation.x;
+        vision_ori.y() = irmsg->pose.orientation.y;
+        vision_ori.z() = irmsg->pose.orientation.z;
+
+        vision_statu.data = irmsg->header.stamp.toSec();
     }
 
     void mctruthCallback(const geometry_msgs::PoseStamped::ConstPtr &gtruthMsg)
@@ -407,7 +422,8 @@ private:
     {
     	int sour_last = source;
         Eigen::Vector3d l_v(gtruth.twist.twist.linear.x, gtruth.twist.twist.linear.y, gtruth.twist.twist.linear.z);
-        //if(vision_statu.data != 0 && abs(vision_statu.data - ros::Time::now()) < 0.05)
+        lin_vel = gtruth_qua_bias.inverse() * l_v; 
+        // lin_vel = l_v;
         if(vision_position.x() == 0 && vision_position.y() == 0 && vision_position.z() == 0 && vision_ori.w() == 0 && vision_ori.x() ==0 && vision_ori.y() == 0 && vision_ori.z()==0)
         {
             Eigen::Quaterniond car_orientation;
@@ -432,7 +448,7 @@ private:
             
             source = 0;
         }
-        else
+        else if(vision_source == 0)
         {
             Eigen::Quaterniond cal_a;
             Eigen::Quaterniond cal_b;
@@ -467,16 +483,18 @@ private:
             qua.z() = -qua.z();
             source = 1;
         }
-        lin_vel = gtruth_qua_bias.inverse() * l_v; 
-        // lin_vel = l_v;
+        else if(vision_source == 1)
+        {
+            qua = vision_ori;
+            pos = vision_position;
+            source = 1;
+        }
         
         if(sour_last != source)
         {
             if(source == 0)
             {
             	ROS_INFO("[odom_remap]: Change odom source to gps!");
-                std::cout<<vision_position.x() <<" "<<std::endl;
-
             }
             else
             {
@@ -793,6 +811,7 @@ private:
         nh.param("odom_source", odom_source, 0); // 0 for mocap, 1 for gps
         nh.param("simulation", issimulation, false); 
         nh.param("car_odom_remap", car_odom_remap, 0); // 1 for remap car odom
+        nh.param("vision_source", vision_source, 0); // 0 for aprilTag, 1 for infrared
 
         gtruth_pos_bias.x = 0;
         gtruth_pos_bias.y = 0;
@@ -826,7 +845,12 @@ private:
 
                         uav_globalposSub = nh.subscribe("/mavros/global_position/global", 1, &odomRemap::uavglobalCallback, this,
                                         ros::TransportHints().tcpNoDelay());
-                        visionsub = nh.subscribe("/tag_detections", 10, &odomRemap::visionCallback, this);  //
+                        
+                        if(vision_source == 0)
+                            visionsub = nh.subscribe("/tag_detections", 1, &odomRemap::visionCallback, this);  // april_tag
+                        else if(vision_source == 1)
+                            visionsub = nh.subscribe("/ir_pose_topic", 1, &odomRemap::irCallback, this); // infrared
+
                         vision_getPub = nh.advertise<std_msgs::Float64>("/vision_received", 1); 
                         car_odom_server_init();
                         car_odom_timer = nh.createTimer(ros::Duration(0.02), &odomRemap::car_odom_Callback, this);
