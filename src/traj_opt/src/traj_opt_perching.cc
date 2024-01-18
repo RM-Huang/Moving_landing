@@ -477,7 +477,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   if(*plan_state == FOLLOW || *plan_state_ == HOVER)
   {
-    traj_tail_alt = car_p_[2] + 0.5 + robot_l_;
+    traj_tail_alt = car_p_[2] + 0.7 + robot_l_;
     // bvp_f.col(1) = car_v_ / 2;
   }
   else if(*plan_state == LAND)
@@ -1213,7 +1213,8 @@ bool TrajOpt::grad_cost_visible_domain(const Eigen::Vector3d& pos,
   Eigen::Vector3d pc = - car_p + pos;
   double dist_sqr = pc.squaredNorm();
   // double safe_r = platform_r_;
-  double safe_r_sqr = platform_r_ * platform_r_;
+  double safe_r_sqr = platform_r_ + robot_r_;
+  safe_r_sqr = safe_r_sqr * safe_r_sqr;
   double pen_dist = - safe_r_sqr + dist_sqr;
   //pen_dist /= safe_r_sqr;
   double grad_dist = 0;

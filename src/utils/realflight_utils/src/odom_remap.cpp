@@ -471,8 +471,8 @@ private:
             vision_ori_cal = cal_b;
             vision_ori_cal.normalize();
             vision_pose_cal.x()=-0.0683589;
-            vision_pose_cal.y()= 0.01509123;
-            vision_pose_cal.z()=-0.14474158;        
+            vision_pose_cal.y()= 0.13509123;
+            vision_pose_cal.z()=-0.14074158;        
             //Eigen::Vector3d uav_v_position = cal_a*cal_a.inverse()*vision_ori_cal *(vision_position + vision_pose_cal );
             //Eigen::Quaterniond uav_v_orientation = cal_a*vision_ori_cal * vision_ori;
             uav_v_position =  vision_ori_cal.inverse() * (vision_position + vision_pose_cal);
@@ -485,8 +485,8 @@ private:
         }
         else if(vision_source == 1)
         {
-            qua = vision_ori;
-            pos = vision_position;
+            qua = uav_orientation * vision_ori;
+            pos = uav_position - uav_orientation * vision_position;
             source = 1;
         }
         
@@ -673,6 +673,9 @@ private:
                     // odomMsg->twist.twist.angular.x = ang_vel[0];
                     // odomMsg->twist.twist.angular.y = ang_vel[1];
                     // odomMsg->twist.twist.angular.z = ang_vel[2];
+
+                    uav_orientation = gtruth_qua;
+                    uav_position = position;
 
                     odomPub.publish(odomMsg);
 
