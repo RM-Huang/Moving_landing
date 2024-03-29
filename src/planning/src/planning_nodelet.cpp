@@ -67,7 +67,6 @@ class Nodelet : public nodelet::Nodelet {
   bool visualize_sig;
   bool target_odom_recrived = false;
   bool land_first = false;
-  bool land_cmd_ = false;
   Trajectory traj;
   Eigen::Vector3d target_p, target_v, uav_p, uav_v;
   Eigen::Vector3d target_p_last, target_v_last;
@@ -227,8 +226,8 @@ class Nodelet : public nodelet::Nodelet {
     
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
-    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 6))
-      vision_stamp = ros::Time::now().toSec(); //test
+    // if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4));
+    //   vision_stamp = ros::Time::now().toSec(); //test
     switch(plan_state)
     {
       case traj_opt::TrajOpt::HOVER:
@@ -265,7 +264,7 @@ class Nodelet : public nodelet::Nodelet {
             // }
           }
         }
-        else if(delta_from_last > traj.getTotalDuration() + 0.1)
+        else if(delta_from_last > traj.getTotalDuration())
         {
           plan_state = traj_opt::TrajOpt::HOVER;
           generate_new_traj_success = false;
@@ -290,7 +289,7 @@ class Nodelet : public nodelet::Nodelet {
         if(!land_first)
         {
           double T = traj.getTotalDuration();
-          // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
+          Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
           if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
           {
             plan_state = traj_opt::TrajOpt::FOLLOW;
@@ -301,21 +300,17 @@ class Nodelet : public nodelet::Nodelet {
           // {
           //   return;
           // }
-          // else if( abs(uav_p[2] - target_p[2]) < 0.4 && T <= 0.6)
+          // else if( T < 0.6 )
           // {
+          //   ROS_INFO("[planning]: close to platform!");
+          //   ros::Duration(T).sleep();
           //   return;
           // }
-          else if(delta_from_last > T + 0.1)
+          else if(delta_from_last > T)
           {
             plan_state = traj_opt::TrajOpt::HOVER;
             generate_new_traj_success = false;
             ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
-            return;
-          }
-          else if( T <= 0.6 )
-          {
-            land_cmd_ = true;
-            ROS_INFO("[planning]: close to platform!");
             return;
           }
 
@@ -383,28 +378,25 @@ class Nodelet : public nodelet::Nodelet {
       output：轨迹tarj
     */
     bool generate_new_traj; 
-    // double stamp_tmp = ros::Time::now().toSec();
-    // Eigen::Vector3d target_p_tmp = target_p;
-    // Eigen::Vector3d target_v_tmp = target_v;
+    double stamp_tmp = ros::Time::now().toSec();
+    Eigen::Vector3d target_p_tmp = target_p;
+    Eigen::Vector3d target_v_tmp = target_v;
     
     generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, target_q, uav_q_, 
                                                    predict_success, 10, traj, &plan_state, delta_from_last); 
 
     if (generate_new_traj) 
     {
-      trajStamp = ros::Time::now().toSec();
-      target_v_last = target_p;
-      target_p_last = target_v;
-      // trajStamp = stamp_tmp;
-      // target_v_last = target_p_tmp;
-      // target_p_last = target_v_tmp;
+      trajStamp = stamp_tmp;
+      target_v_last = target_p_tmp;
+      target_p_last = target_v_tmp;
       generate_new_traj_success = true;
       ROS_INFO("\033[32m[planning]:Traj generate succeed\033[32m");
       std::cout<<"traj_duration = "<<traj.getTotalDuration()<<std::endl;
     }
     else if(!generate_new_traj)
     {
-      // generate_new_traj_success = false;
+      generate_new_traj_success = false;
       ROS_ERROR("[planning]:Traj generate fail!");
     }
     // triger_received_ = false;
@@ -436,8 +428,8 @@ class Nodelet : public nodelet::Nodelet {
   {
     if(ctrl_ready_triger && triger_received_)
     {
-      // abs(uav_p[0] - target_p[0]) <= 0.15 && abs(uav_p[1] - target_p[1]) <= 0.15 && 
-      if(abs(uav_p[2] - target_p[2]) <= robot_l_) // set horizental restrictions if odom msg highly reliable
+      // abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
+      if(uav_p[2] - target_p[2] <= robot_l_) // set horizental restrictions if odom msg highly reliable
       {
         generate_new_traj_success = false;
         triger_received_ = false;
@@ -448,24 +440,13 @@ class Nodelet : public nodelet::Nodelet {
         force_arm_disarm(false);
         ROS_INFO("\033[32m [planning]: land triger published \033[32m");
       }
+      // publishing_cmd = false;
 
       if(generate_new_traj_success)
-      {   
+      {
         publishing_cmd = true;
         ros::Time current_time = ros::Time::now();
         double delta_from_start = current_time.toSec() - trajStamp;
-        // if(land_cmd_ && delta_from_start >= traj.getTotalDuration()) // set horizental restrictions if odom msg highly reliable
-        // {
-        //   generate_new_traj_success = false;
-        //   triger_received_ = false;
-        //   ctrl_ready_triger = false;
-
-        //   std::cout<<"uav_p = "<<uav_p.transpose()<<" car_p = "<<target_p.transpose()<<" differ = "<< abs(uav_p[0] - target_p[0]) <<" "<< abs(uav_p[1] - target_p[1])<<std::endl;
-
-        //   force_arm_disarm(false);
-        //   ROS_INFO("\033[32m [planning]: land triger published \033[32m");
-        //   return;
-        // }
         // quadrotor_msgs::PositionCommandPtr cmdMsg(new quadrotor_msgs::PositionCommand());
         if (delta_from_start > 0.0 && delta_from_start <= traj.getTotalDuration())
         {
@@ -529,6 +510,16 @@ class Nodelet : public nodelet::Nodelet {
 
           double yaw_des = atan2(2.0*(target_q.x()*target_q.y() + target_q.w()*target_q.z()), 1.0 - 2.0 * (target_q.y() * target_q.y() + target_q.z() * target_q.z())); // quat=[w,x,y,z]
           double yaw_cur = atan2(2.0*(uav_q.x()*uav_q.y() + uav_q.w()*uav_q.z()), 1.0 - 2.0 * (uav_q.y() * uav_q.y() + uav_q.z() * uav_q.z()));
+          // double yaw_delta = acos(uav_q.dot(target_q));
+          // double yaw_delta = yaw_des - yaw_cur;
+          // if(yaw_delta > M_PI)
+          // {
+          //   yaw_delta = yaw_delta -  2 * M_PI;
+          // }
+          // else if(yaw_delta < - M_PI)
+          // {
+          //   yaw_delta = 2 * 6.283185307 + yaw_delta;
+          // }
 
           if(yaw_des > 0)
           {
@@ -538,6 +529,9 @@ class Nodelet : public nodelet::Nodelet {
           {
             cmdMsg->yaw = std::max(yaw_cur - omega_yaw_max_ , yaw_des);
           }
+          // cmdMsg->yaw = atan2(2.0*(quat(1)*quat(2) + quat(0)*quat(3)), 1.0 - 2.0 * (quat(2) * quat(2) + quat(3) * quat(3))); // quat=[w,x,y,z]
+          // cmdMsg->yaw_dot = omg[2];
+
           cmd_pub_.publish(cmdMsg);
 
           if(ifanalyse)
@@ -562,20 +556,11 @@ class Nodelet : public nodelet::Nodelet {
             Eigen::Vector3d tail_pos = traj.getPos(traj.getTotalDuration());
             Eigen::Vector3d tail_vel = traj.getVel(traj.getTotalDuration());
             visPtr_->visualize_arrow(tail_pos, tail_pos + 0.5 * tail_vel, "tail_vel");
+
+            // if (trajOptPtr_->check_collilsion(pos, acc, target_p)) {
+            // std::cout << "collide!  t: " << delta_from_start << std::endl;
+            // }
           }
-
-          // if (trajOptPtr_->check_collilsion(pos, acc, target_p)) 
-          // {
-          //   // generate_new_traj_success = false;
-          //   // triger_received_ = false;
-          //   // ctrl_ready_triger = false;
-
-          //   // std::cout<<"uav_p = "<<uav_p.transpose()<<" car_p = "<<target_p.transpose()<<" differ = "<< abs(uav_p[0] - target_p[0]) <<" "<< abs(uav_p[1] - target_p[1])<<std::endl;
-
-          //   // force_arm_disarm(false);
-          //   // ROS_INFO("\033[32m [planning]: land triger published \033[32m");
-          //   std::cout << "collide!  t: " << delta_from_start << std::endl;
-          // }
         }
         // else if(delta_from_start >= traj.getTotalDuration())
         // {
@@ -596,7 +581,7 @@ class Nodelet : public nodelet::Nodelet {
       msg.pose.pose.orientation.y = uav_q.y();
       msg.pose.pose.orientation.z = uav_q.z();
       msg.header.stamp = ros::Time::now();
-      // visPtr_->visualize_traj(traj, "traj");
+      visPtr_->visualize_traj(traj, "traj");
       visPtr_->pub_msg(msg, "odom"); //此处的odom是无人机的odom，默认话题名/drone/planning/odom
 
       if(target_odom_recrived)
