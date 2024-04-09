@@ -227,7 +227,7 @@ class Nodelet : public nodelet::Nodelet {
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
     // if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4));
-    //   vision_stamp = ros::Time::now().toSec(); //test
+      // vision_stamp = ros::Time::now().toSec(); //test
     switch(plan_state)
     {
       case traj_opt::TrajOpt::HOVER:
