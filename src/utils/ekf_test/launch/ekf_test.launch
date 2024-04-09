@@ -1,0 +1,6 @@
+<launch>
+
+    <node pkg="ekf_test" type="ekf_test" name="ekf_test" output="screen">
+	</node> 
+
+</launch>

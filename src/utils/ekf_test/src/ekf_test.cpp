@@ -12,9 +12,12 @@ nav_msgs::Odometry gps_msg;
 
 ros::Publisher ekf_pub;
 
+bool odom_sub_tri = false;
+
 void car_odom_Callback(const nav_msgs::Odometry::ConstPtr &msg)
 {
     car_odom = *msg;
+    odom_sub_tri = true;
 }
 
 void vision_Callback(const apriltag_ros::AprilTagDetectionArray &transform)
@@ -52,14 +55,17 @@ void car_gps_Callback(const car_odom_server::car_status::ConstPtr &msg)
 
 void handler()
 {
-    geometry_msgs::Point ekf_pos;
-    
     /* 在头文件中写好函数后在此调用 */
-    ekf_pos.x = car_odom.pose.pose.position.x;
-    ekf_pos.y = car_odom.pose.pose.position.y;
-    ekf_pos.z = car_odom.pose.pose.position.z; // 此处暂时将输出值赋为未处理值
+    if(odom_sub_tri = true)
+    {
+        geometry_msgs::Point ekf_pos;
+    
+        ekf_pos.x = car_odom.pose.pose.position.x;
+        ekf_pos.y = car_odom.pose.pose.position.y;
+        ekf_pos.z = car_odom.pose.pose.position.z; // 此处暂时将输出值赋为未处理值
 
-    ekf_pub.publish(ekf_pos);
+        ekf_pub.publish(ekf_pos);
+    }
 }
 
 int main(int argc, char *argv[])
