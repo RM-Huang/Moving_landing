@@ -12,6 +12,9 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 	read_essential_param(nh, "gain/Kv0", gain.Kv0);
 	read_essential_param(nh, "gain/Kv1", gain.Kv1);
 	read_essential_param(nh, "gain/Kv2", gain.Kv2);
+	read_essential_param(nh, "gain/Ki0", gain.Ki0);
+	read_essential_param(nh, "gain/Ki1", gain.Ki1);
+	read_essential_param(nh, "gain/Ki2", gain.Ki2);
 	read_essential_param(nh, "gain/Kvi0", gain.Kvi0);
 	read_essential_param(nh, "gain/Kvi1", gain.Kvi1);
 	read_essential_param(nh, "gain/Kvi2", gain.Kvi2);

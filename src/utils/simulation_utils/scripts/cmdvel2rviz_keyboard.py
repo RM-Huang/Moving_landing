@@ -51,7 +51,7 @@ class CmdVel2Gazebo:
         self.v_y = 0
 
         # rate
-        self.hz = 20
+        self.hz = 100
         self.dur = 1 / self.hz
 
         # car Wheelbase (in m)
@@ -96,7 +96,7 @@ class CmdVel2Gazebo:
         print (msg)
 
         # loop
-        rate = rospy.Rate(self.hz) # run at 10Hz
+        rate = rospy.Rate(self.hz)
         while not rospy.is_shutdown():
             self.publish()
             rate.sleep()
@@ -234,7 +234,7 @@ class CmdVel2Gazebo:
 
     def getkey():
         tty.setraw(sys.stdin.fileno()) #设置终端为原始模式
-        rlist, _, _ = select.select([sys.stdin], [], [], 0.1) 
+        rlist, _, _ = select.select([sys.stdin], [], [], 0.01) 
 
         #监听标准输入,超时0.1秒  
         if rlist: #若监听到输入

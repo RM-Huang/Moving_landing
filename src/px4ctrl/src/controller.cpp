@@ -27,10 +27,13 @@ LinearControl::calculateControl(const Desired_State_t &des,
   /* WRITE YOUR CODE HERE */
       //compute disired acceleration
       Eigen::Vector3d des_acc(0.0, 0.0, 0.0);
-      Eigen::Vector3d Kp,Kv;
+      Eigen::Vector3d Kp,Kv,Ki;
       Kp << param_.gain.Kp0, param_.gain.Kp1, param_.gain.Kp2;
       Kv << param_.gain.Kv0, param_.gain.Kv1, param_.gain.Kv2;
-      des_acc = des.a + Kv.asDiagonal() * (des.v - odom.v) + Kp.asDiagonal() * (des.p - odom.p);
+      Ki << param_.gain.Ki0, param_.gain.Ki1, param_.gain.Ki2;
+      Eigen::Vector3d p_err = des.p - odom.p;
+      p_err_i += p_err;
+      des_acc = des.a + Kv.asDiagonal() * (des.v - odom.v) + Kp.asDiagonal() * p_err + Ki.asDiagonal() * p_err_i;
       // des_acc = des.a + Kp.asDiagonal() * (des.p - odom.p);
       des_acc += Eigen::Vector3d(0,0,param_.gra);
 

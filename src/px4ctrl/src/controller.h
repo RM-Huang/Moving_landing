@@ -66,6 +66,7 @@ public:
 
 private:
   Parameter_t param_;
+  Eigen::Vector3d p_err_i = {0.0, 0.0, 0.0};
   quadrotor_msgs::Px4ctrlDebug debug_msg_;
   std::queue<std::pair<ros::Time, double>> timed_thrust_;
   static constexpr double kMinNormalizedCollectiveThrust_ = 3.0;
