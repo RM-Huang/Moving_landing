@@ -2,6 +2,9 @@
 #include "PX4CtrlFSM.h"
 #include <signal.h>
 
+bool use_ude;
+int ude_type;
+
 void mySigintHandler(int sig)
 {
     ROS_INFO("[PX4Ctrl] exit...");
@@ -16,12 +19,23 @@ int main(int argc, char *argv[])
     signal(SIGINT, mySigintHandler);
     ros::Duration(1.0).sleep();
 
+    nh.param("use_ude", use_ude, false);
+    nh.param("ude_type", ude_type, 0);
+
     Parameter_t param;
+    //初始化参数
     param.config_from_ros_handle(nh);
 
     // Controller controller(param);
+    //初始化控制器
     LinearControl controller(param);
+    //初始化状态机
     PX4CtrlFSM fsm(param, controller);
+
+    fsm.use_ude = use_ude;
+    fsm.ude_type = ude_type;
+    
+
 
     ros::Subscriber state_sub =
         nh.subscribe<mavros_msgs::State>("/mavros/state",
@@ -39,7 +53,7 @@ int main(int argc, char *argv[])
                                          boost::bind(&Odom_Data_t::feed, &fsm.odom_data, _1),
                                          ros::VoidConstPtr(),
                                          ros::TransportHints().tcpNoDelay());
-
+    //規劃的指令
     ros::Subscriber cmd_sub =
         nh.subscribe<quadrotor_msgs::PositionCommand>("cmd",
                                                       100,
@@ -83,6 +97,7 @@ int main(int argc, char *argv[])
     // fsm.odom_rz_pub = nh.advertise<nav_msgs::Odometry>("/px4ctrl/odom_re_zero", 10); // 发布归零后的里程计数据
     fsm.debug_pub = nh.advertise<quadrotor_msgs::Px4ctrlDebug>("/debugPx4ctrl", 10); // debug
 
+    //向FCU发送解锁、起飞、降落等指令
     fsm.set_FCU_mode_srv = nh.serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");
     fsm.arming_client_srv = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
     fsm.reboot_FCU_srv = nh.serviceClient<mavros_msgs::CommandLong>("/mavros/cmd/command");
@@ -99,6 +114,7 @@ int main(int argc, char *argv[])
         while (ros::ok())
         {
             ros::spinOnce();
+            //判断遥控器信号是否稳定
             if (fsm.rc_is_received(ros::Time::now()))
             {
                 ROS_INFO("[PX4CTRL] RC received.");
@@ -109,6 +125,7 @@ int main(int argc, char *argv[])
     }
 
     int trials = 0;
+    //判断是否连接上PX4
     while (ros::ok() && !fsm.state_data.current_state.connected)
     {
         ros::spinOnce();
@@ -116,7 +133,7 @@ int main(int argc, char *argv[])
         if (trials++ > 5)
             ROS_ERROR("Unable to connnect to PX4!!!");
     }
-
+    //设置频率
     ros::Rate r(param.ctrl_freq_max);
     while (ros::ok())
     {

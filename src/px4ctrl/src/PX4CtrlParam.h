@@ -10,10 +10,15 @@ public:
 	{
 		double Kp0, Kp1, Kp2;
 		double Kv0, Kv1, Kv2;
-		double Ki0, Ki1, Ki2;
-		double Kvi0, Kvi1, Kvi2;
+		double Katt0, Katt1, Katt2;
 		double Kvd0, Kvd1, Kvd2;
 		double KAngR, KAngP, KAngY;
+		double Trou0, Trou1, Trou2;
+		double Trou_min0, Trou_min1, Trou_min2;
+		double Trou_max0, Trou_max1, Trou_max2;
+		double t_min;
+		double t_max;
+		double Omg_eso_pos0, Omg_eso_pos1, Omg_eso_pos2;
 	};
 
 	struct RotorDrag

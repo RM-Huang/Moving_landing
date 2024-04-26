@@ -6,21 +6,33 @@ Parameter_t::Parameter_t()
 
 void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 {
+	//读取参数的值
 	read_essential_param(nh, "gain/Kp0", gain.Kp0);
 	read_essential_param(nh, "gain/Kp1", gain.Kp1);
 	read_essential_param(nh, "gain/Kp2", gain.Kp2);
 	read_essential_param(nh, "gain/Kv0", gain.Kv0);
 	read_essential_param(nh, "gain/Kv1", gain.Kv1);
 	read_essential_param(nh, "gain/Kv2", gain.Kv2);
-	read_essential_param(nh, "gain/Ki0", gain.Ki0);
-	read_essential_param(nh, "gain/Ki1", gain.Ki1);
-	read_essential_param(nh, "gain/Ki2", gain.Ki2);
-	read_essential_param(nh, "gain/Kvi0", gain.Kvi0);
-	read_essential_param(nh, "gain/Kvi1", gain.Kvi1);
-	read_essential_param(nh, "gain/Kvi2", gain.Kvi2);
+	read_essential_param(nh, "gain/Katt0", gain.Katt0);
+	read_essential_param(nh, "gain/Katt1", gain.Katt1);
+	read_essential_param(nh, "gain/Katt2", gain.Katt2);
 	read_essential_param(nh, "gain/KAngR", gain.KAngR);
 	read_essential_param(nh, "gain/KAngP", gain.KAngP);
 	read_essential_param(nh, "gain/KAngY", gain.KAngY);
+	read_essential_param(nh, "gain/Trou0", gain.Trou0);
+	read_essential_param(nh, "gain/Trou1", gain.Trou1);
+	read_essential_param(nh, "gain/Trou2", gain.Trou2);
+	read_essential_param(nh, "gain/Trou_min0", gain.Trou_min0);
+	read_essential_param(nh, "gain/Trou_min1", gain.Trou_min1);
+	read_essential_param(nh, "gain/Trou_min2", gain.Trou_min2);
+	read_essential_param(nh, "gain/Trou_max0", gain.Trou_max0);
+	read_essential_param(nh, "gain/Trou_max1", gain.Trou_max1);
+	read_essential_param(nh, "gain/Trou_max2", gain.Trou_max2);
+	read_essential_param(nh, "gain/t_min", gain.t_min);
+	read_essential_param(nh, "gain/t_max", gain.t_max);
+	read_essential_param(nh, "gain/Omg_eso_pos0", gain.Omg_eso_pos0);
+	read_essential_param(nh, "gain/Omg_eso_pos1", gain.Omg_eso_pos1);
+	read_essential_param(nh, "gain/Omg_eso_pos2", gain.Omg_eso_pos2);
 
 	read_essential_param(nh, "rotor_drag/x", rt_drag.x);
 	read_essential_param(nh, "rotor_drag/y", rt_drag.y);

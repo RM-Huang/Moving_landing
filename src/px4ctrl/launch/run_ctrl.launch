@@ -6,6 +6,10 @@
 		<remap from="~odom" to="/odom/remap" />
 
 		<remap from="~cmd" to="/drone0/planning/cmd" />
+		<!-- controller ude -->
+		<param name="use_ude" value="true"/>
+		<!-- 0 for ude,1 for tvude,2 fpr ESO,3 for NOUDE --> 
+		<param name="ude_type" value="0"/> 
 
         <rosparam command="load" file="$(find px4ctrl)/config/ctrl_param_fpv.yaml" />
 	</node>
