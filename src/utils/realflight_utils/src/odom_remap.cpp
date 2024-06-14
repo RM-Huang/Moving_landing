@@ -14,7 +14,6 @@
 #include <gazebo_msgs/ModelStates.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/PoseWithCovariance.h>
 #include <geodesy/utm.h>
 #include <car_odom_server/car_status.h>
 #include <car_odom_server/SerialPort.h>
@@ -789,8 +788,8 @@ private:
                                 car_odomMsg.pose.pose.orientation.z = car_qua.z();
                                 car_odomMsg.twist.twist.linear.x = car_vel[0];
                                 car_odomMsg.twist.twist.linear.y = car_vel[1];
-                                car_odomMsg.twist.twist.linear.z = car_vel[2];
-                                // car_odomMsg.twist.twist.linear.z = 0;
+                                // car_odomMsg.twist.twist.linear.z = car_vel[2];
+                                car_odomMsg.twist.twist.linear.z = 0;
                                 vision_getPub.publish(vision_statu);
                             }
                             else
@@ -861,8 +860,10 @@ private:
         {
             ROS_ERROR("[odom_remap]:Port2 open failed!");
         }
+    }
 
-
+    void ekf_param_init()
+    {
         /* ekf param init */
         double dt = 0.005;
         double ep =  0.7; //位置标准差
@@ -906,7 +907,7 @@ private:
 
         switch (odom_source) {
             case 0:
-                gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::mctruthCallback, this,
+                gtruthSub = nh.subscribe(gtruthTopic, 1, &odomRemap::mctruthCallback, this,
                                    ros::TransportHints().tcpNoDelay());
 
                 odom_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::mc_odom_pub, this);
@@ -915,17 +916,17 @@ private:
             case 1:
                 if(!issimulation)
                 {
-                    gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::gpstruthCallback, this,
+                    gtruthSub = nh.subscribe(gtruthTopic, 1, &odomRemap::gpstruthCallback, this,
                                 ros::TransportHints().tcpNoDelay());
 
-                    gtruthvelSub = nh.subscribe("/mavros/local_position/velocity_local", 10, &odomRemap::uavvelCallback, this,
+                    gtruthvelSub = nh.subscribe("/mavros/local_position/velocity_local", 1, &odomRemap::uavvelCallback, this,
                                 ros::TransportHints().tcpNoDelay());
 
                     // uav_globalposSub = nh.subscribe("/mavros/global_position/global", 1, &odomRemap::uavglobalCallback, this,
                     //                 ros::TransportHints().tcpNoDelay());
 
-                    car_odom_rawPub = nh.advertise<car_odom_server::car_status>("/odom/remap/car/raw", 10);
-                    vision_rawPub = nh.advertise<geometry_msgs::Pose>("odom/remap/vision_raw", 10);
+                    car_odom_rawPub = nh.advertise<car_odom_server::car_status>("/odom/remap/car/raw", 1);
+                    vision_rawPub = nh.advertise<geometry_msgs::Pose>("odom/remap/vision_raw", 1);
                     
                     if(vision_source == 0)
                         visionsub = nh.subscribe("/tag_detections", 1, &odomRemap::visionCallback, this);  // april_tag
@@ -934,11 +935,12 @@ private:
 
                     vision_getPub = nh.advertise<std_msgs::Float64>("/vision_received", 1); 
                     car_odom_server_init();
+                    ekf_param_init();
                     car_odom_timer = nh.createTimer(ros::Duration(0.01), &odomRemap::car_odom_Callback, this);
                 }
                 else
                 {
-                    gtruthSub = nh.subscribe(gtruthTopic, 10, &odomRemap::simtruthCallback, this,
+                    gtruthSub = nh.subscribe(gtruthTopic, 1, &odomRemap::simtruthCallback, this,
                                 ros::TransportHints().tcpNoDelay());
 
                     car_odomSub = nh.subscribe("/smart/odom", 1, &odomRemap::sim_car_odom_Callback, this,

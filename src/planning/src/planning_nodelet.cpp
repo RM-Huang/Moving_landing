@@ -257,7 +257,7 @@ class Nodelet : public nodelet::Nodelet {
         // double T = traj.getTotalDuration();
         if((static_landing || predict_success) && (vision_stamp == 1)) // 0.3 = platform_r_
         {
-          std::cout<<"dist_ = "<<sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2))<<std::endl;
+          // std::cout<<"dist_ = "<<sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2))<<std::endl;
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
           if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
@@ -319,7 +319,7 @@ class Nodelet : public nodelet::Nodelet {
           //   ros::Duration(T).sleep();
           //   return;
           // }
-          else if(delta_from_last > T)
+          else if(delta_from_last > T + 0.5)
           {
             plan_state = traj_opt::TrajOpt::HOVER;
             generate_new_traj_success = false;
@@ -443,7 +443,8 @@ class Nodelet : public nodelet::Nodelet {
     if(ctrl_ready_triger && triger_received_)
     {
       // abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
-      if(uav_p[2] - target_p[2] <= robot_l_) // set horizental restrictions if odom msg highly reliable
+      if(abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
+        uav_p[2] - target_p[2] <= robot_l_) // set horizental restrictions if odom msg highly reliable
       {
         generate_new_traj_success = false;
         triger_received_ = false;
@@ -668,18 +669,18 @@ class Nodelet : public nodelet::Nodelet {
     visPtr_ = std::make_shared<vis_utils::VisUtils>(nh); // debug
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);
 
-    target_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("target_odom", 10, &Nodelet::target_odom_callback, this, ros::TransportHints().tcpNoDelay());
+    target_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("target_odom", 1, &Nodelet::target_odom_callback, this, ros::TransportHints().tcpNoDelay());
     vision_statu_sub_ = nh.subscribe<std_msgs::Float64>("/vision_received", 1, &Nodelet::vision_statu_callback, this, ros::TransportHints().tcpNoDelay());
-    uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 10, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
-    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 10, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay()); // debug
+    uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 1, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
+    ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 1, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay()); // debug
     // ctrl_start_tri_sub_ = nh.subscribe<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10, &ctrl_start_tri_callback, this, ros::TransportHints().tcpNoDelay());
-    triger_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("triger", 10, &Nodelet::triger_callback, this, ros::TransportHints().tcpNoDelay());
+    triger_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("triger", 1, &Nodelet::triger_callback, this, ros::TransportHints().tcpNoDelay());
     
     if(ifanalyse)
     {
-      des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 10); // debug
+      des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 1); // debug
     }
-    cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 10);
+    cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 1);
     // hover_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
     // land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
     FCU_command_srv = nh.serviceClient<mavros_msgs::CommandLong>("/mavros/cmd/command");

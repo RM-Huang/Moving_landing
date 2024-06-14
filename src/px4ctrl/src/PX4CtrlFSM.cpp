@@ -381,25 +381,32 @@ void PX4CtrlFSM::process()
 	{
 		motors_idling(imu_data, u);
 	}
+	else if(state == MANUAL_CTRL)
+	{
+		debug_msg = controller.calculateControl(des, odom_data, imu_data, u);
+		debug_msg.header.stamp = now_time;
+		debug_pub.publish(debug_msg);
+	}
 	else
 	{
-		if(state == CMD_CTRL && use_ude)
-		{
+		// if(state == CMD_CTRL && use_ude)
+		// {
 			debug_msg = controller.calculateControlCMD(des, odom_data, imu_data, u, now_time, ude_type);
 			debug_msg.header.stamp = now_time;
 			debug_pub.publish(debug_msg);
-		}
-		else
-		{
-			debug_msg = controller.calculateControl(des, odom_data, imu_data, u);
-			debug_msg.header.stamp = now_time;
-			debug_pub.publish(debug_msg);
-		}
+		// }
+		// else
+		// {
+		// 	debug_msg = controller.calculateControl(des, odom_data, imu_data, u);
+		// 	debug_msg.header.stamp = now_time;
+		// 	debug_pub.publish(debug_msg);
+		// }
 		
 	}
 
 	// STEP4: publish control commands to mavros
-	if (param.use_bodyrate_ctrl && state == CMD_CTRL)
+	// if (param.use_bodyrate_ctrl && state == CMD_CTRL)
+	if (param.use_bodyrate_ctrl)
 	{
 		publish_bodyrate_ctrl(u, now_time);
 	}
