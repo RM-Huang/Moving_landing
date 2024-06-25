@@ -229,11 +229,11 @@ class Nodelet : public nodelet::Nodelet {
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
 
-    /* debug */
-    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
-      vision_stamp = 1; //test
-    else
-      vision_stamp = 0;
+    // /* debug */
+    // if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
+    //   vision_stamp = 1; //test
+    // else
+    //   vision_stamp = 0;
     
     switch(plan_state)
     {
@@ -261,11 +261,6 @@ class Nodelet : public nodelet::Nodelet {
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
           if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
-            // Eigen::Vector3d acc = traj.getAcc(delta_from_last);
-            // Eigen::Vector3d jer = traj.getJer(delta_from_last);
-            // if(acc[0] < 0.1 && acc[1] < 0.1 && jer.norm() < 0.1)
-            // {
-            // ros::Duration(0.1).sleep();
             land_first = false;
             generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::LAND;
@@ -302,23 +297,13 @@ class Nodelet : public nodelet::Nodelet {
         {
           double T = traj.getTotalDuration();
           // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || (ros::Time::now().toSec() - vision_stamp > 0.1) ) ) // if target msg dosen't refresh
+          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || vision_stamp ) ) // if target msg dosen't refresh
           {
             generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::FOLLOW;
             ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
             return;
           }
-          // else if( delta_from_last < 0.2 )
-          // {
-          //   return;
-          // }
-          // else if( T < 0.8 )
-          // {
-          //   ROS_INFO("[planning]: close to platform!");
-          //   ros::Duration(T).sleep();
-          //   return;
-          // }
           else if(delta_from_last > T + 0.5)
           {
             plan_state = traj_opt::TrajOpt::HOVER;
@@ -326,18 +311,6 @@ class Nodelet : public nodelet::Nodelet {
             ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
             return;
           }
-
-          // delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
-          // // else if(delta_from_last < 0.2 && ( (target_p_last + target_v_last * delta_from_last) - target_p).norm() < 0.15)
-          // else if(abs(delta_p[0]) < land_r_ && abs(delta_p[1] < land_r_) ) 
-          // {
-          //   ROS_INFO("\033[32m[planning]:Predict effected!\033[32m");
-          //   return;
-          // }
-          // else if( abs(target_p[2] - uav_p[2]) < 1.0 && delta_from_last < 0.2 )
-          // {
-          //   return;
-          // }
         }
         else if(land_first)
         {
@@ -443,7 +416,7 @@ class Nodelet : public nodelet::Nodelet {
     if(ctrl_ready_triger && triger_received_)
     {
       // abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
-      if(abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
+      if(abs(uav_p[0] - target_p[0]) < land_r_ && abs(uav_p[1] - target_p[1]) < land_r_ && 
         uav_p[2] - target_p[2] <= robot_l_) // set horizental restrictions if odom msg highly reliable
       {
         generate_new_traj_success = false;
@@ -465,21 +438,6 @@ class Nodelet : public nodelet::Nodelet {
         // quadrotor_msgs::PositionCommandPtr cmdMsg(new quadrotor_msgs::PositionCommand());
         if (delta_from_start > 0.0 && delta_from_start <= traj.getTotalDuration())
         {
-          // Eigen::VectorXd physicalParams(6); //物理参数
-          // physicalParams(0) = vehicleMass;//质量
-          // physicalParams(1) = gravAcc;//重力加速度
-          // physicalParams(2) = horizDrag;//水平阻力系数
-          // physicalParams(3) = vertDrag;//垂直阻力系数
-          // physicalParams(4) = parasDrag;//附加阻力系数
-          // physicalParams(5) = speedEps;//速度平滑因子
-
-          // flatness::FlatnessMap flatmap;
-          // flatmap.reset(physicalParams(0), physicalParams(1), physicalParams(2),
-          //                 physicalParams(3), physicalParams(4), physicalParams(5));//将物理参数赋值给微分平坦的私有变量
-
-          // double thr;//总推力
-          // Eigen::Vector4d quat;//四元数
-          // Eigen::Vector3d omg;//角速率
           Eigen::Vector3d pos;
           Eigen::Vector3d vel;
           Eigen::Vector3d acc;
@@ -489,25 +447,6 @@ class Nodelet : public nodelet::Nodelet {
           vel = traj.getVel(delta_from_start);
           acc = traj.getAcc(delta_from_start);
           jer = traj.getJer(delta_from_start);
-
-          // if(abs(uav_p[2] - target_p[2]) <= robot_l_ + 0.05)
-          // if(abs(pos[2] - target_p[2]) <= robot_l_ + 0.05)
-          // {
-          //   generate_new_traj_success = false;
-          //   triger_received_ = false;
-          //   ctrl_ready_triger = false;
-
-          //   std::cout<<"uav_p = "<<uav_p.transpose()<<" car_p = "<<target_p.transpose()<<" differ = "<< abs(uav_p[0] - target_p[0]) <<" "<< abs(uav_p[1] - target_p[1])<<std::endl;
-
-          //   force_arm_disarm(false);
-          //   ROS_INFO("\033[32m [planning]: land triger published \033[32m");
-          // }
-
-          // flatmap.forward(vel,
-          //                 acc,
-          //                 jer,
-          //                 0.0, 0.0,
-          //                 thr, quat, omg); //利用微分平坦特性计算出总推力，姿态四元数，机体角速率
           
           quadrotor_msgs::PositionCommandPtr cmdMsg(new quadrotor_msgs::PositionCommand());
           cmdMsg->position.x = pos(0);
@@ -525,16 +464,6 @@ class Nodelet : public nodelet::Nodelet {
 
           double yaw_des = atan2(2.0*(target_q.x()*target_q.y() + target_q.w()*target_q.z()), 1.0 - 2.0 * (target_q.y() * target_q.y() + target_q.z() * target_q.z())); // quat=[w,x,y,z]
           double yaw_cur = atan2(2.0*(uav_q.x()*uav_q.y() + uav_q.w()*uav_q.z()), 1.0 - 2.0 * (uav_q.y() * uav_q.y() + uav_q.z() * uav_q.z()));
-          // double yaw_delta = acos(uav_q.dot(target_q));
-          // double yaw_delta = yaw_des - yaw_cur;
-          // if(yaw_delta > M_PI)
-          // {
-          //   yaw_delta = yaw_delta -  2 * M_PI;
-          // }
-          // else if(yaw_delta < - M_PI)
-          // {
-          //   yaw_delta = 2 * 6.283185307 + yaw_delta;
-          // }
 
           if(yaw_des > 0)
           {

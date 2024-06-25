@@ -119,7 +119,7 @@ LinearControl::calculateControlCMD(const Desired_State_t &des,
 
 
       //常值干扰
-      // Eigen::Vector3d constd(0.35, 0.35, 0.35);
+      Eigen::Vector3d constd(0.35, 0.35, 0.35);
       des_acc = des.a + Kv.asDiagonal() * (des.v - odom.v) + Kp.asDiagonal() * (des.p - odom.p);
 
       Eigen::Vector3d d_acc = Eigen::Vector3d(0.0, 0.0, 0.0);
@@ -161,13 +161,12 @@ LinearControl::calculateControlCMD(const Desired_State_t &des,
             is_first_in_control = false;
           }else{
             u0_integral_pos += des_acc * (t.toSec() - last_time.toSec());
-            std::cout<<"t:"<<t<<" last_t:"<<last_time<<std::endl;
             d_acc = odom.v - init_state - u0_integral_pos;
             // d_acc = odom.v - u0_integral;
             d_acc(0) = d_acc(0) / Trou(0);
             d_acc(1) = d_acc(1) / Trou(1);
             d_acc(2) = d_acc(2) / Trou(2); 
-            last_time = t;
+            //last_time = t;
           }
       }
       else if(ude_type == 2)
@@ -215,93 +214,93 @@ LinearControl::calculateControlCMD(const Desired_State_t &des,
         * Eigen::AngleAxisd(roll,Eigen::Vector3d::UnitX());
       u.q = imu.q * odom.q.inverse() * q;
       
-      // // 姿态环控制
-      // Eigen::Quaterniond des_q = imu.q * odom.q.inverse() * q;
-      // Eigen::Vector3d des_att, real_att;
-      // des_att(0) = atan2(2.0 * (des_q.w() * des_q.x() + des_q.y() * des_q.z()), 1.0 - 2.0 * (des_q.x() * des_q.x() + des_q.y() * des_q.y()));
-      // des_att(1) = asin(2.0 * (des_q.w() * des_q.y() - des_q.x() * des_q.z()));
-      // des_att(2) = atan2(2.0 * (des_q.w() * des_q.z() + des_q.x() * des_q.y()), 1.0 - 2.0 * (des_q.y() * des_q.y() + des_q.z() * des_q.z()));
+      // 姿态环控制
+      Eigen::Quaterniond des_q = imu.q * odom.q.inverse() * q;
+      Eigen::Vector3d des_att, real_att;
+      des_att(0) = atan2(2.0 * (des_q.w() * des_q.x() + des_q.y() * des_q.z()), 1.0 - 2.0 * (des_q.x() * des_q.x() + des_q.y() * des_q.y()));
+      des_att(1) = asin(2.0 * (des_q.w() * des_q.y() - des_q.x() * des_q.z()));
+      des_att(2) = atan2(2.0 * (des_q.w() * des_q.z() + des_q.x() * des_q.y()), 1.0 - 2.0 * (des_q.y() * des_q.y() + des_q.z() * des_q.z()));
 
-      // real_att(0) = atan2(2.0 * (odom.q.w() * odom.q.x() + odom.q.y() * odom.q.z()), 1.0 - 2.0 * (odom.q.x() * odom.q.x() + odom.q.y() * odom.q.y()));
-      // real_att(1) = asin(2.0 * (odom.q.w() * odom.q.y() - odom.q.x() * odom.q.z()));
-      // real_att(2) = atan2(2.0 * (odom.q.w() * odom.q.z() + odom.q.x() * odom.q.y()), 1.0 - 2.0 * (odom.q.y() * odom.q.y() + odom.q.z() * odom.q.z()));
+      real_att(0) = atan2(2.0 * (odom.q.w() * odom.q.x() + odom.q.y() * odom.q.z()), 1.0 - 2.0 * (odom.q.x() * odom.q.x() + odom.q.y() * odom.q.y()));
+      real_att(1) = asin(2.0 * (odom.q.w() * odom.q.y() - odom.q.x() * odom.q.z()));
+      real_att(2) = atan2(2.0 * (odom.q.w() * odom.q.z() + odom.q.x() * odom.q.y()), 1.0 - 2.0 * (odom.q.y() * odom.q.y() + odom.q.z() * odom.q.z()));
 
-      // des_omg = Katt.asDiagonal() * (des_att - real_att);
+      des_omg = Katt.asDiagonal() * (des_att - real_att);
 
-      // Eigen::Vector3d d_att = Eigen::Vector3d(0.0, 0.0, 0.0);
-      // //0:ude 1:TVUDE 2:ESO
-      // if(ude_type == 1){
-      //     // if(is_first_in_control){
-      //     //   u0_integral = Eigen::Vector3d(0.0, 0.0, 0.0);
-      //     //   is_first_in_control = false;
-      //     // }else{
+      Eigen::Vector3d d_att = Eigen::Vector3d(0.0, 0.0, 0.0);
+      //0:ude 1:TVUDE 2:ESO
+      if(ude_type == 1){
+          // if(is_first_in_control){
+          //   u0_integral = Eigen::Vector3d(0.0, 0.0, 0.0);
+          //   is_first_in_control = false;
+          // }else{
         
-      //     //   Eigen::Vector3d T = gettimevaryingT(t.toSec()-init_t.toSec(), t_min, t_max, Trou_min, Trou_max);
-      //     //   Eigen::Vector3d T_dot = gettimevaryingTdot(t.toSec()-init_t.toSec(), t_min, t_max, Trou_min, Trou_max);
-      //     //   std::cout<<"T is "<<T.transpose()<<std::endl;
-      //     //   std::cout<<"T_dot is "<<T_dot.transpose()<<std::endl;
-      //     //   // 1
-      //     //   d_acc(0) = odom.v(0) / T(0);
-      //     //   d_acc(1) = odom.v(1) / T(1);
-      //     //   d_acc(2) = odom.v(2) / T(2);
-      //     //   // 2
-      //     //   Eigen::Vector3d T_init = gettimevaryingT(0, t_min, t_max, Trou_min, Trou_max);
-      //     //   d_acc(0) -= init_state(0) / T_init(0);
-      //     //   d_acc(1) -= init_state(1) / T_init(1);
-      //     //   d_acc(2) -= init_state(2) / T_init(2);
-      //     //   // 3
-      //     //   //TODO 应该是1/T的导数而不是1/(T的导数)
-      //     //   u0_integral(0) +=  (odom.v(0) * T_dot(0) + des_acc(0) / T(0)) * (t.toSec() - last_time.toSec());
-      //     //   u0_integral(1) +=  (odom.v(1) * T_dot(1) + des_acc(1) / T(1)) * (t.toSec() - last_time.toSec());
-      //     //   u0_integral(2) +=  (odom.v(2) * T_dot(2) + des_acc(2) / T(2)) * (t.toSec() - last_time.toSec());
-      //     //   d_acc -= u0_integral; 
-      //     //   last_time = t;
-      //     // }
-      // }
-      // else if(ude_type == 0)
-      // {
-      //     // std::cout<<"use ude"<<std::endl;
-      //     if(is_first_in_control){
-      //       u0_integral_att = Eigen::Vector3d(0.0, 0.0, 0.0);
-      //       is_first_in_control = false;
-      //     }else{
-      //       u0_integral_att += des_acc * (t.toSec() - last_time.toSec());
-      //       d_att = odom.v - init_state - u0_integral_att;
-      //       // d_acc = odom.v - u0_integral;
-      //       d_att(0) = d_att(0) / Trou(0);
-      //       d_att(1) = d_att(1) / Trou(1);
-      //       d_att(2) = d_att(2) / Trou(2); 
-      //       last_time = t;
-      //     }
-      // }
-      // else if(ude_type == 2)
-      // {
-      //     // std::cout<<"use eso"<<std::endl;
-      //     // if(is_first_in_control){
-      //     //   //初始化估计状态
-      //     //   pos_x_est = Eigen::Vector3d(0.0, 0.0, 0.0);
-      //     //   pos_y_est = Eigen::Vector3d(0.0, 0.0, 0.0);
-      //     //   pos_z_est = Eigen::Vector3d(0.0, 0.0, 0.0);
-      //     //   pos_x_est_dot = Eigen::Vector3d(0.0, 0.0, 0.0);
-      //     //   pos_y_est_dot = Eigen::Vector3d(0.0, 0.0, 0.0);
-      //     //   pos_z_est_dot = Eigen::Vector3d(0.0, 0.0, 0.0);
+          //   Eigen::Vector3d T = gettimevaryingT(t.toSec()-init_t.toSec(), t_min, t_max, Trou_min, Trou_max);
+          //   Eigen::Vector3d T_dot = gettimevaryingTdot(t.toSec()-init_t.toSec(), t_min, t_max, Trou_min, Trou_max);
+          //   std::cout<<"T is "<<T.transpose()<<std::endl;
+          //   std::cout<<"T_dot is "<<T_dot.transpose()<<std::endl;
+          //   // 1
+          //   d_acc(0) = odom.v(0) / T(0);
+          //   d_acc(1) = odom.v(1) / T(1);
+          //   d_acc(2) = odom.v(2) / T(2);
+          //   // 2
+          //   Eigen::Vector3d T_init = gettimevaryingT(0, t_min, t_max, Trou_min, Trou_max);
+          //   d_acc(0) -= init_state(0) / T_init(0);
+          //   d_acc(1) -= init_state(1) / T_init(1);
+          //   d_acc(2) -= init_state(2) / T_init(2);
+          //   // 3
+          //   //TODO 应该是1/T的导数而不是1/(T的导数)
+          //   u0_integral(0) +=  (odom.v(0) * T_dot(0) + des_acc(0) / T(0)) * (t.toSec() - last_time.toSec());
+          //   u0_integral(1) +=  (odom.v(1) * T_dot(1) + des_acc(1) / T(1)) * (t.toSec() - last_time.toSec());
+          //   u0_integral(2) +=  (odom.v(2) * T_dot(2) + des_acc(2) / T(2)) * (t.toSec() - last_time.toSec());
+          //   d_acc -= u0_integral; 
+          //   last_time = t;
+          // }
+      }
+      else if(ude_type == 0)
+      {
+          // std::cout<<"use ude"<<std::endl;
+          if(is_first_in_control){
+            u0_integral_att = Eigen::Vector3d(0.0, 0.0, 0.0);
+            is_first_in_control = false;
+          }else{
+            u0_integral_att += des_acc * (t.toSec() - last_time.toSec());
+            d_att = odom.v - init_state - u0_integral_att;
+            // d_acc = odom.v - u0_integral;
+            d_att(0) = d_att(0) / Trou(0);
+            d_att(1) = d_att(1) / Trou(1);
+            d_att(2) = d_att(2) / Trou(2); 
+            last_time = t;
+          }
+      }
+      else if(ude_type == 2)
+      {
+          // std::cout<<"use eso"<<std::endl;
+          // if(is_first_in_control){
+          //   //初始化估计状态
+          //   pos_x_est = Eigen::Vector3d(0.0, 0.0, 0.0);
+          //   pos_y_est = Eigen::Vector3d(0.0, 0.0, 0.0);
+          //   pos_z_est = Eigen::Vector3d(0.0, 0.0, 0.0);
+          //   pos_x_est_dot = Eigen::Vector3d(0.0, 0.0, 0.0);
+          //   pos_y_est_dot = Eigen::Vector3d(0.0, 0.0, 0.0);
+          //   pos_z_est_dot = Eigen::Vector3d(0.0, 0.0, 0.0);
 
-      //     //   is_first_in_control = false;
-      //     // }
-      //     // else{
-      //     //   double step = t.toSec() - last_time.toSec();
-      //     //   d_acc(0) = getdisturbfromESO(Beta_x, pos_x_est, pos_x_est_dot, step, des_acc(0), odom.p(0));
-      //     //   d_acc(1) = getdisturbfromESO(Beta_y, pos_y_est, pos_y_est_dot, step, des_acc(1), odom.p(1));
-      //     //   d_acc(2) = getdisturbfromESO(Beta_z, pos_z_est, pos_z_est_dot, step, des_acc(2), odom.p(2));
-      //     //   last_time = t;
-      //     // }
-      // }
+          //   is_first_in_control = false;
+          // }
+          // else{
+          //   double step = t.toSec() - last_time.toSec();
+          //   d_acc(0) = getdisturbfromESO(Beta_x, pos_x_est, pos_x_est_dot, step, des_acc(0), odom.p(0));
+          //   d_acc(1) = getdisturbfromESO(Beta_y, pos_y_est, pos_y_est_dot, step, des_acc(1), odom.p(1));
+          //   d_acc(2) = getdisturbfromESO(Beta_z, pos_z_est, pos_z_est_dot, step, des_acc(2), odom.p(2));
+          //   last_time = t;
+          // }
+      }
 
-      // des_omg -= d_att;
+      des_omg -= d_att;
 
-      // u.bodyrates.x() = des_omg(0);
-      // u.bodyrates.y() = des_omg(1);
-      // u.bodyrates.z() = des_omg(2);
+      u.bodyrates.x() = des_omg(0);
+      u.bodyrates.y() = des_omg(1);
+      u.bodyrates.z() = des_omg(2);
 
 
   /* WRITE YOUR CODE HERE */

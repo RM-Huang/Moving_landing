@@ -73,9 +73,9 @@
       <param name="omega_max" value="0.2"/>
       <param name="omega_yaw_max" value="0.3"/>
 
-      <param name="robot_l" value="0.05"/>
+      <param name="robot_l" value="0.04"/>
       <param name="robot_r" value="0.2"/>
-      <param name="platform_r" value="0.6"/>
+      <param name="platform_r" value="0.55"/>
       <param name="platform_l" value="0.0"/>
       <param name="v_plus" value="0.3"/>
 
@@ -93,12 +93,12 @@
       <param name="rhoT" value="50000.0"/>
       <param name="rhoPf" value="250000.0"/>
       <param name="rhoPt" value="15000.0"/>
-      <param name="rhoV" value="40000.0"/>
+      <param name="rhoV" value="60000.0"/>
       <param name="rhoVZ" value="20000.0"/>
       <param name="rhoVt" value="150000.0"/>
       <param name="rhoThrust" value="125000.0"/>
       <param name="rhoOmega" value="250000.0"/>
-      <param name="rhoVisibleDomain" value="80000.0"/>
+      <param name="rhoVisibleDomain" value="60000.0"/>
       <param name="rhoPerchingCollision" value="500000.0"/>
 
       <param name="perching_px" value="8.16"/>

@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
-sys.path.append('/home/pc205/.local/lib/python3.8/site-packages')
+# sys.path.append('/home/pc205/.local/lib/python3.8/site-packages')
 import  tty, termios, select
 import rospy
 from std_msgs.msg import Float64

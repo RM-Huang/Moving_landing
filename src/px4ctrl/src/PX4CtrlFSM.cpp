@@ -381,7 +381,7 @@ void PX4CtrlFSM::process()
 	{
 		motors_idling(imu_data, u);
 	}
-	else if(state == MANUAL_CTRL)
+	else if (state == MANUAL_CTRL)
 	{
 		debug_msg = controller.calculateControl(des, odom_data, imu_data, u);
 		debug_msg.header.stamp = now_time;
