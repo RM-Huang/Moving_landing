@@ -23,53 +23,87 @@
     </node>
 
     <node pkg="nodelet" type="nodelet" name="planning" args="load planning/Nodelet manager" output="screen">
-      <!-- 将发布的/drone0/planning/odom重命名为/drone0/odom -->
+      <!-- visuallize用，将发布的/drone0/planning/odom重命名为/drone0/odom -->
       <remap from="~odom" to="odom"/>
-      <!-- 订阅目标与无人机odom -->
-      <remap from="~target_odom" to="/target/odom"/>
-      <remap from="~uav_odom" to="/drone0/odom"/>
+      <remap from="~target" to="planning/target_odom"/>
+      <!-- 订阅目标与无人机实际odometry -->
+      <remap from="~target_odom" to="/odom/remap/car"/>
+      <remap from="~uav_odom" to="/odom/remap"/>
+      <!-- 发布控制指令 -->
+      <remap from="~cmd" to="planning/cmd"/>
+      <!-- 外部程序触发规划接口 -->
+      <remap from="~triger" to="/landing_triger"/>
+      <!-- 控制模块触发信号 -->
+      <remap from="~ctrl_triger" to="/traj_start_trigger"/>
       <!-- 未使用话题 -->
       <remap from="~heartbeat" to="heartbeat"/>
-      <!-- trajectory话题由odom_visualization话题发出 -->
       <remap from="~trajectory" to="trajectory"/>
-      <!-- 未使用话题 -->
       <remap from="~replanState" to="replanState"/>
-      <remap from="~triger" to="/triger"/>
-      <!-- 未使用话题 -->
       <remap from="~land_triger" to="/land_triger"/>
-      <remap from="~target" to="/target/odom"/>
-      <remap from="~cmd" to="planning/traj"/>
 
-      <param name="plan_hz" value="5"/>
+      <!-- plan rate = plan_hz, cmd pub rate = plan_hz * 10 -->
+      <param name="plan_hz" value="10"/>
+      <!-- plan_type：0 for sim， 1 for real -->
+      <param name="plan_type" value="0"/>
+      <param name="visualize_sig" value="true"/>
+      <!-- bezier predict param -->
+      <param name="bezier_sample_dur" value="3.0"/>
+      <param name="bezier_predict_dur" value="3.0"/>
+      <!-- true: run with traj_analyse -->
+      <param name="ifanalyse" value="false"/>
+
+      <param name="VehicleMass" value="4.0"/>
+      <param name="GravAcc" value="9.8"/>
+      <param name="HorizDrag" value="0.70"/>
+      <param name="VertDrag" value="0.80"/>
+      <param name="ParasDrag" value="0.01"/>
+      <param name="SpeedEps" value="0.0001"/>
+
+      <param name="landpBound" value="1.5"/>
 
       <param name="K" value="16"/>
-      <param name="vmax" value="6.0"/>
-      <param name="amax" value="6.0"/>
+      <param name="vmax" value="1.0"/>
+      <!-- <param name="amax" value="0.3"/> -->
 
-      <param name="thrust_max" value="17.0"/>
-      <param name="thrust_min" value="5.0"/>
-      <param name="omega_max" value="3.0"/>
-      <param name="omega_yaw_max" value="0.5"/>
+      <param name="thrust_max" value="10.8"/>
+      <param name="thrust_min" value="8.8"/>
+      <!-- <param name="thrust_max" value="12.0"/>
+      <param name="thrust_min" value="6.0"/> -->
 
-      <param name="robot_l" value="0.02"/>
-      <param name="robot_r" value="0.13"/>
-      <param name="platform_r" value="1.0"/>
+      <param name="omega_max" value="0.2"/>
+      <param name="omega_yaw_max" value="0.3"/>
+
+      <param name="robot_l" value="0.04"/>
+      <param name="robot_r" value="0.2"/>
+      <param name="platform_r" value="0.55"/>
+      <param name="platform_l" value="0.0"/>
       <param name="v_plus" value="0.3"/>
 
-      <param name="rhoT" value="100000.0"/>
-      <param name="rhoP" value="10000000.0"/>
-      <param name="rhoV" value="1000.0"/>
-      <param name="rhoA" value="1000.0"/>
-      <param name="rhoVt" value="100000.0"/>
-      <param name="rhoThrust" value="10000.0"/>
-      <param name="rhoOmega" value="100000.0"/>
-      <param name="rhoPerchingCollision" value="1000000.0"/>
+      <!-- <param name="rhoT" value="100000.0"/>
+      <param name="rhoPf" value="500000.0"/>
+      <param name="rhoPt" value="30000.0"/>
+      <param name="rhoV" value="80000.0"/>
+      <param name="rhoVZ" value="100000.0"/>
+      <param name="rhoVt" value="200000.0"/>
+      <param name="rhoThrust" value="250000.0"/>
+      <param name="rhoOmega" value="500000.0"/>
+      <param name="rhoVisibleDomain" value="60000.0"/>
+      <param name="rhoPerchingCollision" value="1000000.0"/> -->
 
-      <param name="perching_px" value="1.0"/>
-      <param name="perching_py" value="0.0"/>
-      <param name="perching_pz" value="1.0"/>
-      <!-- <param name="perching_pz" value="1.5"/> -->
-      <!-- <param name="perching_pz" value="2.0"/> -->
+      <param name="rhoT" value="50000.0"/>
+      <param name="rhoPf" value="250000.0"/>
+      <param name="rhoPt" value="15000.0"/>
+      <param name="rhoV" value="60000.0"/>
+      <param name="rhoVZ" value="20000.0"/>
+      <param name="rhoVt" value="150000.0"/>
+      <param name="rhoThrust" value="125000.0"/>
+      <param name="rhoOmega" value="250000.0"/>
+      <param name="rhoVisibleDomain" value="60000.0"/>
+      <param name="rhoPerchingCollision" value="500000.0"/>
+
+      <param name="perching_px" value="8.16"/>
+      <param name="perching_py" value="8.08"/>
+      <param name="perching_pz" value="0.03"/>
       <param name="perching_vx" value="0.0"/>
       <param name="perching_vy" value="0.0"/>
       <param name="perching_vz" value="0.0"/>
@@ -84,8 +118,8 @@
       <!-- <param name="perching_theta" value="-0.0"/> -->
       <!-- <param name="perching_theta" value="0.5"/> -->
       <!-- <param name="perching_theta" value="-0.7854"/> -->
-      <param name="perching_theta" value="-1.5708"/>
-      <!-- <param name="perching_theta" value="0.0"/> -->
+      <!-- <param name="perching_theta" value="-1.5708"/> -->
+      <param name="perching_theta" value="0.0"/>
 
       <param name="replan" value="false"/>
       <param name="pause_debug" value="false"/>

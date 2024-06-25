@@ -48,27 +48,37 @@ void PX4CtrlFSM::process()
 	{
 	case MANUAL_CTRL:
 	{
+		/* 手动模式 */
+		/* 1.尝试切换到悬停模式，并设置悬停点 */
+		/* 2.尝试切换到TAKE_OFF模式，并设置初始起飞点 */
+		/* 3.重启 */
+		/* 4.手动模式需要考虑解锁等问题 */
+		//ROS_INFO("In manual control");
 		if (rc_data.enter_hover_mode) // Try to jump to AUTO_HOVER
 		{
+			//是否有里程计信息
 			if (!odom_is_received(now_time))
 			{
 				ROS_ERROR("[px4ctrl] Reject AUTO_HOVER(L2). No odom!");
 				break;
-			}
-			if (cmd_is_received(now_time))
+			}//
+			if (cmd_is_received(now_time))//判断指令是否冲突
 			{
 				ROS_ERROR("[px4ctrl] Reject AUTO_HOVER(L2). You are sending commands before toggling into AUTO_HOVER, which is not allowed. Stop sending commands now!");
 				break;
 			}
-			if (odom_data.v.norm() > 3.0)
+			if (odom_data.v.norm() > 3.0)//判断当前无人机状态是否能够切换Mode
 			{
 				ROS_ERROR("[px4ctrl] Reject AUTO_HOVER(L2). Odom_Vel=%fm/s, which seems that the locolization module goes wrong!", odom_data.v.norm());
 				break;
 			}
-
+			//状态设置为自动悬挂
 			state = AUTO_HOVER;
+			//重置映射参数
 			controller.resetThrustMapping();
+			//设置悬挂的位置（根据当前的位置）
 			set_hov_with_odom();
+			//这个函数是什么意思？
 			toggle_offboard_mode(true);
 
 			ROS_INFO("\033[32m[px4ctrl] MANUAL_CTRL(L1) --> AUTO_HOVER(L2)\033[32m");
@@ -80,7 +90,7 @@ void PX4CtrlFSM::process()
 				ROS_ERROR("[px4ctrl] Reject AUTO_TAKEOFF. No odom!");
 				break;
 			}
-			if (cmd_is_received(now_time))
+			if (cmd_is_received(now_time))//判断
 			{
 				ROS_ERROR("[px4ctrl] Reject AUTO_TAKEOFF. You are sending commands before toggling into AUTO_TAKEOFF, which is not allowed. Stop sending commands now!");
 				break;
@@ -113,25 +123,29 @@ void PX4CtrlFSM::process()
 					break;
 				}
 			}
-
+			//状态切换为起飞
 			state = AUTO_TAKEOFF;
 			controller.resetThrustMapping();
+			//设置起飞的初始状态为当前放置的状态
 			set_start_pose_for_takeoff_land(odom_data);
 			toggle_offboard_mode(true);				  // toggle on offboard before arm
-			for (int i = 0; i < 10 && ros::ok(); ++i) // wait for 0.1 seconds to allow mode change by FMU // mark
+
+			for (int i = 0; i < 10 && ros::ok(); ++i) // wait for 0.1 seconds to allow mode change by FMU // mark //等待模式的切换
 			{
 				ros::Duration(0.01).sleep();
 				ros::spinOnce();
 			}
+			//自动解锁
 			if (param.takeoff_land.enable_auto_arm)
 			{
 				toggle_arm_disarm(true);
 			}
+
 			takeoff_land.toggle_takeoff_land_time = now_time;
 
 			ROS_INFO("\033[32m[px4ctrl] MANUAL_CTRL(L1) --> AUTO_TAKEOFF\033[32m");
 		}
-
+		//尝试重启（必须 Disarm 才能重启）
 		if (rc_data.toggle_reboot) // Try to reboot. EKF2 based PX4 FCU requires reboot when its state estimator goes wrong.
 		{
 			if (state_data.current_state.armed)
@@ -147,6 +161,12 @@ void PX4CtrlFSM::process()
 
 	case AUTO_HOVER:
 	{
+		/* 悬停模式 */
+		/* 1.切换到手动模式 */
+		/* 2.切换到OFFBOARD模式 */
+		/* 3.切换到LAND模式 */
+		/* 4.设置 */
+		//如果遥控器现在的模式不是HOVER或者里程计信息有误，则切换为手动模式，同时不能使用offboard模式
 		if (!rc_data.is_hover_mode || !odom_is_received(now_time))
 		{
 			state = MANUAL_CTRL;
@@ -154,17 +174,18 @@ void PX4CtrlFSM::process()
 
 			ROS_WARN("[px4ctrl] AUTO_HOVER(L2) --> MANUAL_CTRL(L1)");
 		}
-		else if (rc_data.is_command_mode && cmd_is_received(now_time))
+		else if (rc_data.is_command_mode && cmd_is_received(now_time)) //切换到offboard模式
 		{
 			if (state_data.current_state.mode == "OFFBOARD")
 			{
 				state = CMD_CTRL;
 				force_call_once = false;
+				//设置期望的目标点（这个目标点是最终的目标点，还是最近的期望点？）
 				des = get_cmd_des();
 				ROS_INFO("\033[32m[px4ctrl] AUTO_HOVER(L2) --> CMD_CTRL(L3)\033[32m");
 			}
 		}
-		else if (takeoff_land_data.triggered && takeoff_land_data.takeoff_land_cmd == quadrotor_msgs::TakeoffLand::LAND)
+		else if (takeoff_land_data.triggered && takeoff_land_data.takeoff_land_cmd == quadrotor_msgs::TakeoffLand::LAND) //切换到降落模式，并设置降落的起始点
 		{
 
 			state = AUTO_LAND;
@@ -174,8 +195,11 @@ void PX4CtrlFSM::process()
 		}
 		else
 		{
+			//计算下一个期望的位置
 			set_hov_with_rc();
 			des = get_hover_des();
+
+			//通道6的值正在变大且超过阈值，同时TAKEOFF模式到达期望高度
 			if ((rc_data.enter_command_mode) ||
 				(takeoff_land.delay_trigger.first && now_time > takeoff_land.delay_trigger.second))
 			{
@@ -357,14 +381,31 @@ void PX4CtrlFSM::process()
 	{
 		motors_idling(imu_data, u);
 	}
-	else
+	else if (state == MANUAL_CTRL)
 	{
 		debug_msg = controller.calculateControl(des, odom_data, imu_data, u);
 		debug_msg.header.stamp = now_time;
 		debug_pub.publish(debug_msg);
 	}
+	else
+	{
+		// if(state == CMD_CTRL && use_ude)
+		// {
+			debug_msg = controller.calculateControlCMD(des, odom_data, imu_data, u, now_time, ude_type);
+			debug_msg.header.stamp = now_time;
+			debug_pub.publish(debug_msg);
+		// }
+		// else
+		// {
+		// 	debug_msg = controller.calculateControl(des, odom_data, imu_data, u);
+		// 	debug_msg.header.stamp = now_time;
+		// 	debug_pub.publish(debug_msg);
+		// }
+		
+	}
 
 	// STEP4: publish control commands to mavros
+	// if (param.use_bodyrate_ctrl && state == CMD_CTRL)
 	if (param.use_bodyrate_ctrl)
 	{
 		publish_bodyrate_ctrl(u, now_time);
@@ -462,6 +503,7 @@ Desired_State_t PX4CtrlFSM::get_cmd_des()
 	des.v = cmd_data.v;
 	des.a = cmd_data.a;
 	des.j = cmd_data.j;
+	des.omg = cmd_data.omg;
 	des.yaw = cmd_data.yaw;
 	des.yaw_rate = cmd_data.yaw_rate;
 
@@ -510,6 +552,7 @@ Desired_State_t PX4CtrlFSM::get_takeoff_land_des(const double speed)
 
 void PX4CtrlFSM::set_hov_with_odom()
 {
+	
 	hover_pose.head<3>() = odom_data.p;
 	hover_pose(3) = get_yaw_from_quaternion(odom_data.q);
 	std::cout<<"hover_pose = "<< odom_data.p.reverse()<<std::endl;
@@ -699,6 +742,7 @@ bool PX4CtrlFSM::toggle_arm_disarm(bool arm)
 {
 	mavros_msgs::CommandBool arm_cmd;
 	arm_cmd.request.value = arm;
+	//申请解锁不成功
 	if (!(arming_client_srv.call(arm_cmd) && arm_cmd.response.success))
 	{
 		if (arm)

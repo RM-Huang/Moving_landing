@@ -4,41 +4,37 @@
 #include <tf/tf.h>
 #include <ros/ros.h>
 #include <nodelet/nodelet.h>
-
 #include <std_msgs/String.h>
 #include <std_msgs/Float64.h>
-#include <sensor_msgs/Imu.h>
+#include <geodesy/utm.h>
+
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
 #include <quadrotor_msgs/TrajcurDesire.h>
-#include <quadrotor_msgs/Px4ctrlDebug.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/Vector3.h>
+#include <sensor_msgs/NavSatFix.h>
 
 namespace trajAnalyse {
 
 class trajAls : public nodelet::Nodelet
 {
   private:
-    int als_arg;
-
     std::thread initThread_;
     ros::Timer als_timer;
     ros::Time current_t;
     std::ofstream dataWrite;
 
     quadrotor_msgs::TrajcurDesire des;
-    nav_msgs::Odometry gtruth;
+    geometry_msgs::PoseStamped gtruth;
     nav_msgs::Path desMsg;
     nav_msgs::Path truthMsg;
-    quadrotor_msgs::Px4ctrlDebug ctrldes;
-    // nav_msgs::Odometry ctrltruth;
 
     ros::Subscriber desSub;
     ros::Subscriber gtruthSub;
-    ros::Subscriber imuSub;
-    ros::Subscriber ctrlSub;
+
+    ros::Subscriber globalposSub;
+    ros::Publisher globalposPub;
 
     ros::Publisher despathPub;
     ros::Publisher truthpathPub;
@@ -47,80 +43,42 @@ class trajAls : public nodelet::Nodelet
     ros::Publisher pitchdefferPub;
     ros::Publisher rolldifferPub;
 
-    ros::Publisher imuaccPub_x;
-    ros::Publisher imuaccPub_y;
-    ros::Publisher imuaccPub_z;
-
-    ros::Publisher rpydesPub;
-    ros::Publisher rpytruthPub;
-    ros::Publisher ctrlquaPub;
-
     std::string datafile;
     std::string desTopic;
     std::string gtruthTopic;
 
-    std_msgs::Float64 acc_x, acc_y, acc_z; // sub from imu/data
-    // geometry_msgs::Vector3 imuacc_l;
-
     bool dessubTri = false;
     bool gtruthsubTri = false;
-    bool ctrlsubTri = false;
-    // bool imusubTri = false;
 
-    void desCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &Msg)
+    void desCallback(const quadrotor_msgs::TrajcurDesire::ConstPtr &desMsg)
     {
         dessubTri = true;
-        des = *Msg;
+        des = *desMsg;
     }
 
-    void gtruthCallback(const nav_msgs::Odometry::ConstPtr &gtruthMsg)
+    void gtruthCallback(const geometry_msgs::PoseStamped::ConstPtr &gtruthMsg)
     {
         gtruthsubTri = true;
         gtruth = *gtruthMsg;
     }
 
-    void imuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg)
+    void LLTtoUTM(const double& latitude, const double& longitude, const double& altitude, geometry_msgs::Vector3& point)
     {
-        // imusubTri = true;
-        // std::cout<<"imu_t_size_1 = "<<imu_t.size()<<std::endl;
-        // if(imu_t.size() > (fit_size - 1) )
-        // {
-        //     imu_t.erase(imu_t.begin());
-        //     imuvel_x.erase(imuvel_x.begin());
-        //     imuvel_y.erase(imuvel_y.begin());
-        //     imuvel_z.erase(imuvel_z.begin());
-        //     // std::cout<<"imu_t_size_2 = "<<imu_t.size()<<std::endl;
-        // }
-
-        // if(imu_t.size() < 1)
-        // {
-        //     imu_t0 = imuMsg->header.stamp.toSec();
-        // }
-
-        // imu_t.emplace_back(imuMsg->header.stamp.toSec() - imu_t0);
-        // std::cout<<"imu_t_size = "<<imu_t.size()<<std::endl;
-
-        // acc_x.data = imuMsg->linear_acceleration.x;
-        // acc_y.data = imuMsg->linear_acceleration.y;
-        // acc_z.data = imuMsg->linear_acceleration.z;
-
-        // // imuvel_cul();
-
-        // imuaccPub_x.publish(acc_x);
-        // imuaccPub_y.publish(acc_y);
-        // imuaccPub_z.publish(acc_z);
+        geographic_msgs::GeoPoint geo_pt;
+        geo_pt.latitude = latitude;
+        geo_pt.longitude = longitude;
+        geo_pt.altitude = altitude;
+        geodesy::UTMPoint utm_pt(geo_pt);
+        point.x = utm_pt.easting;
+        point.y = utm_pt.northing;
     }
-
-    void ctrlCallback(const quadrotor_msgs::Px4ctrlDebug::ConstPtr &ctrlMsg)
+    
+    void globalCallback(const sensor_msgs::NavSatFix::ConstPtr &globalMsg)
     {
-        ctrlsubTri = true;
-        ctrldes = *ctrlMsg;
+        geometry_msgs::Vector3 point;
+        LLTtoUTM(globalMsg->latitude, globalMsg->longitude, globalMsg->altitude, point);
+        globalposPub.publish(point);
     }
-
-    // void ctrltruthCallback(const nav_msgs::Odometry::ConstPtr &ctrltruthMsg)
-    // {
-    //     ctrltruth = *ctrltruthMsg;
-    // }
 
     void despathPublish()
     {
@@ -142,7 +100,7 @@ class trajAls : public nodelet::Nodelet
         truthMsg.header.frame_id = "odom";
         truthpose.header.stamp = current_t;
         truthpose.header.frame_id = "odom";
-        truthpose.pose = gtruth.pose.pose;
+        truthpose.pose = gtruth.pose;
         truthMsg.poses.push_back(truthpose);
 
         truthpathPub.publish(truthMsg);
@@ -166,16 +124,14 @@ class trajAls : public nodelet::Nodelet
         geometry_msgs::Vector3 gtruth_RPY; //(roll,pitch,yaw)
           
         tf::quaternionMsgToTF(des.pos.orientation, des_Q2T);
-        // des_Q2T.normalize();
         tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
 
-        tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
-        // gtruth_Q2T.normalize();
+        tf::quaternionMsgToTF(gtruth.pose.orientation, gtruth_Q2T);
         tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_RPY.x, gtruth_RPY.y, gtruth_RPY.z);
 
-        posdiffer.data = sqrt( (gtruth.pose.pose.position.x - des.pos.position.x)*(gtruth.pose.pose.position.x - des.pos.position.x)
-                    +(gtruth.pose.pose.position.y - des.pos.position.y)*(gtruth.pose.pose.position.y - des.pos.position.y)
-                    +(gtruth.pose.pose.position.z - des.pos.position.z)*(gtruth.pose.pose.position.z - des.pos.position.z) );
+        posdiffer.data = sqrt( (gtruth.pose.position.x - des.pos.position.x)*(gtruth.pose.position.x - des.pos.position.x)
+                    +(gtruth.pose.position.y - des.pos.position.y)*(gtruth.pose.position.y - des.pos.position.y)
+                    +(gtruth.pose.position.z - des.pos.position.z)*(gtruth.pose.position.z - des.pos.position.z) );
 
         rolldiffer.data = abs(gtruth_RPY.x - des_RPY.x);
         pitchdiffer.data = abs(gtruth_RPY.y - des_RPY.y);
@@ -186,85 +142,25 @@ class trajAls : public nodelet::Nodelet
         pitchdefferPub.publish(pitchdiffer);
         yawdifferPub.publish(yawdiffer);
 
-        fileWrite(gtruth.pose.pose.position, des.pos.position, des_RPY, gtruth_RPY);
+        fileWrite(gtruth.pose.position, des.pos.position, des_RPY, gtruth_RPY);
     }
 
-    void traj_analyse(const ros::TimerEvent& time_event)
+    void analyse(const ros::TimerEvent& time_event)
     {
-        // std::cout<<"Trigger = "<<dessubTri<<" "<<gtruthsubTri<<std::endl;
         if (dessubTri && gtruthsubTri)
         {
-            current_t = ros::Time::now();
-            double des_t = des.header.stamp.toSec();
-            double truth_t = gtruth.header.stamp.toSec();
-            std::cout<<"als_dur = "<<des_t - truth_t<<std::endl;
-            if ( fabs(des_t - truth_t) < 0.01) //时间同步检测
-            {
-                // ROS_INFO("write file succeed!");
+          current_t = ros::Time::now();
+          double des_t = des.header.stamp.toSec();
+          double truth_t = gtruth.header.stamp.toSec();
+          if ( des_t - truth_t < 0.01) //时间同步检测
+          {
+            despathPublish();
 
-                despathPublish();
+            truthpathPublish();
 
-                truthpathPublish();
-
-                posedifferPublish();
+            posedifferPublish();
           }
         }      
-    }
-
-    void imu_analyse(const ros::TimerEvent& time_event)
-    {
-        if (ctrlsubTri && gtruthsubTri)
-        {
-            // std::cout<<"imu_analyse start"<<std::endl;
-            geometry_msgs::QuaternionStamped des_Qua;
-            tf::Quaternion des_Q2T;
-            tf::Quaternion gtruth_Q2T;
-            geometry_msgs::Vector3 des_RPY; //(roll,pitch,yaw)
-            geometry_msgs::Vector3 gtruth_RPY; //(roll,pitch,yaw)
-            double des_q_x, des_q_y, des_q_z, des_q_w;
-
-            des_q_w = ctrldes.des_q_w;
-            des_q_x = ctrldes.des_q_x;
-            des_q_y = ctrldes.des_q_y;
-            des_q_z = ctrldes.des_q_z;
-            // tf::Quaternion des_Qua(des_q_x, des_q_y, des_q_z, des_q_w);
-
-            des_Qua.quaternion.w = ctrldes.des_q_w;
-            des_Qua.quaternion.x = ctrldes.des_q_x;
-            des_Qua.quaternion.y = ctrldes.des_q_y;
-            des_Qua.quaternion.z = ctrldes.des_q_z;
-            des_Qua.header.stamp = gtruth.header.stamp;
-
-            ctrlquaPub.publish(des_Qua);
-
-            // des_Qua.normalize();
-
-            tf::quaternionMsgToTF(des_Qua.quaternion, des_Q2T);
-            // des_Q2T.normalize();
-            tf::Matrix3x3(des_Q2T).getRPY(des_RPY.x, des_RPY.y, des_RPY.z);
-            std::cout<<"des_RPY = "<<des_RPY.x<<" "<<des_RPY.y<<" "<<des_RPY.z<<std::endl;
-
-            tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
-            // gtruth_Q2T.normalize();
-            tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_RPY.x, gtruth_RPY.y, gtruth_RPY.z);
-
-            rpydesPub.publish(des_RPY);
-            rpytruthPub.publish(gtruth_RPY);
-        }
-        else
-        {
-            ROS_ERROR("[traj_anlyse]:No odom or ctrl data, please check rostopic.");
-            while(!ctrlsubTri || !gtruthsubTri)
-            {
-                // std::cout<<"ctrsubTri = "<<ctrlsubTri<<" gtruthsubTri = "<<gtruthsubTri<<std::endl;
-                ros::Duration(0.2).sleep();
-            }
-        }
-        // if(imusubTri)
-        // {
-        //     imuvel_cul();
-        //     imusubTri = false;
-        // }
     }
 
     void init(ros::NodeHandle& nh)
@@ -272,45 +168,24 @@ class trajAls : public nodelet::Nodelet
         nh.getParam("dataFile", datafile);
         nh.getParam("desTopic", desTopic);
         nh.getParam("gtruthTopic", gtruthTopic);
-        nh.param("analyse_arg", als_arg, 0);
-        
-        gtruthSub = nh.subscribe(gtruthTopic, 10, &trajAls::gtruthCallback, this,
-                                   ros::TransportHints().tcpNoDelay());
-        
-        if (als_arg == 0)
-        {
-            desSub = nh.subscribe(desTopic, 10, &trajAls::desCallback, this,
-                                   ros::TransportHints().tcpNoDelay());
 
-            despathPub = nh.advertise<nav_msgs::Path>("/analyse/desPath", 10);
-            truthpathPub = nh.advertise<nav_msgs::Path>("/analyse/truthPath", 10);
-            posdifferPub = nh.advertise<std_msgs::Float64>("/analyse/posdiffer", 100);
-            yawdifferPub = nh.advertise<std_msgs::Float64>("/analyse/yawdiffer", 100);
-            pitchdefferPub = nh.advertise<std_msgs::Float64>("/analyse/pitchdiffer", 100);
-            rolldifferPub = nh.advertise<std_msgs::Float64>("/analyse/rolldiffer", 100);
+        /* _______________________________________traj_analyse______________________________________________ */
+        // desSub = nh.subscribe(desTopic, 10, &trajAls::desCallback, this,
+        //                            ros::TransportHints().tcpNoDelay());
+        // gtruthSub = nh.subscribe(gtruthTopic, 10, &trajAls::gtruthCallback, this,
+        //                            ros::TransportHints().tcpNoDelay());
+        // despathPub = nh.advertise<nav_msgs::Path>("desPath", 10);
+        // truthpathPub = nh.advertise<nav_msgs::Path>("truthPath", 10);
+        // posdifferPub = nh.advertise<std_msgs::Float64>("visual/posdiffer", 100);
+        // yawdifferPub = nh.advertise<std_msgs::Float64>("visual/yawdiffer", 100);
+        // pitchdefferPub = nh.advertise<std_msgs::Float64>("visual/pitchdiffer", 100);
+        // rolldifferPub = nh.advertise<std_msgs::Float64>("visual/rolldiffer", 100);
+        // als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::analyse, this);
 
-            als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::traj_analyse, this);
-        }
-        else if (als_arg == 1)
-        {
-            // nh.param("fit_size", fit_size, 100);
-
-            imuaccPub_x = nh.advertise<std_msgs::Float64>("/visual/imuacc_x",10);
-            imuaccPub_y = nh.advertise<std_msgs::Float64>("/visual/imuacc_y",10);
-            imuaccPub_z = nh.advertise<std_msgs::Float64>("/visual/imuacc_z",10);
-
-            // imuvelPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity",10);
-            // imuvelrawPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity_raw",10);//test
-
-            rpydesPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_des",10);
-            ctrlquaPub = nh.advertise<geometry_msgs::QuaternionStamped>("/analyse/qua_ctrl",10);
-            rpytruthPub = nh.advertise<geometry_msgs::Vector3>("/analyse/rpy_truth",10);
-
-            imuSub = nh.subscribe("/mavros/imu/data", 10, &trajAls::imuCallback, this);
-            ctrlSub = nh.subscribe("/debugPx4ctrl", 10, &trajAls::ctrlCallback, this);
-
-            als_timer = nh.createTimer(ros::Duration(0.01), &trajAls::imu_analyse, this);
-        }
+        /* ________________________________________car_odom_test____________________________________________*/
+        globalposSub = nh.subscribe("/mavros/global_position/global", 1, &trajAls::globalCallback, this,
+                                        ros::TransportHints().tcpNoDelay());
+        globalposPub = nh.advertise<geometry_msgs::Point>("/globalpos", 10);
     }
 
   public:

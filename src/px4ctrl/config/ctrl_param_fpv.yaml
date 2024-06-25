@@ -18,11 +18,11 @@ rc_reverse: # *
     throttle: false
 
 auto_takeoff_land:
-    enable: true
-    enable_auto_arm: true
+    enable: true # 使能自动起降功能
+    enable_auto_arm: true #
     no_RC: false
-    takeoff_height: 1.8 # m
-    takeoff_land_speed: 0.4 # m/s
+    takeoff_height: 2.0 # m
+    takeoff_land_speed: 0.6 # m/s
 
 thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(Unit:N): F=K1*Voltage^K2*(K3*u^2+(1-K3)*u). 
     print_value: false # display the value of “thr_scale_compensate” or “hover_percentage” during thrust model estimating.
@@ -32,20 +32,21 @@ thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(
     K2: 1.6942 # Needs precise calibration!
     K3: 0.6786 # Needs precise calibration! K3 equals THR_MDL_FAC in https://docs.px4.io/master/en/config_mc/pid_tuning_guide_multicopter.html.
     # approximate thrust mapping parameters
-    hover_percentage: 0.45  # Thrust percentage in Stabilize/Arco mode # *
+    hover_percentage: 0.5  # Thrust percentage in Stabilize/Arco mode # *
 
 gain: 
     # Cascade PID controller. Recommend to read the code.可以尝试逐步增大
     Kp0: 1.5 #2.0
     Kp1: 1.5 #1.5
     Kp2: 1.5 #1.5
-    Kv0: 1.8 #1.5
-    Kv1: 1.8 #1.5
-    Kv2: 1.8 #1.5
+    Kv0: 1.5 #1.8
+    Kv1: 1.5 #1.8
+    Kv2: 1.5 #1.8
     # ↓↓↓ No use now --
-    Kvi0: 0.0
-    Kvi1: 0.0
-    Kvi2: 0.0
+    Katt0: 6
+    Katt1: 6
+    Katt2: 6
+
     Kvd0: 0.0
     Kvd1: 0.0
     Kvd2: 0.0
@@ -53,6 +54,25 @@ gain:
     KAngR: 20.0
     KAngP: 20.0
     KAngY: 20.0
+    # ↓↓↓ used in UDE.
+    Trou0: 0.5
+    Trou1: 0.5
+    Trou2: 0.5
+    # ↓↓↓ used in TVUDE.
+    Trou_min0: 0.5
+    Trou_min1: 0.5
+    Trou_min2: 0.5
+    Trou_max0: 10
+    Trou_max1: 10
+    Trou_max2: 10
+    t_min: 2
+    t_max: 8
+    # ↓↓↓ used in ESO.
+    Omg_eso_pos0: 1
+    Omg_eso_pos1: 1
+    Omg_eso_pos2: 1
+
+
 
 rotor_drag:  
     x: 0.0  # The reduced acceleration on each axis caused by rotor drag. Unit:(m*s^-2)/(m*s^-1).

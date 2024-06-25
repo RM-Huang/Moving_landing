@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+	<include file="$(find simulation_utils)/launch/spawn_xacro.launch">
+
+		<arg name="x" value="2.0"/>
+		<arg name="y" value="2.0"/>
+		<arg name="z" value="0.0"/>
+		<arg name="urdf_robot_file" value="$(find simulation_utils)/urdf/smart.xacro"/>
+		<arg name="robot_name" value="smart"/>
+
+	</include>
+
+  <include file="$(find simulation_utils)/launch/control.launch">
+    <arg name="robot_name" value="smart"/>
+    <arg name="config_file" value="smart_control_config.yaml"/>
+  </include>
+
+</launch>

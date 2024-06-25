@@ -70,7 +70,7 @@ void RC_Data_t::feed(mavros_msgs::RCInConstPtr pMsg)
     else
         is_hover_mode = false;
 
-    // 2
+    // 2 悬停状态下，如果通道6值变大且超过阈值则表明enter_command_mode，如果超过阈值则is_command_mode
     if (is_hover_mode)
     {
         if (last_gear < GEAR_SHIFT_VALUE && gear > GEAR_SHIFT_VALUE)
@@ -281,6 +281,10 @@ void Command_Data_t::feed(quadrotor_msgs::PositionCommandConstPtr pMsg)
     j(0) = msg.jerk.x;
     j(1) = msg.jerk.y;
     j(2) = msg.jerk.z;
+
+    // omg(0) = msg.omg.x;
+    // omg(1) = msg.omg.y;
+    // omg(2) = msg.omg.z;
 
     // std::cout << "j1=" << j.transpose() << std::endl;
 

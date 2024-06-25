@@ -12,7 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   vis_utils
   quadrotor_msgs
-  target_prediction
 )
 
 catkin_package(

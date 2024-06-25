@@ -10,9 +10,9 @@
                 args="visual/posdiffer visual/yawdiffer visual/pitchdiffer visual/rolldiffer">
         </node> -->
 
-        <!-- <node pkg="nodelet" type="nodelet" name="manager"  args="manager" output="screen">
+        <node pkg="nodelet" type="nodelet" name="manager"  args="manager" output="screen">
                 <param name="num_worker_threads" value="16"/>
-        </node> -->
+        </node>
 
         <!-- <node pkg="nodelet" type="nodelet" name="global_planning" args="load gcopter/GlobalPlanner manager" output="screen">
                 <rosparam file="$(find gcopter_ml)/config/global_planning.yaml" command="load" />

@@ -76,6 +76,9 @@ public:
 	State_t get_state() { return state; }
 	bool get_landed() { return takeoff_land.landed; }
 
+	bool use_ude = false;
+	int ude_type = 0;
+
 private:
 	State_t state; // Should only be changed in PX4CtrlFSM::process() function!
 	AutoTakeoffLand_t takeoff_land;

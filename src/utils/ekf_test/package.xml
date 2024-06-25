@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>ekf_test</name>
+  <version>0.0.0</version>
+  <description>The ekf_test package</description>
+
+  <maintainer email="pc205@todo.todo">pc205</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>car_odom_server</depend>
+
+</package>
