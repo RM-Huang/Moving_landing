@@ -1,5 +1,5 @@
 # Moving_landing
-This is traj follow experiment branch from HRM for quardrotor landing on a moving platform project.
+This is stable version branch from HRM for quardrotor landing on a moving platform project.
 
 ## Getting start
 Compiling tests passed on ubuntu 20.04 with ros installed. 
