@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <group ns="chcnav">
+
+        <!-- hc_msg_parser_launch_node  -->
+        <node pkg="chcnav" type="hc_msg_parser_launch_node" name="c_rs232" output="screen">
+            <!-- serial settings -->
+            <param name="type" value="serial"/>
+            <param name="rate" value="1000"/>
+            <param name="port" value="/dev/ttyUSB0"/>
+            <param name="baudrate" value="460800"/>
+            <!-- serial settings end -->
+        </node>
+
+        <!-- hc_cgi_protocol_process_node -->
+        <node pkg="chcnav" type="hc_cgi_protocol_process_node" name="hc_topic_driver" output="screen"/>
+
+        <!-- ntrip_server -->
+        <node pkg="chcnav" type="ntrip_server_launch_node" name="ntrip_server" output="screen">
+            <param name="frame_id" value="c_rs232"/>
+
+            <param name="login_type" value="user_password"/>
+
+            <param name="username" value=""/>
+            <param name="password" value="" type="string"/>
+            <param name="snkey" value=""/>
+            <param name="app_id" value=""/>
+
+            <param name="coordinate" value="CGCS2000"/>
+
+            <remap from="/chcnav/ntrip_server/differential_data" to="/chcnav/C_RS232/write"/>
+            <remap from="/chcnav/ntrip_server/ntrip_source" to="/chcnav/nmea_sentence"/>
+        </node>
+    </group>
+</launch>
+

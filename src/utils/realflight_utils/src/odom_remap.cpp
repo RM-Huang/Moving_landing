@@ -15,12 +15,13 @@
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geodesy/utm.h>
+#include </home/nuc/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
 #include <car_odom_server/car_status.h>
 #include <car_odom_server/SerialPort.h>
 #include <apriltag_ros/AprilTagDetection.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
 // #include </home/nuc/Moving_landing/src/utils/mavlink_msg/common/common/mavlink.h>  // change to your PC
-#include </home/pc205/Moving_landing/src/utils/mavlink_msg/common/common/mavlink.h>  // change to your PC
+#include </home/nuc/Moving_landing/src/utils/mavlink_msg/common/common/mavlink.h>  // change to your PC
 
 namespace odomRemap{
 
@@ -39,12 +40,14 @@ private:
     geometry_msgs::TwistStamped gtruth_enu_vel;
     std::vector<double> uav_global;
     car_odom_server::car_status car_odom;
+    // nav_msgs::Odometry car_odom;
     geometry_msgs::Vector3 CU_pos_init_differ;
     // geometry_msgs::Vector3 car_rpy_bias;
     geometry_msgs::Vector3 gtruth_pos_bias;
     geometry_msgs::Vector3 gtruth_rpy_bias;
     geometry_msgs::Vector3 gtruth_rpy;
     Eigen::Quaterniond gtruth_qua_bias;
+    Eigen::Quaterniond car_qua_bias;
     tf::Quaternion gtruth_Q2T;
           
     sensor_msgs::Imu imu;
@@ -157,6 +160,36 @@ private:
         gtruthsubTri = true;
     }
 
+    void LLTtoUTM(const double& latitude, const double& longitude, geometry_msgs::Vector3& point)
+    {
+        geographic_msgs::GeoPoint geo_pt;
+        geo_pt.latitude = latitude;
+        geo_pt.longitude = longitude;
+        geo_pt.altitude = 0;
+        geodesy::UTMPoint utm_pt(geo_pt);
+        point.x = utm_pt.easting;
+        point.y = utm_pt.northing;
+    }
+
+    void carodomCallback(const chcnav::hcinspvatzcb::ConstPtr &carodomMsg)
+    {
+        geometry_msgs::Vector3 utm;
+        LLTtoUTM(carodomMsg->latitude, carodomMsg->longitude, utm);
+        car_odom.px = utm.x;
+        car_odom.py = utm.y;
+        car_odom.pz = carodomMsg->altitude;
+        car_odom.roll = carodomMsg->roll;
+        car_odom.pitch = carodomMsg->pitch;
+        car_odom.yaw = carodomMsg->yaw;
+        car_odom.vx = carodomMsg->enu_velocity.x;
+        car_odom.vy = carodomMsg->enu_velocity.y;
+        car_odom.vz = carodomMsg->enu_velocity.z;
+        // car_odom is in ENU
+        car_odom_rawPub.publish(car_odom); //debug
+
+        carodomsubTri = true;
+    }
+
     void uavvelCallback(const geometry_msgs::TwistStamped::ConstPtr &gtruthvelMsg)
     {
         gtruth_enu_vel = *gtruthvelMsg;
@@ -182,51 +215,51 @@ private:
         carodomsubTri = true;
     }
 
-    void car_odom_Callback(const ros::TimerEvent& time_event)
-    {
-        static char buffer[512];
-        int ret = 0;
-        // std::cout<<"car_odom_thread"<<std::endl;
-        if (port2._is_open)
-        {
-            // std::cout<<"port_is_open"<<std::endl;
-            memset(buffer, 0, 512);
-            ret = port2.read(buffer, 512);
-            if (ret > 0)
-            {
-                // mtx.lock();
-                // std::cout << "success: buffer=\t" << ret << std::endl;
-                static mavlink_message_t mavlink_msg;
-                static mavlink_status_t status;
-                for (int i = 0; i < ret; ++i) {
-                    if (mavlink_parse_char(MAVLINK_COMM_0, buffer[i], &mavlink_msg, &status)){
-                        switch (mavlink_msg.msgid) {
-                            case 204:
-                            {
-                                mavlink_car_status_t car;
-                                mavlink_msg_car_status_decode(&mavlink_msg, &car);
-                                static uint32_t tick = 0;
-                                car_odom.pitch = car.pitch;
-                                car_odom.yaw = car.yaw;
-                                car_odom.roll = car.roll;
-                                car_odom.px = car.px;
-                                car_odom.py =car.py;
-                                car_odom.pz = car.pz;
-                                car_odom.vx = car.vx;
-                                car_odom.vy= car.vy;
-                                car_odom.vz = car.vz;
-                                car_odom.status = car.status;
-                                car_odom_rawPub.publish(car_odom);
-                                break;
-                            }
-                        }
-                    }
-                }
-                carodomsubTri = true;
-                // mtx.unlock();
-            }
-        }
-    }
+    // void car_odom_Callback(const ros::TimerEvent& time_event)
+    // {
+    //     static char buffer[512];
+    //     int ret = 0;
+    //     // std::cout<<"car_odom_thread"<<std::endl;
+    //     if (port2._is_open)
+    //     {
+    //         // std::cout<<"port_is_open"<<std::endl;
+    //         memset(buffer, 0, 512);
+    //         ret = port2.read(buffer, 512);
+    //         if (ret > 0)
+    //         {
+    //             // mtx.lock();
+    //             // std::cout << "success: buffer=\t" << ret << std::endl;
+    //             static mavlink_message_t mavlink_msg;
+    //             static mavlink_status_t status;
+    //             for (int i = 0; i < ret; ++i) {
+    //                 if (mavlink_parse_char(MAVLINK_COMM_0, buffer[i], &mavlink_msg, &status)){
+    //                     switch (mavlink_msg.msgid) {
+    //                         case 204:
+    //                         {
+    //                             mavlink_car_status_t car;
+    //                             mavlink_msg_car_status_decode(&mavlink_msg, &car);
+    //                             static uint32_t tick = 0;
+    //                             car_odom.pitch = car.pitch;
+    //                             car_odom.yaw = car.yaw;
+    //                             car_odom.roll = car.roll;
+    //                             car_odom.px = car.px;
+    //                             car_odom.py =car.py;
+    //                             car_odom.pz = car.pz;
+    //                             car_odom.vx = car.vx;
+    //                             car_odom.vy= car.vy;
+    //                             car_odom.vz = car.vz;
+    //                             car_odom.status = car.status;
+    //                             car_odom_rawPub.publish(car_odom);
+    //                             break;
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //             carodomsubTri = true;
+    //             // mtx.unlock();
+    //         }
+    //     }
+    // }
 
     void gtruth_const_bias_cal(const double &gtruth_t)
     {
@@ -275,7 +308,7 @@ private:
 
     void gtruth_const_bias_cal()
     {
-        Eigen::Quaterniond car_qua_bias;
+        // Eigen::Quaterniond car_qua_bias;
         bias_c += 1;
 
         gtruth_pos_bias.x = gtruth_pos_bias.x + gtruth.pose.pose.position.x;
@@ -302,26 +335,29 @@ private:
         else
         {
             geometry_msgs::Vector3 car_rpy_bias;
-            CU_pos_init_differ.x = car_odom.px;
-            CU_pos_init_differ.y = car_odom.py;
-            CU_pos_init_differ.z = car_odom.pz;
+            CU_pos_init_differ.x += car_odom.px;
+            CU_pos_init_differ.y += car_odom.py;
+            CU_pos_init_differ.z += car_odom.pz;
             car_rpy_bias.x = car_odom.roll;
             car_rpy_bias.y = car_odom.pitch;
             car_rpy_bias.z = car_odom.yaw;
             Eigen::AngleAxisd roll(Eigen::AngleAxisd(car_rpy_bias.x,Eigen::Vector3d::UnitX()));
             Eigen::AngleAxisd pitch(Eigen::AngleAxisd(car_rpy_bias.y,Eigen::Vector3d::UnitY()));
             Eigen::AngleAxisd yaw(Eigen::AngleAxisd(car_rpy_bias.z,Eigen::Vector3d::UnitZ()));
+            Eigen::Quaterniond cur_qua_bias = roll * pitch * yaw;
 
-            car_qua_bias = roll * pitch * yaw;
-            std::cout<<"CU_pos_init_differ = "<<CU_pos_init_differ.x<<" "<<CU_pos_init_differ.y<<CU_pos_init_differ.z<<std::endl;
+            car_qua_bias.w() += cur_qua_bias.w();
+            car_qua_bias.x() += cur_qua_bias.x();
+            car_qua_bias.y() += cur_qua_bias.y();
+            car_qua_bias.z() += cur_qua_bias.z();
+            // std::cout<<"CU_pos_init_differ = "<<CU_pos_init_differ.x<<" "<<CU_pos_init_differ.y<<CU_pos_init_differ.z<<std::endl;
             calibration = true;
         }
         
-
-        gtruth_qua_bias.w() += car_qua_bias.w();
-        gtruth_qua_bias.x() += car_qua_bias.x();
-        gtruth_qua_bias.y() += car_qua_bias.y();
-        gtruth_qua_bias.z() += car_qua_bias.z();
+        gtruth_qua_bias.w() += gtruth.pose.pose.orientation.w;
+        gtruth_qua_bias.x() += gtruth.pose.pose.orientation.x;
+        gtruth_qua_bias.y() += gtruth.pose.pose.orientation.y;
+        gtruth_qua_bias.z() += gtruth.pose.pose.orientation.z; //debug
 
         // std::cout<<"bias_c = "<<bias_c<<std::endl;
         // std::cout<<"delta_r_tol = "<<gtruth_rpy_bias.x<<" delta_p_tol = "<<gtruth_rpy_bias.y<<" delta_y_tol = "<<gtruth_rpy_bias.z<<std::endl;
@@ -482,7 +518,8 @@ private:
     {
     	int sour_last = source;
         Eigen::Vector3d l_v(car_odom.vx, car_odom.vy, car_odom.vz);
-        lin_vel = gtruth_qua_bias.inverse() * l_v; 
+        lin_vel = car_qua_bias.inverse() * l_v; 
+        lin_vel[2] = 0.0;
         // lin_vel = gtruth_qua_bias.inverse() * l_v; 
         // lin_vel = l_v;
         if(vision_position.x() == 0 && vision_position.y() == 0 && vision_position.z() == 0 && vision_ori.w() == 0 && vision_ori.x() ==0 && vision_ori.y() == 0 && vision_ori.z()==0)
@@ -498,10 +535,16 @@ private:
             Eigen::AngleAxisd yaw(Eigen::AngleAxisd(car_odom.yaw,Eigen::Vector3d::UnitZ()));
 
             car_orientation = roll * pitch * yaw;
-            qua = gtruth_qua_bias.inverse() * car_orientation;
+            qua = car_qua_bias.inverse() * car_orientation;
 
-            pos = gtruth_qua_bias.inverse() * (p - p_bias);
-            pos[2] = pos[2] - 0.25; // move gps center to camera
+            qua.w() = 1;
+            qua.x() = 0;
+            qua.y() = 0;
+            qua.z() = 0; //debug
+
+            pos = car_qua_bias.inverse() * (p - p_bias);
+            // pos[2] = pos[2] - 0.05; // move gps center to camera
+            pos[2] = 0.0;
             
             source = 0;
             flag = 1;
@@ -538,9 +581,9 @@ private:
             uav_v_position =  cal_a.inverse() * (vision_position + vision_pose_cal);
             uav_v_orientation = vision_ori_cal.inverse() * vision_ori;
             //vision_local_orientation.normalize();
-            uav_v_position_117.x() = uav_v_position.x()-0.13;//bianxiao
-            uav_v_position_117.y() = -uav_v_position.y()-0.145;//bianxiao
-            uav_v_position_117.z() = -uav_v_position.z();
+            uav_v_position_117.x() = uav_v_position.x()-0.03;//-0.13;//bianxiao
+            uav_v_position_117.y() = -uav_v_position.y()-0.143;//-0.145;//bianxiao
+            uav_v_position_117.z() = -uav_v_position.z()+0.04;;
             uav_v_orientation_117.w() = -uav_v_orientation.w();
             uav_v_orientation_117.x() = uav_v_orientation.x();
             uav_v_orientation_117.y() = -uav_v_orientation.y();
@@ -606,17 +649,6 @@ private:
 
         qua = gtruth_qua_bias.inverse() * q;
         pos = gtruth_qua_bias.inverse() * (p - p_bias);
-    }
-
-    void LLTtoUTM(const double& latitude, const double& longitude, geometry_msgs::Vector3& point)
-    {
-        geographic_msgs::GeoPoint geo_pt;
-        geo_pt.latitude = latitude;
-        geo_pt.longitude = longitude;
-        geo_pt.altitude = 0;
-        geodesy::UTMPoint utm_pt(geo_pt);
-        point.x = utm_pt.easting;
-        point.y = utm_pt.northing;
     }
 
     void mc_odom_pub(const ros::TimerEvent& time_event)
@@ -713,10 +745,17 @@ private:
                 gtruth_pos_bias.x = gtruth_pos_bias.x / bias_c;
                 gtruth_pos_bias.y = gtruth_pos_bias.y / bias_c;
                 gtruth_pos_bias.z = gtruth_pos_bias.z / bias_c;
+                CU_pos_init_differ.x /= bias_c;
+                CU_pos_init_differ.y /= bias_c;
+                CU_pos_init_differ.z /= bias_c;
                 gtruth_qua_bias.w() = gtruth_qua_bias.w() / bias_c;
                 gtruth_qua_bias.x() = gtruth_qua_bias.x() / bias_c;
                 gtruth_qua_bias.y() = gtruth_qua_bias.y() / bias_c;
                 gtruth_qua_bias.z() = gtruth_qua_bias.z() / bias_c;
+                car_qua_bias.w() /= bias_c;
+                car_qua_bias.x() /= bias_c;
+                car_qua_bias.y() /= bias_c;
+                car_qua_bias.z() /= bias_c;
 
                 ROS_INFO("[odom_remap]:Odom const bias cal succeed, ready to flight!");
 
@@ -788,8 +827,8 @@ private:
                                 car_odomMsg.pose.pose.orientation.z = car_qua.z();
                                 car_odomMsg.twist.twist.linear.x = car_vel[0];
                                 car_odomMsg.twist.twist.linear.y = car_vel[1];
-                                // car_odomMsg.twist.twist.linear.z = car_vel[2];
-                                car_odomMsg.twist.twist.linear.z = 0;
+                                car_odomMsg.twist.twist.linear.z = car_vel[2];
+                                // car_odomMsg.twist.twist.linear.z = 0;
                                 vision_getPub.publish(vision_statu);
                             }
                             else
@@ -828,39 +867,48 @@ private:
         }
         else
         {
-            if(!gtruthsubTri)
-            {
-                ROS_ERROR("[odom_remap]:No uav odom data, please check rostopic.");
-            }
+            // if(!gtruthsubTri)
+            // {
+            //     ROS_ERROR("[odom_remap]:No uav odom data, please check rostopic.");
+            // }
 
-            if(!carodomsubTri)
-            {
-                ROS_ERROR("[odom_remap]:No car odom data, please check rostopic.");
-            }
+            // if(!carodomsubTri)
+            // {
+            //     ROS_ERROR("[odom_remap]:No car odom data, please check rostopic.");
+            // }
 
             while(!gtruthsubTri || !carodomsubTri)
             {
-                ros::Duration(0.2).sleep();
+                if(!gtruthsubTri)
+                {
+                    ROS_ERROR("[odom_remap]:No uav odom data, please check rostopic.");
+                }
+
+                if(!carodomsubTri)
+                {
+                    ROS_ERROR("[odom_remap]:No car odom data, please check rostopic.");
+                }
+                ros::Duration(1.0).sleep();
             }   
         }
         gtruth_time_l = gtruth.header.stamp.toSec();
     }
 
-    void car_odom_server_init()
-    {
-        SerialPort::OpenOptions uartOptions;
-        uartOptions = SerialPort::defaultOptions;
-        uartOptions.baudRate = SerialPort::BR38400;
-        port2.open("/dev/ttyUSB0",uartOptions);
-        if (port2.isOpen())
-        {
-            ROS_WARN("[odom_remap]:Port2 open success!");
-        }
-        else
-        {
-            ROS_ERROR("[odom_remap]:Port2 open failed!");
-        }
-    }
+    // void car_odom_server_init()
+    // {
+    //     SerialPort::OpenOptions uartOptions;
+    //     uartOptions = SerialPort::defaultOptions;
+    //     uartOptions.baudRate = SerialPort::BR38400;
+    //     port2.open("/dev/ttyUSB0",uartOptions);
+    //     if (port2.isOpen())
+    //     {
+    //         ROS_WARN("[odom_remap]:Port2 open success!");
+    //     }
+    //     else
+    //     {
+    //         ROS_ERROR("[odom_remap]:Port2 open failed!");
+    //     }
+    // }
 
     void ekf_param_init()
     {
@@ -900,9 +948,9 @@ private:
 
         // imuSub = nh.subscribe("/mavros/imu/data", 10, &odomRemap::imuCallback, this);
 
-        odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap", 10);
+        odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap", 1);
 
-        car_odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap/car", 10);
+        car_odomPub = nh.advertise<nav_msgs::Odometry>("/odom/remap/car", 1);
         // imuvelrawPub = nh.advertise<geometry_msgs::Vector3>("/mavros/imu/data/linear_velocity_raw",10);//test
 
         switch (odom_source) {
@@ -934,9 +982,10 @@ private:
                         visionsub = nh.subscribe("/ir_pose_topic", 1, &odomRemap::irCallback, this); // infrared
 
                     vision_getPub = nh.advertise<std_msgs::Float64>("/vision_received", 1); 
-                    car_odom_server_init();
+                    // car_odom_server_init();
                     ekf_param_init();
-                    car_odom_timer = nh.createTimer(ros::Duration(0.01), &odomRemap::car_odom_Callback, this);
+                    car_odomSub = nh.subscribe("/chcnav/devpvt", 1, &odomRemap::carodomCallback, this);
+                    // car_odom_timer = nh.createTimer(ros::Duration(0.01), &odomRemap::car_odom_Callback, this);
                 }
                 else
                 {

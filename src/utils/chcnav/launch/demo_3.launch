@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <group ns="chcnav">
+        <!-- hc_cgi_protocol_process_node -->
+        <node pkg="chcnav" type="hc_cgi_protocol_process_node" name="hc_topic_driver" output="screen"/>
+
+        <!-- hc_msg_parser_launch_node -->
+        <node pkg="chcnav" type="hc_msg_parser_launch_node" name="udp_7531" output="screen">
+            <!-- udp settings -->
+            <param name="type" value="udp"/>
+            <param name="rate" value="1000"/>           <!-- 节点每秒解析最大协议数量 -->
+            <param name="port" value="7531"/>           <!-- 端口号 -->
+            <!-- udp settings end -->
+        </node>
+    </group>
+</launch>

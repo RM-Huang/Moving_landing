@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <group ns="chcnav">
+        <!-- hc_topic_driver -->
+        <node pkg="chcnav" type="hc_cgi_protocol_process_node" name="hc_topic_driver" output="screen"/>
+
+        <!-- hc_topic_driver -->
+        <node pkg="chcnav" type="hc_msg_parser_launch_node" name="C_RS232" output="screen">
+            <!-- serial settings -->
+            <param name="type" value="serial"/>
+            <param name="rate" value="1000"/>
+            <param name="port" value="/dev/ttyUSB0"/>
+            <param name="speed" value="460800"/>
+            <!-- serial settings end -->
+        </node>
+    </group>
+
+    <node pkg="chcnav" type="time_uniformity_node" name="time_uniformity_node" output="screen"/>
+
+</launch>
