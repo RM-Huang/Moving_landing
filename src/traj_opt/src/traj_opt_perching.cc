@@ -844,34 +844,15 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
         // grad_car_t += grad_tmp3.dot(car_v);
       }
 
-      // if(*plan_state_ == TrajOpt::plan_s::LAND)
-      // {
-        // if(grad_cost_visible_domain(pos, car_p, grad_tmp, grad_tmp2, cost_tmp)){
-        // grad_p += grad_tmp;
-        // grad_car_p += grad_tmp2;
-        // cost_inner += cost_tmp;
-        // }
-        // if(grad_cost_visible_domain(pos, acc, car_p,
-        //                            grad_tmp, grad_tmp2, grad_tmp3,
-        //                            cost_tmp)){
-        //   grad_p += grad_tmp;
-        //   grad_a += grad_tmp2;
-        //   grad_car_p += grad_tmp3;
-        //   cost_inner += cost_tmp;
-        //   // grad_car_t += grad_tmp3.dot(car_v);
-        // }
-        // std::cout<<" , ";
-
-        // Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
-        if (grad_cost_perching_collision(pos, acc, car_p,
-                                        grad_tmp, grad_tmp2, grad_tmp3,
-                                        cost_tmp)) { // ??
-          grad_p += grad_tmp;
-          grad_a += grad_tmp2;
-          grad_car_p += grad_tmp3;
-          cost_inner += cost_tmp;
-          // grad_car_t += grad_tmp3.dot(car_v);
-        }
+      if (grad_cost_perching_collision(pos, acc, car_p,
+                                      grad_tmp, grad_tmp2, grad_tmp3,
+                                      cost_tmp)) {
+        grad_p += grad_tmp;
+        grad_a += grad_tmp2;
+        grad_car_p += grad_tmp3;
+        cost_inner += cost_tmp;
+        // grad_car_t += grad_tmp3.dot(car_v);
+      }
       // }
 
       double grad_car_t = grad_car_p.transpose() * car_v_;
