@@ -50,7 +50,7 @@ After vehicle stablized, run the following script to start planning:
 Landing differ would be published as follow.
 ![landing differ](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/landing%20differ.png "landing differ")
 
-![simulation result](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/../../../../../../../pic/simulation.gif "simulation result")
+![simulation result](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/simulation.gif "simulation result")
 
 ## Realfight run
 You have to read the _README.md_ file in the px4ctrl package before you run the script.
@@ -64,4 +64,5 @@ Than run the following sctipt to start planning.
 ```
 ./pub_triger.sh
 ```
+![realflight result](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/realflight.gif "realflight result")
 
