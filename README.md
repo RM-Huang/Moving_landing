@@ -34,10 +34,14 @@ Run the following script to start simulation.
 ./sim_traj_follow.sh
 ```
 You can use ***WSAD*** in the second terminator to adjust velocity and attitude of the car.
-![car-control terminator](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/car-control-terminator.png "car-control terminator")
+<p align = "center">
+<img src="pic/car-control-terminator.png" width = "640" border="5" />
+</p>
 
 And nodelet status would be publised on the following terminator.
-![nodelet status](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/nodelet%20status.png "nodelet status")
+<p align = "center">
+<img src="pic/nodelet%20status.png" width = "640" border="5" />
+</p>
 
 Then use the following script to takeoff UAV.
 ```
@@ -47,10 +51,10 @@ After vehicle stablized, run the following script to start planning:
 ```
 ./pub_triger.sh
 ```
-Landing differ would be published as follow.
-![landing differ](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/landing%20differ.png "landing differ")
 
-![simulation result](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/simulation.gif "simulation result")
+<p align = "center">
+<img src="pic/simulation.gif" width = "640" border="5" />
+</p>
 
 ## Realfight run
 You have to read the _README.md_ file in the px4ctrl package before you run the script.
@@ -64,5 +68,8 @@ Than run the following sctipt to start planning.
 ```
 ./pub_triger.sh
 ```
-![realflight result](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/realflight.gif "realflight result")
+
+<p align = "center">
+<img src="pic/realflight.gif" width = "640" border="5" />
+</p>
 
