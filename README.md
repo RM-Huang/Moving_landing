@@ -1,5 +1,9 @@
 # Moving_landing
-This is stable version branch from HRM for quardrotor landing on a moving platform project.
+This is stable version branch for quardrotor landing on a moving platform project.
+
+## Acknowledgements
+- The planning framework of this repository is based on [Fast-Perching](https://github.com/ZJU-FAST-Lab/Fast-Perching.git).
+- The px4ctrl FSM node of this repository is based on [Fast-Drone-250](https://github.com/ZJU-FAST-Lab/Fast-Drone-250.git).
 
 ## Getting start
 Compiling tests passed on ubuntu 20.04 with ros installed. 
@@ -7,11 +11,12 @@ Compiling tests passed on ubuntu 20.04 with ros installed.
 install:
 ```
 sudo apt-get install ros-noetic-geodesy ros-noetic-mavros ros-noetic-apriltag-ros
-git clone -b traj_follow https://github.com/RM-Huang/Moving_landing
+git clone -b master https://github.com/RM-Huang/Moving_landing
 cd Moving_landing/src/utils
 unzip mavlink_msg.zip
 cd ../..
-catkin_make
+catkin_make -DCATKIN_WHITELIST_PACKAGES="chcnav"
+catkin_make -DCATKIN_WHITELIST_PACKAGES=""
 source devel/setup.bash
 ```
 
@@ -45,17 +50,19 @@ After vehicle stablized, run the following script to start planning:
 Landing differ would be published as follow.
 ![landing differ](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/landing%20differ.png "landing differ")
 
+![simulation result](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/simulation.gif "simulation result")
+
 ## Realfight run
 You have to read the _README.md_ file in the px4ctrl package before you run the script.
 Execute the following commands to take off your vehical after you connecting _Autopilot_ to _flight computer_. 
 ```
 cd Moving_landing/sh_utils
-./realflight_traj_follow.sh
+./realflight_landing.sh
 ./takeoff.sh
 ```
 Than run the following sctipt to start planning.
 ```
 ./pub_triger.sh
 ```
+![realflight result](https://github.com/RM-Huang/Moving_landing/blob/tmp/pic/realflight.gif "realflight result")
 
-Traj analyse data would be generated into Moving_landing/data
