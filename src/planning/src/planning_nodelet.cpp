@@ -220,11 +220,11 @@ class Nodelet : public nodelet::Nodelet {
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
 
-    // /* debug */
-    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
-      vision_stamp = 1; //test
-    else
-      vision_stamp = 0;
+    // // /* debug */
+    // if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
+    //   vision_stamp = 1; //test
+    // else
+    //   vision_stamp = 0;
     
     switch(plan_state)
     {
@@ -250,7 +250,7 @@ class Nodelet : public nodelet::Nodelet {
         {
           // std::cout<<"dist_ = "<<sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2))<<std::endl;
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
-          if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
+          if(ekf_error[0] <= 0.5 && ekf_error[1] <= 0.5 && ekf_error[2] <= 0.5 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
             land_first = false;
             generate_new_traj_success = false;

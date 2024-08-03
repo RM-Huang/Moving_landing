@@ -527,7 +527,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   if(*plan_state == FOLLOW || *plan_state_ == HOVER)
   {
-    traj_tail_alt = car_p_[2] + 1.5;
+    traj_tail_alt = car_p_[2] + 2.5;
     // traj_tail_alt = initS_.col(0)[2];
     // bvp_f.col(1) = car_v_ / 2;
   }
