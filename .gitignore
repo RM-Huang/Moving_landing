@@ -6,7 +6,7 @@
 # lib.a 除外
 !lib.a
 !mavlink_msg.zip
-!car_data_trans.zip
+# !car_data_trans.zip
 # !OOQP.zip
 # !ma27.zip
 
