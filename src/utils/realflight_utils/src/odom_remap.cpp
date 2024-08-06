@@ -15,7 +15,7 @@
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geodesy/utm.h>
-#include </home/rose/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
+#include </home/pc205/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
 #include <car_odom_server/car_status.h>
 #include <car_odom_server/SerialPort.h>
 #include <apriltag_ros/AprilTagDetection.h>
@@ -569,7 +569,7 @@ private:
         }
         else if(vision_source == 0)
         {
-            
+            source = 1;
             // cal_a.w()=0.707;
             // cal_a.x()=0;
             // cal_a.y()=0;
@@ -659,8 +659,6 @@ private:
             qua.x() = 0;
             qua.y() = 0;
             qua.normalize();
-            
-            source = 1;
         }
         else if(vision_source == 1)
         {
@@ -1040,7 +1038,7 @@ private:
 
                     vision_getPub = nh.advertise<std_msgs::Float64>("/vision_received", 1); 
                     // car_odom_server_init();
-                    ekf_param_init();
+                    // ekf_param_init();
                     car_odomSub = nh.subscribe("/chcnav/car_odom", 1, &odomRemap::carodomCallback, this);
                     // car_odom_timer = nh.createTimer(ros::Duration(0.01), &odomRemap::car_odom_Callback, this);
                 }

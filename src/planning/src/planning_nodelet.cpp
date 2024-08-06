@@ -250,7 +250,7 @@ class Nodelet : public nodelet::Nodelet {
         {
           // std::cout<<"dist_ = "<<sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2))<<std::endl;
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
-          if(ekf_error[0] <= 0.5 && ekf_error[1] <= 0.5 && ekf_error[2] <= 0.5 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
+          if(ekf_error[0] <= 0.25 && ekf_error[1] <= 0.25 && ekf_error[2] <= 0.25 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
             land_first = false;
             generate_new_traj_success = false;
