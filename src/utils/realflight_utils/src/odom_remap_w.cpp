@@ -15,7 +15,8 @@
 #include <mavros_msgs/AttitudeTarget.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geodesy/utm.h>
-#include </home/pc205/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
+// #include </home/rose/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
+// #include </home/hao/UAV_book/test_8_/Moving_landing8_12/devel/include/chcnav/hcinspvatzcb.h>
 #include <car_odom_server/car_status.h>
 #include <car_odom_server/SerialPort.h>
 #include <apriltag_ros/AprilTagDetection.h>
@@ -119,11 +120,59 @@ private:
         vision_position.z() = transform.detections[0].pose.pose.pose.position.z;//-
 
         vision_ori.w() = transform.detections[0].pose.pose.pose.orientation.w;
-        vision_ori.x() = -transform.detections[0].pose.pose.pose.orientation.x;//-
-        vision_ori.y() = -transform.detections[0].pose.pose.pose.orientation.y;//-
+        vision_ori.x() = transform.detections[0].pose.pose.pose.orientation.x;//-
+        vision_ori.y() = transform.detections[0].pose.pose.pose.orientation.y;//-
         vision_ori.z() = transform.detections[0].pose.pose.pose.orientation.z;
 
         
+    }
+    //欧拉角转四元数
+    Eigen::Quaterniond euler2Quaterniond(const  Eigen::Vector3d &eulerAngles)
+    {
+
+        Eigen::Quaterniond quaternion;
+        double roll, pitch, yaw;
+        roll=eulerAngles[0];
+        pitch=eulerAngles[1];
+        yaw=eulerAngles[2];
+        quaternion = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) * 
+                    Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) * 
+                    Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+        return quaternion;
+    }
+
+    Eigen::Vector3d Quaternion2RPY(const Eigen::Quaterniond&Q)
+    {
+
+        struct Quaternion
+        {
+            double w, x, y, z;
+        };
+        Quaternion q;
+        q.w=Q.w();
+        q.x=Q.x();
+        q.y=Q.y();
+        q.z=Q.z();
+        Eigen::Vector3d angles;
+
+        // roll (x-axis rotation)
+        double sinr_cosp = 2 * (q.w * q.x + q.y * q.z);
+        double cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y);
+        angles[0] = std::atan2(sinr_cosp, cosr_cosp);
+
+        // pitch (y-axis rotation)
+        double sinp = 2 * (q.w * q.y - q.z * q.x);
+        if (std::abs(sinp) >= 1)
+            angles[1] = std::copysign(M_PI / 2, sinp); // 如果超出范围，使用90度
+        else
+            angles[1] = std::asin(sinp);
+
+        // yaw (z-axis rotation)
+        double siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+        double cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+        angles[2] = std::atan2(siny_cosp, cosy_cosp);
+
+        return angles;
     }
 
     void irCallback(const geometry_msgs::PoseStamped::ConstPtr &irmsg)
@@ -529,8 +578,6 @@ private:
             Ekf::x_x_old = Ekf::x_x;
             Ekf::x_y_old = Ekf::x_y;
             Ekf::x_z_old = Ekf::x_z;
-
-            Ekf::error_list_reset();
         }
     }
 
@@ -619,10 +666,10 @@ private:
             //Eigen::Quaterniond cal_a(0.707,0,0,0.707);
             //Eigen::Quaterniond cal = cal_a*cal_b;
             vision_quaternion = cal.inverse() * vision_ori;
-            camera_ori.w() = -vision_quaternion.w();
-            camera_ori.x() = vision_quaternion.x();
-            camera_ori.y() = -vision_quaternion.y();
-            camera_ori.z() = vision_quaternion.z();
+            // camera_ori.w() = -vision_quaternion.w();
+            // camera_ori.x() = vision_quaternion.x();
+            // camera_ori.y() = -vision_quaternion.y();
+            // camera_ori.z() = vision_quaternion.z();
             // uav_v_orientation_117.w() = -uav_v_orientation.w();
             // uav_v_orientation_117.x() = uav_v_orientation.x();
             // uav_v_orientation_117.y() = -uav_v_orientation.y();
@@ -649,13 +696,54 @@ private:
             // Eigen::AngleAxisd yawAngle(Eigen::AngleAxisd(angular(0), Eigen::Vector3d::UnitZ()));
             // Eigen::Quaterniond vision_quaternion;
             // vision_quaternion = yawAngle * pitchAngle * rollAngle;
+            
+            
+            // // guo
+            // camera_position = uav_position +  uav_orientation * Eigen::Vector3d(0.04,0,-0.14) + Eigen::Vector3d(0,0,0.265); 
+            // // camera_ori = uav_orientation;  
+            // april_local_position = camera_ori * vision_pose_cal + camera_position;
+            // april_local_ori = uav_orientation * camera_ori.inverse();
+            
+            
+            // wh
 
-            camera_position = uav_position +  uav_orientation * Eigen::Vector3d(0.04,0,-0.14) + Eigen::Vector3d(0,0,0.265); 
-            camera_ori = uav_orientation;  
-            april_local_position = camera_ori * vision_pose_cal + camera_position;
-            april_local_ori = uav_orientation * uav_orientation.inverse();
-            pos = april_local_position;
-            qua = april_local_ori;
+            Eigen::Quaterniond vision_static_ori={0,-0.7071068,0.7071068,0};
+            Eigen::Vector3d vision_static_position{0.03,0,0.125};
+
+            Eigen::Matrix3d camera_ori_in_body  = vision_static_ori.normalized().toRotationMatrix();
+            Eigen::Vector3d camera_bias_in_body = vision_static_position;
+            Eigen::Vector3d vision_pose_in_body = camera_ori_in_body*vision_position+camera_bias_in_body;
+            //roll pitch 矫正
+            Eigen::Vector3d rpy_=Quaternion2RPY(uav_orientation);
+            rpy_[0]= -rpy_[0];
+            rpy_[1]= -rpy_[1];
+            rpy_[2]= 0;
+            Eigen::Quaterniond rpy2qua_=euler2Quaterniond(rpy_);
+            vision_pose_in_body=rpy2qua_.inverse().normalized().toRotationMatrix()*vision_pose_in_body;
+            // std::cout<<"vision_pose_in_body"<<vision_pose_in_body[0]<<","<<vision_pose_in_body[1]<<","<<vision_pose_in_body[2]<<std::endl;
+            Eigen::Vector3d vision_rpy=Quaternion2RPY(vision_ori);
+            // double vis_yaw_error_=0.7853981633-vision_rpy[2];
+            double vis_yaw_error_=-vision_rpy[2]-1.570796326796;
+            // double vis_yaw_error_=-vision_rpy[2];
+            // double vis_yaw_error_=-vision_rpy[2];
+            if (vis_yaw_error_ > M_PI) {
+                vis_yaw_error_ -= 2 * M_PI; // 如果大于π，减去2π
+            } else if (vis_yaw_error_ < -M_PI) {
+                vis_yaw_error_ += 2 * M_PI; // 如果小于-π，加上2π
+            }
+            vision_rpy[0]=0;
+            vision_rpy[1]=0;
+            vision_rpy[2]=vis_yaw_error_;
+            Eigen::Vector3d uav_rpy=Quaternion2RPY(uav_orientation);
+            uav_rpy[0]=0;
+            uav_rpy[1]=0;
+            Eigen::Quaterniond vis_ori=euler2Quaterniond(vision_rpy);
+            Eigen::Quaterniond uav_ori=euler2Quaterniond(uav_rpy);
+            pos=uav_orientation*vision_pose_in_body+uav_position;
+            qua=uav_orientation*vis_ori;
+
+            // pos = april_local_position;
+            // qua = april_local_ori;
             /* debug msg */
             geometry_msgs::Pose vision_raw;
             vision_raw.orientation.w = qua.w();
@@ -1060,7 +1148,7 @@ private:
                     gtruthSub = nh.subscribe(gtruthTopic, 1, &odomRemap::simtruthCallback, this,
                                 ros::TransportHints().tcpNoDelay());
 
-                    car_odomSub = nh.subscribe("/chcnav/car_odom", 1, &odomRemap::sim_car_odom_Callback, this,
+                    car_odomSub = nh.subscribe("/smart/odom", 1, &odomRemap::sim_car_odom_Callback, this,
                                         ros::TransportHints().tcpNoDelay());
                 }
 

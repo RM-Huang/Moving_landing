@@ -159,4 +159,9 @@ namespace Ekf {
         
     }
 
+    void error_list_reset(){
+        std::vector<double> tmp(_MAX_SEG, 0.3);
+        error_detect_list = tmp;
+    }
+
 }

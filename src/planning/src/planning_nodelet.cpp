@@ -62,7 +62,6 @@ class Nodelet : public nodelet::Nodelet {
   bool generate_new_traj_success = false;
   bool visualize_sig;
   bool target_odom_recrived = false;
-  bool land_first = false;
   Trajectory traj;
   Eigen::Vector3d target_p, target_v, uav_p, uav_v;
   Eigen::Vector3d ekf_error;
@@ -220,11 +219,11 @@ class Nodelet : public nodelet::Nodelet {
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
 
-    // // /* debug */
-    // if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
-    //   vision_stamp = 1; //test
-    // else
-    //   vision_stamp = 0;
+    // /* debug */
+    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
+      vision_stamp = 1; //test
+    else
+      vision_stamp = 0;
     
     switch(plan_state)
     {
@@ -250,9 +249,8 @@ class Nodelet : public nodelet::Nodelet {
         {
           // std::cout<<"dist_ = "<<sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2))<<std::endl;
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
-          if(ekf_error[0] <= 0.25 && ekf_error[1] <= 0.25 && ekf_error[2] <= 0.25 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
+          if(ekf_error[0] <= 0.15 && ekf_error[1] <= 0.15 && ekf_error[2] <= 0.15 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
-            land_first = false;
             generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::LAND;
             ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
@@ -279,29 +277,22 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::LAND:
       {
-        if(!land_first)
+        double T = traj.getTotalDuration();
+        // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
+        // if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
+        if(plan_type == 0 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
         {
-          double T = traj.getTotalDuration();
-          // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || vision_stamp ) ) // if target msg dosen't refresh
-          {
-            generate_new_traj_success = false;
-            plan_state = traj_opt::TrajOpt::FOLLOW;
-            ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
-            return;
-          }
-          else if(delta_from_last > T + 0.5)
-          {
-            plan_state = traj_opt::TrajOpt::HOVER;
-            generate_new_traj_success = false;
-            ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
-            return;
-          }
+          generate_new_traj_success = false;
+          plan_state = traj_opt::TrajOpt::FOLLOW;
+          ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
+          return;
         }
-        else if(land_first)
+        else if(delta_from_last > T + 0.5)
         {
-          // delta_from_last = -1.0;
-          land_first = false;
+          plan_state = traj_opt::TrajOpt::HOVER;
+          generate_new_traj_success = false;
+          ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
+          return;
         }
 
         delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state

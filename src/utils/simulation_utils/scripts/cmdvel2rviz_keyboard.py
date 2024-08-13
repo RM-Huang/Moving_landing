@@ -23,7 +23,7 @@ class CmdVel2Gazebo:
         # self.pub_steerR = rospy.Publisher('/smart/front_right_steering_position_controller/command', Float64, queue_size=1)
         # self.pub_rearL = rospy.Publisher('/smart/rear_left_velocity_controller/command', Float64, queue_size=1)
         # self.pub_rearR = rospy.Publisher('/smart/rear_right_velocity_controller/command', Float64, queue_size=1)
-        self.pub_odom = rospy.Publisher('/smart/odom', Odometry, queue_size=1)
+        self.pub_odom = rospy.Publisher('/chcnav/car_odom', Odometry, queue_size=1)
         self.odom = Odometry()
         self.odom.header.frame_id = "world"
         self.odom.header.stamp = rospy.Time.now()
@@ -182,7 +182,7 @@ class CmdVel2Gazebo:
         #     self.x = self.x + direction * vel_acc + min(0.2, -self.x)
         # else:
         self.x = self.x + direction * vel_acc
-        self.x = max(-6, min(self.x, 6))
+        self.x = max(-12, min(self.x, 12))
         # self.x = self.x / 3
 
         # if ang_acc != 0:

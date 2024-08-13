@@ -527,7 +527,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   if(*plan_state == FOLLOW || *plan_state_ == HOVER)
   {
-    traj_tail_alt = car_p_[2] + 2.5;
+    traj_tail_alt = car_p_[2] + 3.0;
     // traj_tail_alt = initS_.col(0)[2];
     // bvp_f.col(1) = car_v_ / 2;
   }
@@ -593,7 +593,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
       Trajectory traj(durs, coeffs); // 保存粗轨迹
       max_omega = getMaxOmega(traj);
       // std::cout<<T_bvp<<" "<<max_omega<<" , ";
-    } while (max_omega > 2.0 * omega_max_);
+    } while (max_omega > 1 * omega_max_);
     // std:;cout<<std::endl;
     std::cout<<"T_bvp = "<<T_bvp<<std::endl;
     Eigen::VectorXd tt(8);
@@ -730,7 +730,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   // if(*plan_state == LAND)
   // {
-  if(max_omega > 10 * omega_max_)
+  if(max_omega > 1.5 * omega_max_)
   {
     std::cout<<"[planning]: Omega too high"<<std::endl;
     return false;
@@ -1180,7 +1180,7 @@ bool TrajOpt::grad_cost_omega(const Eigen::Vector3d& a,
 bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_floor = car_p_.z() + robot_l_ + 0.2;
+  static double z_floor = car_p_.z() + robot_l_ + 1.5;
   double pen = z_floor - p.z(); // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
@@ -1197,7 +1197,7 @@ bool TrajOpt::grad_cost_floor(const Eigen::Vector3d& p,
 bool TrajOpt::grad_cost_top(const Eigen::Vector3d& p,
                               Eigen::Vector3d& gradp,
                               double& costp) {
-  static double z_top = car_p_.z() + robot_l_ + 1.0; // max height set to a fixed values related to the initial state
+  static double z_top = car_p_.z() + robot_l_ + 3.0; // max height set to a fixed values related to the initial state
   double pen = p.z() - z_top; // 公式12为[z_f^2 - p.z^2]
   if (pen > 0) {
     double grad = 0;
