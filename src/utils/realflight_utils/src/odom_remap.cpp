@@ -1038,7 +1038,7 @@ private:
 
                     vision_getPub = nh.advertise<std_msgs::Float64>("/vision_received", 1); 
                     // car_odom_server_init();
-                    // ekf_param_init();
+                    ekf_param_init();
                     car_odomSub = nh.subscribe("/chcnav/car_odom", 1, &odomRemap::carodomCallback, this);
                     // car_odom_timer = nh.createTimer(ros::Duration(0.01), &odomRemap::car_odom_Callback, this);
                 }
