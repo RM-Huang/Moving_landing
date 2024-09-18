@@ -21,6 +21,10 @@
 
 namespace planning {
 
+std::string sep = "\n-----------------------";
+Eigen::IOFormat CommaInitFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", " << ", ";");
+Eigen::IOFormat CommaInitFmt2(Eigen::StreamPrecision, 0, ", ", ", ", "", "", " << ", ";");
+
 class Nodelet : public nodelet::Nodelet {
  private:
   std::thread initThread_;
@@ -62,6 +66,7 @@ class Nodelet : public nodelet::Nodelet {
   bool generate_new_traj_success = false;
   bool visualize_sig;
   bool target_odom_recrived = false;
+  bool land_first = false;
   Trajectory traj;
   Eigen::Vector3d target_p, target_v, uav_p, uav_v;
   Eigen::Vector3d ekf_error;
@@ -162,6 +167,10 @@ class Nodelet : public nodelet::Nodelet {
     }
 
     iniState.setZero(3, 4);
+    // target_q.x() = 0.0;
+    // target_q.y() = 0.0;
+    // target_q.z() = 0.0;
+    // target_q.w() = 1.0; // target_q表示平台的预设姿态
     Eigen::Quaterniond uav_q_ = uav_q;
     bool static_landing = true; // test
 
@@ -212,6 +221,7 @@ class Nodelet : public nodelet::Nodelet {
     /* ________________________________ plan entry condition _________________________________ */
     if(!ctrl_ready_triger || !triger_received_)
     {
+      // planning may failed to start if px4ctrl shutdown unexpectly
       ros::Duration(1.0).sleep();
       return;
     }
@@ -219,7 +229,7 @@ class Nodelet : public nodelet::Nodelet {
     /* ________________________________________ FSM ________________________________________________ */
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
 
-    // /* debug */
+    /* debug */
     if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
       vision_stamp = 1; //test
     else
@@ -249,8 +259,9 @@ class Nodelet : public nodelet::Nodelet {
         {
           // std::cout<<"dist_ = "<<sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2))<<std::endl;
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
-          if(ekf_error[0] <= 0.15 && ekf_error[1] <= 0.15 && ekf_error[2] <= 0.15 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
+          if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
+            land_first = false;
             generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::LAND;
             ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
@@ -267,6 +278,11 @@ class Nodelet : public nodelet::Nodelet {
           ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
           return;
         }
+        // else if(generate_new_traj_success && delta_from_last < 0.2) // replan from last traj after 0.2s
+        // {
+        //   return;
+        // }
+        // else if(predict_success)
 
         delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
         iniState.col(0) = traj.getPos(delta_from_last);
@@ -277,22 +293,29 @@ class Nodelet : public nodelet::Nodelet {
       }
       case traj_opt::TrajOpt::LAND:
       {
-        double T = traj.getTotalDuration();
-        // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-        // if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
-        if(plan_type == 0 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
+        if(!land_first)
         {
-          generate_new_traj_success = false;
-          plan_state = traj_opt::TrajOpt::FOLLOW;
-          ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
-          return;
+          double T = traj.getTotalDuration();
+          // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
+          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || vision_stamp ) ) // if target msg dosen't refresh
+          {
+            generate_new_traj_success = false;
+            plan_state = traj_opt::TrajOpt::FOLLOW;
+            ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
+            return;
+          }
+          else if(delta_from_last > T + 0.5)
+          {
+            plan_state = traj_opt::TrajOpt::HOVER;
+            generate_new_traj_success = false;
+            ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
+            return;
+          }
         }
-        else if(delta_from_last > T + 0.5)
+        else if(land_first)
         {
-          plan_state = traj_opt::TrajOpt::HOVER;
-          generate_new_traj_success = false;
-          ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
-          return;
+          // delta_from_last = -1.0;
+          land_first = false;
         }
 
         delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
@@ -311,17 +334,49 @@ class Nodelet : public nodelet::Nodelet {
     std::cout << "target_v: " << target_v.transpose() << std::endl;
     ROS_INFO("\033[32m[planning]:start planning!\033[32m");
 
+    // else
+    // {
+    //   // visualize_pre(Sample_list);
+    //   // int flag_pp = 0;
+    //   // Eigen::Vector3d begin_point = predict_state_list[0].head(3);
+    //   // flag_pp = kinosearch.search(start_pt,start_vel,predict_state_list,_TIME_INTERVAL); 
+
+    //   // for test
+    //   // uav_p << 0.0, 0.0, 1.5;
+    //   // uav_v << 0.0,0.0,0.0; 
+    //   target_q.x() = 0.0;
+    //   target_q.y() = 0.0;
+    //   target_q.z() = 0.0;
+    //   target_q.w() = 1.0; // target_q表示平台的预设姿态
+    //   // Eigen::Vector3d axis = perching_axis_.normalized(); //将perching_axis_向量化为单位向量
+    //   // double theta = perching_theta_ * 0.5; // 四元数乘法中除以2以保证旋转角为theta
+    //   // /* 定义降落姿态四元数为target_q绕axis旋转theta角 */
+    //   // land_q.w() = cos(theta);
+    //   // land_q.x() = axis.x() * sin(theta);
+    //   // land_q.y() = axis.y() * sin(theta);
+    //   // land_q.z() = axis.z() * sin(theta);
+    //   // land_q = target_q * land_q;
+    //   land_q = target_q; 
+    // }
+
     /* 轨迹生成器traj_opt::TrajOpt::generate_traj
       input：初始状态iniState、目标位置target_p、目标速度target_v、降落点四元数land_q、段数N
       output：轨迹tarj
     */
     bool generate_new_traj; 
+    // double stamp_tmp = ros::Time::now().toSec();
+    // Eigen::Vector3d target_p_tmp = target_p;
+    // Eigen::Vector3d target_v_tmp = target_v;
+    
     generate_new_traj = trajOptPtr_->generate_traj(iniState, target_p, target_v, target_q, uav_q_, 
                                                    predict_success, 10, traj, &plan_state, delta_from_last); 
 
     if (generate_new_traj) 
     {
       trajStamp = ros::Time::now().toSec();
+      // trajStamp = stamp_tmp;
+      // target_v_last = target_p_tmp;
+      // target_p_last = target_v_tmp;
       generate_new_traj_success = true;
       ROS_INFO("\033[32m[planning]:Traj generate succeed\033[32m");
       std::cout<<"traj_duration = "<<traj.getTotalDuration()<<std::endl;
@@ -503,6 +558,8 @@ class Nodelet : public nodelet::Nodelet {
     double robot_r_;
     // set parameters of planning
     nh.getParam("replan", debug_replan_);
+
+    // NOTE once
     nh.param("plan_type", plan_type, 1); // 0 for simulation, 1 for realflight
     nh.param("ifanalyse", ifanalyse, false);
     nh.param("plan_hz", plan_hz_, 10);

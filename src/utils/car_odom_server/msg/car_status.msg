@@ -1,12 +1,12 @@
-time time
+uint64 time
 uint8 status
-float64 px
-float64 py
-float64 pz
-float64 vx
-float64 vy
-float64 vz
-float64 yaw
-float64 pitch
-float64 roll
+float32 px
+float32 py
+float32 pz
+float32 vx
+float32 vy
+float32 vz
+float32 yaw
+float32 pitch
+float32 roll
 

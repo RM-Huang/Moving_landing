@@ -77,8 +77,7 @@ namespace Ekf {
         x_x = x_x_ + (K_x * y_x);
 
         err_x << 0,0;
-        // err_x[0] =fabs(x_x[0] - x_x_old[0]) ;
-        err_x[0] = fabs((x_x[0] - x_x_old[0]) - x_x[1] * F(0,1));
+        err_x[0] =fabs(x_x[0] - x_x_old[0]) ;
         x_x_old = x_x; //储存估计值
 
         // STEP5 更新协方差矩阵  
@@ -107,8 +106,7 @@ namespace Ekf {
         x_y = x_y_ + (K_y * y_y);
 
         err_y << 0,0;
-        // err_y[0] = fabs(x_y[0] - x_y_old[0]);
-        err_y[0] = fabs((x_y[0] - x_y_old[0]) - x_y[1] * F(0,1));
+        err_y[0] = fabs(x_y[0] - x_y_old[0]);
         x_y_old = x_y; //储存估计值
 
         // STEP5 更新协方差矩阵  
@@ -140,8 +138,7 @@ namespace Ekf {
         x_z = x_z_ + (K_z * y_z);
 
         err_z << 0,0;
-        // err_z[0] = fabs(x_z[0] - x_z_old[0]);
-        err_z[0] = fabs((x_z[0] - x_z_old[0]) - x_z[1] * F(0,1));
+        err_z[0] = fabs(x_z[0] - x_z_old[0]);
         x_z_old = x_z; //储存估计值
 
         // STEP5 更新协方差矩阵  
@@ -157,11 +154,6 @@ namespace Ekf {
         error_detect_list.push_back(state_error);        
         return error_detect_list;
         
-    }
-
-    void error_list_reset(){
-        std::vector<double> tmp(_MAX_SEG, 0.3);
-        error_detect_list = tmp;
     }
 
 }
