@@ -172,21 +172,46 @@ private:
         point.y = utm_pt.northing;
     }
 
-    void carodomCallback(const chcnav::hcinspvatzcb::ConstPtr &carodomMsg)
+    // void carodomCallback(const chcnav::hcinspvatzcb::ConstPtr &carodomMsg)
+    // {
+    //     geometry_msgs::Vector3 utm;
+    //     LLTtoUTM(carodomMsg->latitude, carodomMsg->longitude, utm);
+    //     car_odom.px = utm.x;
+    //     car_odom.py = utm.y;
+    //     car_odom.pz = carodomMsg->altitude;
+    //     car_odom.roll = carodomMsg->roll;
+    //     car_odom.pitch = carodomMsg->pitch;
+    //     car_odom.yaw = carodomMsg->yaw;
+    //     car_odom.vx = carodomMsg->enu_velocity.x;
+    //     car_odom.vy = carodomMsg->enu_velocity.y;
+    //     car_odom.vz = carodomMsg->enu_velocity.z;
+    //     // car_odom is in ENU
+    //     car_odom_rawPub.publish(car_odom); //debug
+
+    //     carodomsubTri = true;
+    // }
+    void carodomCallback(const nav_msgs::Odometry::ConstPtr &carodomMsg)
     {
+        double car_time_delay = carodomMsg->header.stamp.toSec() - car_odom.time.toSec();
+        if((abs(carodomMsg->header.stamp.toSec() - car_odom.time.toSec()) >= 0.04)){
+            ROS_WARN("[odom_remap]:car odom data update rate is too low!");
+            std::cout<<"car_data_delay= "<<car_time_delay<<std::endl; //test
+        }
+
         geometry_msgs::Vector3 utm;
-        LLTtoUTM(carodomMsg->latitude, carodomMsg->longitude, utm);
+        LLTtoUTM(carodomMsg->pose.pose.position.x, carodomMsg->pose.pose.position.y, utm);
+        car_odom.time = carodomMsg->header.stamp;
         car_odom.px = utm.x;
         car_odom.py = utm.y;
-        car_odom.pz = carodomMsg->altitude;
-        car_odom.roll = carodomMsg->roll;
-        car_odom.pitch = carodomMsg->pitch;
-        car_odom.yaw = carodomMsg->yaw;
-        car_odom.vx = carodomMsg->enu_velocity.x;
-        car_odom.vy = carodomMsg->enu_velocity.y;
-        car_odom.vz = carodomMsg->enu_velocity.z;
+        car_odom.pz = carodomMsg->pose.pose.position.z;
+        car_odom.roll = 0.0; // debug
+        car_odom.pitch = 0.0; // debug
+        car_odom.yaw = carodomMsg->twist.twist.angular.z;
+        car_odom.vx = carodomMsg->twist.twist.linear.x;
+        car_odom.vy = carodomMsg->twist.twist.linear.y;
+        car_odom.vz = carodomMsg->twist.twist.linear.z;
         // car_odom is in ENU
-        car_odom_rawPub.publish(car_odom); //debug
+        // car_odom_rawPub.publish(car_odom); //debug
 
         carodomsubTri = true;
     }
@@ -985,7 +1010,7 @@ private:
                     vision_getPub = nh.advertise<std_msgs::Float64>("/vision_received", 1); 
                     // car_odom_server_init();
                     ekf_param_init();
-                    car_odomSub = nh.subscribe("/chcnav/devpvt", 1, &odomRemap::carodomCallback, this);
+                    car_odomSub = nh.subscribe("/chcnav/car_odom", 1, &odomRemap::carodomCallback, this);
                     // car_odom_timer = nh.createTimer(ros::Duration(0.01), &odomRemap::car_odom_Callback, this);
                 }
                 else
