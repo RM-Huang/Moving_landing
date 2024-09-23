@@ -713,7 +713,7 @@ bool PX4CtrlFSM::toggle_offboard_mode(bool on_off)
 	{
 		state_data.state_before_offboard = state_data.current_state;
 		if (state_data.state_before_offboard.mode == "OFFBOARD") // Not allowed
-			state_data.state_before_offboard.mode = "MANUAL";
+			state_data.state_before_offboard.mode = "POSCTL";
 
 		offb_set_mode.request.custom_mode = "OFFBOARD";
 		if (!(set_FCU_mode_srv.call(offb_set_mode) && offb_set_mode.response.mode_sent))

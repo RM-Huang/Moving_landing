@@ -297,7 +297,7 @@ class Nodelet : public nodelet::Nodelet {
         {
           double T = traj.getTotalDuration();
           // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || vision_stamp ) ) // if target msg dosen't refresh
+          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
           {
             generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::FOLLOW;

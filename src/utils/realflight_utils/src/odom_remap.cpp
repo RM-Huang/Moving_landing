@@ -16,7 +16,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geodesy/utm.h>
 // #include </home/nuc/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
-#include </home/pc205/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
+// #include </home/pc205/Moving_landing/devel/include/chcnav/hcinspvatzcb.h>
 #include <car_odom_server/car_status.h>
 #include <car_odom_server/SerialPort.h>
 #include <apriltag_ros/AprilTagDetection.h>
@@ -97,6 +97,7 @@ private:
     std_msgs::Float64 vision_statu;
     int source = 0;
     int vision_source = 0;
+    int use_vis = 1;
     Eigen::Quaterniond vision_ori;
     Eigen::Vector3d vision_position;
 
@@ -112,7 +113,7 @@ private:
         // vision_time = static_cast<double>(transform.header.stamp.Sec)+static_cast<double>(transform.header.stamp.NSec)/1e9;
         vision_position.x() = transform.detections[0].pose.pose.pose.position.x;
         vision_position.y() = transform.detections[0].pose.pose.pose.position.y;
-        vision_position.z() = -transform.detections[0].pose.pose.pose.position.z;
+        vision_position.z() = transform.detections[0].pose.pose.pose.position.z;
 
         vision_ori.w() = transform.detections[0].pose.pose.pose.orientation.w;
         vision_ori.x() = -transform.detections[0].pose.pose.pose.orientation.x;
@@ -332,6 +333,64 @@ private:
         }
     }
 
+    // void gtruth_const_bias_cal()
+    // {
+    //     // Eigen::Quaterniond car_qua_bias;
+    //     bias_c += 1;
+
+    //     gtruth_pos_bias.x = gtruth_pos_bias.x + gtruth.pose.pose.position.x;
+    //     gtruth_pos_bias.y = gtruth_pos_bias.y + gtruth.pose.pose.position.y;
+    //     gtruth_pos_bias.z = gtruth_pos_bias.z + gtruth.pose.pose.position.z;
+
+    //     // tf::quaternionMsgToTF(gtruth.pose.pose.orientation, gtruth_Q2T);
+    //     // tf::Matrix3x3(gtruth_Q2T).getRPY(gtruth_rpy.x, gtruth_rpy.y, gtruth_rpy.z);
+
+    //     // gtruth_rpy_bias.x = gtruth_rpy_bias.x + gtruth_rpy.x;
+    //     // gtruth_rpy_bias.y = gtruth_rpy_bias.y + gtruth_rpy.y;
+    //     // gtruth_rpy_bias.z = gtruth_rpy_bias.z + gtruth_rpy.z;
+    //     if(issimulation)
+    //     {
+    //         CU_pos_init_differ.x = car_odom_sim.pose.pose.position.x;
+    //         CU_pos_init_differ.y = car_odom_sim.pose.pose.position.y;
+    //         CU_pos_init_differ.z = car_odom_sim.pose.pose.position.z;
+    //         car_qua_bias.w() = car_odom_sim.pose.pose.orientation.w;
+    //         car_qua_bias.x() = car_odom_sim.pose.pose.orientation.x;
+    //         car_qua_bias.y() = car_odom_sim.pose.pose.orientation.y;
+    //         car_qua_bias.z() = car_odom_sim.pose.pose.orientation.z;
+    //         calibration = true;
+    //     }
+    //     else
+    //     {
+    //         geometry_msgs::Vector3 car_rpy_bias;
+    //         CU_pos_init_differ.x += car_odom.px;
+    //         CU_pos_init_differ.y += car_odom.py;
+    //         CU_pos_init_differ.z += car_odom.pz;
+    //         car_rpy_bias.x = car_odom.roll;
+    //         car_rpy_bias.y = car_odom.pitch;
+    //         car_rpy_bias.z = car_odom.yaw;
+    //         Eigen::AngleAxisd roll(Eigen::AngleAxisd(car_rpy_bias.x,Eigen::Vector3d::UnitX()));
+    //         Eigen::AngleAxisd pitch(Eigen::AngleAxisd(car_rpy_bias.y,Eigen::Vector3d::UnitY()));
+    //         Eigen::AngleAxisd yaw(Eigen::AngleAxisd(car_rpy_bias.z,Eigen::Vector3d::UnitZ()));
+    //         Eigen::Quaterniond cur_qua_bias = roll * pitch * yaw;
+
+    //         car_qua_bias.w() += cur_qua_bias.w();
+    //         car_qua_bias.x() += cur_qua_bias.x();
+    //         car_qua_bias.y() += cur_qua_bias.y();
+    //         car_qua_bias.z() += cur_qua_bias.z();
+    //         // std::cout<<"CU_pos_init_differ = "<<CU_pos_init_differ.x<<" "<<CU_pos_init_differ.y<<CU_pos_init_differ.z<<std::endl;
+    //         calibration = true;
+    //     }
+        
+    //     gtruth_qua_bias.w() += gtruth.pose.pose.orientation.w;
+    //     gtruth_qua_bias.x() += gtruth.pose.pose.orientation.x;
+    //     gtruth_qua_bias.y() += gtruth.pose.pose.orientation.y;
+    //     gtruth_qua_bias.z() += gtruth.pose.pose.orientation.z; //debug
+
+    //     // std::cout<<"bias_c = "<<bias_c<<std::endl;
+    //     // std::cout<<"delta_r_tol = "<<gtruth_rpy_bias.x<<" delta_p_tol = "<<gtruth_rpy_bias.y<<" delta_y_tol = "<<gtruth_rpy_bias.z<<std::endl;
+    //     // std::cout<<"delta_t_tol = "<<gtruth_time_delay<<" delta_x_tol = "<<gtruth_pos_bias.x<<" delta_y_tol = "<<gtruth_pos_bias.y<<" delta_z_tol = "<<gtruth_pos_bias.z<<std::endl;
+    // }
+
     void gtruth_const_bias_cal()
     {
         // Eigen::Quaterniond car_qua_bias;
@@ -347,6 +406,7 @@ private:
         // gtruth_rpy_bias.x = gtruth_rpy_bias.x + gtruth_rpy.x;
         // gtruth_rpy_bias.y = gtruth_rpy_bias.y + gtruth_rpy.y;
         // gtruth_rpy_bias.z = gtruth_rpy_bias.z + gtruth_rpy.z;
+
         if(issimulation)
         {
             CU_pos_init_differ.x = car_odom_sim.pose.pose.position.x;
@@ -356,6 +416,11 @@ private:
             car_qua_bias.x() = car_odom_sim.pose.pose.orientation.x;
             car_qua_bias.y() = car_odom_sim.pose.pose.orientation.y;
             car_qua_bias.z() = car_odom_sim.pose.pose.orientation.z;
+
+            gtruth_qua_bias.w() += gtruth.pose.pose.orientation.w;
+            gtruth_qua_bias.x() += gtruth.pose.pose.orientation.x;
+            gtruth_qua_bias.y() += gtruth.pose.pose.orientation.y;
+            gtruth_qua_bias.z() += gtruth.pose.pose.orientation.z; //debug
             calibration = true;
         }
         else
@@ -377,18 +442,23 @@ private:
             car_qua_bias.y() += cur_qua_bias.y();
             car_qua_bias.z() += cur_qua_bias.z();
             // std::cout<<"CU_pos_init_differ = "<<CU_pos_init_differ.x<<" "<<CU_pos_init_differ.y<<CU_pos_init_differ.z<<std::endl;
+            gtruth_qua_bias.w() += cur_qua_bias.w();
+            gtruth_qua_bias.x() += cur_qua_bias.x();
+            gtruth_qua_bias.y() += cur_qua_bias.y();
+            gtruth_qua_bias.z() += cur_qua_bias.z(); //debug
             calibration = true;
         }
         
-        gtruth_qua_bias.w() += gtruth.pose.pose.orientation.w;
-        gtruth_qua_bias.x() += gtruth.pose.pose.orientation.x;
-        gtruth_qua_bias.y() += gtruth.pose.pose.orientation.y;
-        gtruth_qua_bias.z() += gtruth.pose.pose.orientation.z; //debug
+        // gtruth_qua_bias.w() += gtruth.pose.pose.orientation.w;
+        // gtruth_qua_bias.x() += gtruth.pose.pose.orientation.x;
+        // gtruth_qua_bias.y() += gtruth.pose.pose.orientation.y;
+        // gtruth_qua_bias.z() += gtruth.pose.pose.orientation.z; //debug
 
         // std::cout<<"bias_c = "<<bias_c<<std::endl;
         // std::cout<<"delta_r_tol = "<<gtruth_rpy_bias.x<<" delta_p_tol = "<<gtruth_rpy_bias.y<<" delta_y_tol = "<<gtruth_rpy_bias.z<<std::endl;
         // std::cout<<"delta_t_tol = "<<gtruth_time_delay<<" delta_x_tol = "<<gtruth_pos_bias.x<<" delta_y_tol = "<<gtruth_pos_bias.y<<" delta_z_tol = "<<gtruth_pos_bias.z<<std::endl;
     }
+
 
     void imuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg)
     {
@@ -540,15 +610,142 @@ private:
         }
     }
 
+    // void car_motion_cal(Eigen::Quaterniond& qua, Eigen::Vector3d& pos, Eigen::Vector3d& lin_vel, Eigen::Vector3d& ekf_error)
+    // {
+    // 	int sour_last = source;
+    //     Eigen::Vector3d l_v(car_odom.vx, car_odom.vy, car_odom.vz);
+    //     lin_vel = car_qua_bias.inverse() * l_v; 
+    //     lin_vel[2] = 0.0;
+    //     // lin_vel = gtruth_qua_bias.inverse() * l_v; 
+    //     // lin_vel = l_v;
+    //     if(vision_position.x() == 0 && vision_position.y() == 0 && vision_position.z() == 0 && vision_ori.w() == 0 && vision_ori.x() ==0 && vision_ori.y() == 0 && vision_ori.z()==0)
+    //     {
+    //         Eigen::Quaterniond car_orientation;
+    //         Eigen::Vector3d p(car_odom.px, car_odom.py, car_odom.pz);
+    //         Eigen::Vector3d p_bias(CU_pos_init_differ.x, CU_pos_init_differ.y, CU_pos_init_differ.z);
+    //         // Eigen::Vector3d l_v(0,0,0);
+    //         // Eigen::Vector3d a_v(0,0,0);
+
+    //         Eigen::AngleAxisd roll(Eigen::AngleAxisd(car_odom.roll,Eigen::Vector3d::UnitX()));
+    //         Eigen::AngleAxisd pitch(Eigen::AngleAxisd(car_odom.pitch,Eigen::Vector3d::UnitY()));
+    //         Eigen::AngleAxisd yaw(Eigen::AngleAxisd(car_odom.yaw,Eigen::Vector3d::UnitZ()));
+
+    //         car_orientation = roll * pitch * yaw;
+    //         qua = car_qua_bias.inverse() * car_orientation;
+
+    //         qua.w() = 1;
+    //         qua.x() = 0;
+    //         qua.y() = 0;
+    //         qua.z() = 0; //debug
+
+    //         pos = car_qua_bias.inverse() * (p - p_bias);
+    //         // pos[2] = pos[2] - 0.05; // move gps center to camera
+    //         pos[2] = 0.0;
+            
+    //         source = 0;
+    //         flag = 1;
+    //     }
+    //     else if(vision_source == 0)
+    //     {
+    //         Eigen::Quaterniond cal_a;
+    //         Eigen::Quaterniond cal_b;
+    //         Eigen::Vector3d vision_pose_cal;
+    //         Eigen::Quaterniond vision_ori_cal;
+    //         Eigen::Vector3d uav_v_position;
+    //         Eigen::Quaterniond uav_v_orientation;
+    //         Eigen::Vector3d uav_v_position_117;
+    //         Eigen::Quaterniond uav_v_orientation_117;
+
+    //         cal_a.w()=0.707;
+    //         cal_a.x()=0;
+    //         cal_a.y()=0;
+    //         cal_a.z()=0.707;
+                        
+    //         cal_b.w()=0 ;
+    //         cal_b.x()=1;
+    //         cal_b.y()=0;
+    //         cal_b.z()=0;
+
+    //         //vision_ori_cal = cal_a*cal_b;
+    //         vision_ori_cal = cal_b;
+    //         vision_ori_cal.normalize();
+    //         vision_pose_cal.x()=0.04083589;
+    //         vision_pose_cal.y()= -0.006509123;
+    //         vision_pose_cal.z()=0.14074158;        
+    //         //Eigen::Vector3d uav_v_position = cal_a*cal_a.inverse()*vision_ori_cal *(vision_position + vision_pose_cal );
+    //         //Eigen::Quaterniond uav_v_orientation = cal_a*vision_ori_cal * vision_ori;
+    //         uav_v_position =  cal_a.inverse() * (vision_position + vision_pose_cal);
+    //         uav_v_orientation = vision_ori_cal.inverse() * vision_ori;
+    //         //vision_local_orientation.normalize();
+    //         uav_v_position_117.x() = uav_v_position.x()-0.03;//-0.13;//bianxiao
+    //         uav_v_position_117.y() = -uav_v_position.y()-0.143;//-0.145;//bianxiao
+    //         uav_v_position_117.z() = -uav_v_position.z()+0.04;;
+    //         uav_v_orientation_117.w() = -uav_v_orientation.w();
+    //         uav_v_orientation_117.x() = uav_v_orientation.x();
+    //         uav_v_orientation_117.y() = -uav_v_orientation.y();
+    //         uav_v_orientation_117.z() = uav_v_orientation.z();
+            
+    //         pos = uav_position - uav_orientation * uav_v_position_117;   //uav_orientation改成实时的无人机位置信息
+    //         qua = uav_orientation * uav_v_orientation_117.inverse();               //uav_position同上
+
+    //         /* debug msg */
+    //         geometry_msgs::Pose vision_raw;
+    //         vision_raw.orientation.w = qua.w();
+    //         vision_raw.orientation.x = qua.x();
+    //         vision_raw.orientation.y = qua.y();
+    //         vision_raw.orientation.z = qua.z();
+    //         vision_raw.position.x = pos[0];
+    //         vision_raw.position.y = pos[1];
+    //         vision_raw.position.z = pos[2];
+    //         vision_rawPub.publish(vision_raw);
+
+    //         car_ekf_handler(flag, pos, lin_vel, ekf_error);
+    //         //qua.z() = qua.z();
+    //         qua.x() = 0;
+    //         qua.y() = 0;
+    //         qua.normalize();
+            
+    //         source = 1;
+    //     }
+    //     else if(vision_source == 1)
+    //     {
+    //         qua = uav_orientation * vision_ori;
+    //         pos = uav_position - uav_orientation * vision_position;
+    //         pos[2] -= 0.23;
+    //         source = 1;
+    //     }
+    //     // lin_vel = gtruth_qua_bias.inverse() * l_v; 
+    //     vision_statu.data = source;
+        
+    //     if(sour_last != source)
+    //     {
+    //         if(source == 0)
+    //         {
+    //         	ROS_INFO("[odom_remap]: Change odom source to gps!");
+    //         }
+    //         else
+    //         {
+    //            ROS_INFO("[odom_remap]: Change odom source to vision!");
+    //         }
+    //     }
+    // }
+
+
+
+
     void car_motion_cal(Eigen::Quaterniond& qua, Eigen::Vector3d& pos, Eigen::Vector3d& lin_vel, Eigen::Vector3d& ekf_error)
     {
     	int sour_last = source;
+        Eigen::Vector3d rtk_pos;
+        Eigen::Vector3d vis_pos;
+        Eigen::Quaterniond rtk_qua;
+        Eigen::Quaterniond vis_qua;
         Eigen::Vector3d l_v(car_odom.vx, car_odom.vy, car_odom.vz);
         lin_vel = car_qua_bias.inverse() * l_v; 
         lin_vel[2] = 0.0;
         // lin_vel = gtruth_qua_bias.inverse() * l_v; 
         // lin_vel = l_v;
-        if(vision_position.x() == 0 && vision_position.y() == 0 && vision_position.z() == 0 && vision_ori.w() == 0 && vision_ori.x() ==0 && vision_ori.y() == 0 && vision_ori.z()==0)
+        if(use_vis != 1 || (vision_position.x() == 0 && vision_position.y() == 0 && vision_position.z() == 0 && vision_ori.w() == 0 && vision_ori.x() ==0 && vision_ori.y() == 0 && vision_ori.z()==0))
         {
             Eigen::Quaterniond car_orientation;
             Eigen::Vector3d p(car_odom.px, car_odom.py, car_odom.pz);
@@ -562,11 +759,11 @@ private:
 
             car_orientation = roll * pitch * yaw;
             qua = car_qua_bias.inverse() * car_orientation;
-
-            qua.w() = 1;
-            qua.x() = 0;
-            qua.y() = 0;
-            qua.z() = 0; //debug
+            
+            //qua.w() = 1;
+            //qua.x() = 0;
+            //qua.y() = 0;
+            //qua.z() = 0; //debug
 
             pos = car_qua_bias.inverse() * (p - p_bias);
             // pos[2] = pos[2] - 0.05; // move gps center to camera
@@ -575,75 +772,141 @@ private:
             source = 0;
             flag = 1;
         }
-        else if(vision_source == 0)
+        if(!(vision_position.x() == 0 && vision_position.y() == 0 && vision_position.z() == 0 && vision_ori.w() == 0 && vision_ori.x() ==0 && vision_ori.y() == 0 && vision_ori.z()==0))
         {
-            Eigen::Quaterniond cal_a;
-            Eigen::Quaterniond cal_b;
-            Eigen::Vector3d vision_pose_cal;
-            Eigen::Quaterniond vision_ori_cal;
-            Eigen::Vector3d uav_v_position;
-            Eigen::Quaterniond uav_v_orientation;
-            Eigen::Vector3d uav_v_position_117;
-            Eigen::Quaterniond uav_v_orientation_117;
+            if(vision_source == 0)
+            {
+                source = 1;
+                // cal_a.w()=0.707;
+                // cal_a.x()=0;
+                // cal_a.y()=0;
+                // cal_a.z()=0.707;
+                            
+                // cal_b.w()=0 ;
+                // cal_b.x()=1;
+                // cal_b.y()=0;
+                // cal_b.z()=0;
 
-            cal_a.w()=0.707;
-            cal_a.x()=0;
-            cal_a.y()=0;
-            cal_a.z()=0.707;
-                        
-            cal_b.w()=0 ;
-            cal_b.x()=1;
-            cal_b.y()=0;
-            cal_b.z()=0;
+                // //vision_ori_cal = cal_a*cal_b;
+                // vision_ori_cal = cal_b;
+                // vision_ori_cal.normalize();
+                // vision_pose_cal.x()=0.14083589;
+                // vision_pose_cal.y()= -0.006509123;
+                // vision_pose_cal.z()=0.14074158;        
+                // //Eigen::Vector3d uav_v_position = cal_a*cal_a.inverse()*vision_ori_cal *(vision_position + vision_pose_cal );
+                // //Eigen::Quaterniond uav_v_orientation = cal_a*vision_ori_cal * vision_ori;
+                // uav_v_position =  cal_a.inverse() * (vision_position + vision_pose_cal);
+                // uav_v_orientation = vision_ori_cal.inverse() * vision_ori;
+                // //vision_local_orientation.normalize();
+                // uav_v_position_117.x() = uav_v_position.x()-0.03;//-0.13;//bianxiao
+                // uav_v_position_117.y() = -uav_v_position.y()-0.143;//-0.145;//bianxiao
+                // uav_v_position_117.z() = -uav_v_position.z()+0.04;;
+                // uav_v_orientation_117.w() = -uav_v_orientation.w();
+                // uav_v_orientation_117.x() = uav_v_orientation.x();
+                // uav_v_orientation_117.y() = -uav_v_orientation.y();
+                // uav_v_orientation_117.z() = uav_v_orientation.z();
+                
+                // pos = uav_position - uav_orientation * uav_v_position_117;   //uav_orientation改成实时的无人机位置信息
+                // qua = uav_orientation * uav_v_orientation_117.inverse();               //uav_position同上
+                Eigen::Vector3d vision_pose_cal;
+                Eigen::Quaterniond vision_ori_cal;
+                Eigen::Vector3d angular;
+                Eigen::Vector3d vision_ori_right;
+                Eigen::Vector3d camera_position;
+                Eigen::Quaterniond camera_ori;
+                Eigen::Vector3d april_local_position;
+                Eigen::Quaterniond april_local_ori;
+                Eigen::Quaterniond vision_quaternion;
+                vision_pose_cal.x() = - vision_position.y();
+                vision_pose_cal.y() = - vision_position.x();
+                vision_pose_cal.z() = - vision_position.z();
+                Eigen::Quaterniond cal(0,1,0,0);
+                //Eigen::Quaterniond cal_a(0.707,0,0,0.707);
+                //Eigen::Quaterniond cal = cal_a*cal_b;
+                vision_quaternion = cal.inverse() * vision_ori;
+                camera_ori.w() = -vision_quaternion.w();
+                camera_ori.x() = vision_quaternion.x();
+                camera_ori.y() = -vision_quaternion.y();
+                camera_ori.z() = vision_quaternion.z();
+                // uav_v_orientation_117.w() = -uav_v_orientation.w();
+                // uav_v_orientation_117.x() = uav_v_orientation.x();
+                // uav_v_orientation_117.y() = -uav_v_orientation.y();
+                // uav_v_orientation_117.z() = uav_v_orientation.z();
+                // Eigen::Vector3d euler_angles = cal_a.toRotationMatrix().eulerAngles(2, 1, 0);
+                // vision_ori_right =  euler_angles;
+                // if (euler_angles[0]>1.57){
+                //     vision_ori_right[0] =  euler_angles[0] - M_PI;
+                // }
+                // else if(euler_angles[0]< -1.57){
+                //     vision_ori_right[0] =  - euler_angles[0] + M_PI;
+                // }else{
+                //     ROS_INFO("Over 90 degree");
+                // }
+                
+                
 
-            //vision_ori_cal = cal_a*cal_b;
-            vision_ori_cal = cal_b;
-            vision_ori_cal.normalize();
-            vision_pose_cal.x()=0.14083589;
-            vision_pose_cal.y()= -0.006509123;
-            vision_pose_cal.z()=0.14074158;        
-            //Eigen::Vector3d uav_v_position = cal_a*cal_a.inverse()*vision_ori_cal *(vision_position + vision_pose_cal );
-            //Eigen::Quaterniond uav_v_orientation = cal_a*vision_ori_cal * vision_ori;
-            uav_v_position =  cal_a.inverse() * (vision_position + vision_pose_cal);
-            uav_v_orientation = vision_ori_cal.inverse() * vision_ori;
-            //vision_local_orientation.normalize();
-            uav_v_position_117.x() = uav_v_position.x()-0.03;//-0.13;//bianxiao
-            uav_v_position_117.y() = -uav_v_position.y()-0.143;//-0.145;//bianxiao
-            uav_v_position_117.z() = -uav_v_position.z()+0.04;;
-            uav_v_orientation_117.w() = -uav_v_orientation.w();
-            uav_v_orientation_117.x() = uav_v_orientation.x();
-            uav_v_orientation_117.y() = -uav_v_orientation.y();
-            uav_v_orientation_117.z() = uav_v_orientation.z();
-            
-            pos = uav_position - uav_orientation * uav_v_position_117;   //uav_orientation改成实时的无人机位置信息
-            qua = uav_orientation * uav_v_orientation_117.inverse();               //uav_position同上
+                // angular[2] =  -vision_ori_right[1];
+                // angular[1] =  -vision_ori_right[2];
+                // angular[0] =  vision_ori_right[0];
+                // Eigen::Vector3d to_vision = uav_orientation.toRotationMatrix().eulerAngles(2, 1, 0);
+                // Eigen::AngleAxisd rollAngle(Eigen::AngleAxisd(-to_vision(2), Eigen::Vector3d::UnitX()));
+                // Eigen::AngleAxisd pitchAngle(Eigen::AngleAxisd(-to_vision(1), Eigen::Vector3d::UnitY()));
+                // Eigen::AngleAxisd yawAngle(Eigen::AngleAxisd(angular(0), Eigen::Vector3d::UnitZ()));
+                // Eigen::Quaterniond vision_quaternion;
+                // vision_quaternion = yawAngle * pitchAngle * rollAngle;
 
-            /* debug msg */
-            geometry_msgs::Pose vision_raw;
-            vision_raw.orientation.w = qua.w();
-            vision_raw.orientation.x = qua.x();
-            vision_raw.orientation.y = qua.y();
-            vision_raw.orientation.z = qua.z();
-            vision_raw.position.x = pos[0];
-            vision_raw.position.y = pos[1];
-            vision_raw.position.z = pos[2];
-            vision_rawPub.publish(vision_raw);
+                // camera_position = uav_position +  uav_orientation * Eigen::Vector3d(0.01,0.01,-0.14) + Eigen::Vector3d(0,0,0); 
+                camera_position = uav_position +  uav_orientation * Eigen::Vector3d(0.01,0.01,-0.14) + Eigen::Vector3d(0,0,0.265); 
+                camera_ori = uav_orientation;  
+                april_local_position = camera_ori * vision_pose_cal + camera_position;
+                april_local_ori = uav_orientation * uav_orientation.inverse();
+                vis_pos = april_local_position;
+                vis_qua = april_local_ori;
 
-            car_ekf_handler(flag, pos, lin_vel, ekf_error);
-            //qua.z() = qua.z();
-            qua.x() = 0;
-            qua.y() = 0;
-            qua.normalize();
-            
-            source = 1;
+
+                // wh
+                // double w = 0.4;
+                // vis_filter(pos,vis_last,w);
+                // vis_last = pos;
+
+                /* debug msg */
+                geometry_msgs::Pose vision_raw;
+                vision_raw.orientation.w = vis_qua.w();
+                vision_raw.orientation.x = vis_qua.x();
+                vision_raw.orientation.y = vis_qua.y();
+                vision_raw.orientation.z = vis_qua.z();
+                vision_raw.position.x = vis_pos[0];
+                vision_raw.position.y = vis_pos[1];
+                vision_raw.position.z = vis_pos[2];
+                vision_rawPub.publish(vision_raw);
+
+                car_ekf_handler(flag, vis_pos, lin_vel, ekf_error);
+                //vis_qua.z() = vis_qua.z();
+                vis_qua.x() = 0;
+                vis_qua.y() = 0;
+                vis_qua.normalize();
+                if(use_vis == 0)
+                {
+                    if(fabs(vision_position[2]) < 0.5)
+                    {
+                        // std::cout<<"pos[2] = vis_pos[2]-----------------------"<<std::endl;
+                        pos[2] = vis_pos[2];
+                    }
+                }else
+                {
+                    pos = vis_pos;
+                    qua = vis_qua;
+                }
+            }
+            else if(vision_source == 1)
+            {
+                qua = uav_orientation * vision_ori;
+                pos = uav_position - uav_orientation * vision_position;
+                pos[2] -= 0.23;
+                source = 1;
+            }
         }
-        else if(vision_source == 1)
-        {
-            qua = uav_orientation * vision_ori;
-            pos = uav_position - uav_orientation * vision_position;
-            pos[2] -= 0.23;
-            source = 1;
-        }
+
         // lin_vel = gtruth_qua_bias.inverse() * l_v; 
         vision_statu.data = source;
         
@@ -659,6 +922,9 @@ private:
             }
         }
     }
+
+
+
 
     void car_motion_cal_sim(Eigen::Quaterniond& qua, Eigen::Vector3d& pos)
     {
@@ -963,6 +1229,7 @@ private:
         nh.param("simulation", issimulation, false); 
         // nh.param("car_odom_remap", car_odom_remap, 0); // 1 for remap car odom
         nh.param("vision_source", vision_source, 0); // 0 for aprilTag, 1 for infrared
+        nh.param("use_vis", use_vis, 1); 
 
         gtruth_pos_bias.x = 0;
         gtruth_pos_bias.y = 0;
