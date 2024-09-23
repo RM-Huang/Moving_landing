@@ -139,11 +139,11 @@ class CmdVel2Gazebo:
         turn = 0.0
 
         if ch == 'w':
-            vel_acc = 6 / self.hz
+            vel_acc = 10 / self.hz
             direction = 1
             turn = 0
         elif ch == 's':
-            vel_acc = 6 / self.hz
+            vel_acc = 10 / self.hz
             direction = -1
             turn = 0
         elif ch == 'a':
@@ -182,7 +182,7 @@ class CmdVel2Gazebo:
         #     self.x = self.x + direction * vel_acc + min(0.2, -self.x)
         # else:
         self.x = self.x + direction * vel_acc
-        self.x = max(-6, min(self.x, 6))
+        self.x = max(-18, min(self.x, 18))
         # self.x = self.x / 3
 
         # if ang_acc != 0:
