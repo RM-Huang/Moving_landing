@@ -102,6 +102,7 @@ private:
     Eigen::Vector3d vision_position;
 
     /* car ekf param */
+    Ekf::LinearCV ekf_lcv;
     int flag = 1;//跳转flag数据,(无视觉1,刚进入视觉2,在视觉中0)
     std::vector<double> error_detect_list_x;
     std::vector<double> error_detect_list_y;
@@ -557,28 +558,28 @@ private:
     {
         if(flag == 0){//视觉数据进行         
             //1.估计值   
-            Ekf::filter_calibrate(pos(0), pos(1), pos(2), 
+            ekf_lcv.filter_calibrate(pos(0), pos(1), pos(2), 
                                   vel(0), vel(1), vel(2));
 
-            pos[0] = Ekf::x_x[0];
-            pos[1] = Ekf::x_y[0];
-            pos[2] = Ekf::x_z[0];
+            pos[0] = ekf_lcv.x_x[0];
+            pos[1] = ekf_lcv.x_y[0];
+            pos[2] = ekf_lcv.x_z[0];
 
             //2.段时间误差值输出
             //2.1)储存25个观测误差值
-            error_detect_list_x = Ekf::list_cb(Ekf::err_x[0]);
-            error_detect_list_y = Ekf::list_cb(Ekf::err_y[0]);
-            error_detect_list_z = Ekf::list_cb(Ekf::err_z[0]);
+            error_detect_list_x = ekf_lcv.list_cb(ekf_lcv.err_x[0]);
+            error_detect_list_y = ekf_lcv.list_cb(ekf_lcv.err_y[0]);
+            error_detect_list_z = ekf_lcv.list_cb(ekf_lcv.err_z[0]);
 
             //2.2)生成权重
             double stamp=0;
-            for(int i = 0; i < Ekf::_MAX_SEG; i++){
+            for(int i = 0; i < ekf_lcv._MAX_SEG; i++){
                 list_time.push_back(stamp);
                 stamp = stamp + 0.005; 
             }
               //tanh weight
-            for(int i = 0; i < Ekf::_MAX_SEG; i++){
-                double tanh_input = list_time[Ekf::_MAX_SEG - 1] - list_time[i];
+            for(int i = 0; i < ekf_lcv._MAX_SEG; i++){
+                double tanh_input = list_time[ekf_lcv._MAX_SEG - 1] - list_time[i];
                 if(!tanh_input){
                     weight_list.push_back(1);
                 }
@@ -588,7 +589,7 @@ private:
                 }
             }
             //2.3)求和
-            for(int i = 0; i < Ekf::_MAX_SEG; i++){
+            for(int i = 0; i < ekf_lcv._MAX_SEG; i++){
                     ekf_error[0] = ekf_error[0] + weight_list[i]*error_detect_list_x[i];//x轴
                     ekf_error[1] = ekf_error[1] + weight_list[i]*error_detect_list_y[i];//y轴
                     ekf_error[2] = ekf_error[2] + weight_list[i]*error_detect_list_z[i];//z轴
@@ -597,141 +598,18 @@ private:
         }
         else if(flag == 1){//刚进入视觉
             //初始化
-            Ekf::x_x << pos(0),vel(0);    
-            Ekf::x_y << pos(1),vel(1);        
-            Ekf::x_z << pos(2),vel(2);  
-            Ekf::P_x << 1000, 0,  0,1000;  Ekf::P_y << 1000, 0,  0,1000;  Ekf::P_z << 1000, 0,  0,1000;
+            ekf_lcv.x_x << pos(0),vel(0);    
+            ekf_lcv.x_y << pos(1),vel(1);        
+            ekf_lcv.x_z << pos(2),vel(2);  
+            ekf_lcv.P_x << 1000, 0,  0,1000;  ekf_lcv.P_y << 1000, 0,  0,1000;  ekf_lcv.P_z << 1000, 0,  0,1000;
 
             flag = 0;
 
-            Ekf::x_x_old = Ekf::x_x;
-            Ekf::x_y_old = Ekf::x_y;
-            Ekf::x_z_old = Ekf::x_z;
+            ekf_lcv.x_x_old = ekf_lcv.x_x;
+            ekf_lcv.x_y_old = ekf_lcv.x_y;
+            ekf_lcv.x_z_old = ekf_lcv.x_z;
         }
     }
-
-    // void car_motion_cal(Eigen::Quaterniond& qua, Eigen::Vector3d& pos, Eigen::Vector3d& lin_vel, Eigen::Vector3d& ekf_error)
-    // {
-    // 	int sour_last = source;
-    //     Eigen::Vector3d l_v(car_odom.vx, car_odom.vy, car_odom.vz);
-    //     lin_vel = car_qua_bias.inverse() * l_v; 
-    //     lin_vel[2] = 0.0;
-    //     // lin_vel = gtruth_qua_bias.inverse() * l_v; 
-    //     // lin_vel = l_v;
-    //     if(vision_position.x() == 0 && vision_position.y() == 0 && vision_position.z() == 0 && vision_ori.w() == 0 && vision_ori.x() ==0 && vision_ori.y() == 0 && vision_ori.z()==0)
-    //     {
-    //         Eigen::Quaterniond car_orientation;
-    //         Eigen::Vector3d p(car_odom.px, car_odom.py, car_odom.pz);
-    //         Eigen::Vector3d p_bias(CU_pos_init_differ.x, CU_pos_init_differ.y, CU_pos_init_differ.z);
-    //         // Eigen::Vector3d l_v(0,0,0);
-    //         // Eigen::Vector3d a_v(0,0,0);
-
-    //         Eigen::AngleAxisd roll(Eigen::AngleAxisd(car_odom.roll,Eigen::Vector3d::UnitX()));
-    //         Eigen::AngleAxisd pitch(Eigen::AngleAxisd(car_odom.pitch,Eigen::Vector3d::UnitY()));
-    //         Eigen::AngleAxisd yaw(Eigen::AngleAxisd(car_odom.yaw,Eigen::Vector3d::UnitZ()));
-
-    //         car_orientation = roll * pitch * yaw;
-    //         qua = car_qua_bias.inverse() * car_orientation;
-
-    //         qua.w() = 1;
-    //         qua.x() = 0;
-    //         qua.y() = 0;
-    //         qua.z() = 0; //debug
-
-    //         pos = car_qua_bias.inverse() * (p - p_bias);
-    //         // pos[2] = pos[2] - 0.05; // move gps center to camera
-    //         pos[2] = 0.0;
-            
-    //         source = 0;
-    //         flag = 1;
-    //     }
-    //     else if(vision_source == 0)
-    //     {
-    //         Eigen::Quaterniond cal_a;
-    //         Eigen::Quaterniond cal_b;
-    //         Eigen::Vector3d vision_pose_cal;
-    //         Eigen::Quaterniond vision_ori_cal;
-    //         Eigen::Vector3d uav_v_position;
-    //         Eigen::Quaterniond uav_v_orientation;
-    //         Eigen::Vector3d uav_v_position_117;
-    //         Eigen::Quaterniond uav_v_orientation_117;
-
-    //         cal_a.w()=0.707;
-    //         cal_a.x()=0;
-    //         cal_a.y()=0;
-    //         cal_a.z()=0.707;
-                        
-    //         cal_b.w()=0 ;
-    //         cal_b.x()=1;
-    //         cal_b.y()=0;
-    //         cal_b.z()=0;
-
-    //         //vision_ori_cal = cal_a*cal_b;
-    //         vision_ori_cal = cal_b;
-    //         vision_ori_cal.normalize();
-    //         vision_pose_cal.x()=0.04083589;
-    //         vision_pose_cal.y()= -0.006509123;
-    //         vision_pose_cal.z()=0.14074158;        
-    //         //Eigen::Vector3d uav_v_position = cal_a*cal_a.inverse()*vision_ori_cal *(vision_position + vision_pose_cal );
-    //         //Eigen::Quaterniond uav_v_orientation = cal_a*vision_ori_cal * vision_ori;
-    //         uav_v_position =  cal_a.inverse() * (vision_position + vision_pose_cal);
-    //         uav_v_orientation = vision_ori_cal.inverse() * vision_ori;
-    //         //vision_local_orientation.normalize();
-    //         uav_v_position_117.x() = uav_v_position.x()-0.03;//-0.13;//bianxiao
-    //         uav_v_position_117.y() = -uav_v_position.y()-0.143;//-0.145;//bianxiao
-    //         uav_v_position_117.z() = -uav_v_position.z()+0.04;;
-    //         uav_v_orientation_117.w() = -uav_v_orientation.w();
-    //         uav_v_orientation_117.x() = uav_v_orientation.x();
-    //         uav_v_orientation_117.y() = -uav_v_orientation.y();
-    //         uav_v_orientation_117.z() = uav_v_orientation.z();
-            
-    //         pos = uav_position - uav_orientation * uav_v_position_117;   //uav_orientation改成实时的无人机位置信息
-    //         qua = uav_orientation * uav_v_orientation_117.inverse();               //uav_position同上
-
-    //         /* debug msg */
-    //         geometry_msgs::Pose vision_raw;
-    //         vision_raw.orientation.w = qua.w();
-    //         vision_raw.orientation.x = qua.x();
-    //         vision_raw.orientation.y = qua.y();
-    //         vision_raw.orientation.z = qua.z();
-    //         vision_raw.position.x = pos[0];
-    //         vision_raw.position.y = pos[1];
-    //         vision_raw.position.z = pos[2];
-    //         vision_rawPub.publish(vision_raw);
-
-    //         car_ekf_handler(flag, pos, lin_vel, ekf_error);
-    //         //qua.z() = qua.z();
-    //         qua.x() = 0;
-    //         qua.y() = 0;
-    //         qua.normalize();
-            
-    //         source = 1;
-    //     }
-    //     else if(vision_source == 1)
-    //     {
-    //         qua = uav_orientation * vision_ori;
-    //         pos = uav_position - uav_orientation * vision_position;
-    //         pos[2] -= 0.23;
-    //         source = 1;
-    //     }
-    //     // lin_vel = gtruth_qua_bias.inverse() * l_v; 
-    //     vision_statu.data = source;
-        
-    //     if(sour_last != source)
-    //     {
-    //         if(source == 0)
-    //         {
-    //         	ROS_INFO("[odom_remap]: Change odom source to gps!");
-    //         }
-    //         else
-    //         {
-    //            ROS_INFO("[odom_remap]: Change odom source to vision!");
-    //         }
-    //     }
-    // }
-
-
-
 
     void car_motion_cal(Eigen::Quaterniond& qua, Eigen::Vector3d& pos, Eigen::Vector3d& lin_vel, Eigen::Vector3d& ekf_error)
     {
@@ -1202,23 +1080,23 @@ private:
     //     }
     // }
 
-    void ekf_param_init()
-    {
-        /* ekf param init */
-        double dt = 0.005;
-        double ep =  0.7; //位置标准差
-        double ev =  7; //速度标准差
-        //矩阵初始化
-        Ekf::F << 1, dt, 0, 1;
-        Ekf::H << 1.0, 0.0,  0.0, 1.0;
-        Ekf::R <<(ep*ep), 0,  0, (ev*ev);
-        //Q初始化
-        Eigen::MatrixXd E_V(2,2);
-        E_V << 0 ,0 ,0 , 0.1*0.1;
-        Ekf::Q = (Ekf::F) * E_V* (Ekf::F.transpose());
-        //状态变量初始化
-        Ekf::x_x_old << 0,0;     Ekf::x_y_old << 0,0;    Ekf::x_z_old << 0,0;
-    }
+    // void ekf_param_init()
+    // {
+    //     /* ekf param init */
+    //     double dt = 0.005;
+    //     double ep =  0.7; //位置标准差
+    //     double ev =  7; //速度标准差
+    //     //矩阵初始化
+    //     Ekf::F << 1, dt, 0, 1;
+    //     Ekf::H << 1.0, 0.0,  0.0, 1.0;
+    //     Ekf::R <<(ep*ep), 0,  0, (ev*ev);
+    //     //Q初始化
+    //     Eigen::MatrixXd E_V(2,2);
+    //     E_V << 0 ,0 ,0 , 0.1*0.1;
+    //     Ekf::Q = (Ekf::F) * E_V* (Ekf::F.transpose());
+    //     //状态变量初始化
+    //     Ekf::x_x_old << 0,0;     Ekf::x_y_old << 0,0;    Ekf::x_z_old << 0,0;
+    // }
 
     void init(ros::NodeHandle& nh)
     {
@@ -1276,7 +1154,7 @@ private:
 
                     vision_getPub = nh.advertise<std_msgs::Float64>("/vision_received", 1); 
                     // car_odom_server_init();
-                    ekf_param_init();
+                    ekf_lcv.init(50, 0.005);
                     car_odomSub = nh.subscribe("/chcnav/car_odom", 1, &odomRemap::carodomCallback, this);
                     // car_odom_timer = nh.createTimer(ros::Duration(0.01), &odomRemap::car_odom_Callback, this);
                 }

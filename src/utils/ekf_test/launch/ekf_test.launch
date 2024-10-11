@@ -1,6 +1,15 @@
 <launch>
 
     <node pkg="ekf_test" type="ekf_test" name="ekf_test" output="screen">
+        <param name="error_ah" value="0.1"/>
+        <param name="error_av" value="0.1"/>
+        <param name="error_ddtheta" value="0.1"/>
+        <param name="error_mpx" value="0.1"/>
+        <param name="error_mpy" value="0.1"/>
+        <param name="error_mpz" value="0.1"/>
+        <param name="error_mvx" value="0.1"/>
+        <param name="error_mvy" value="0.1"/>
+        <param name="error_mvz" value="0.1"/>
 	</node> 
 
 </launch>

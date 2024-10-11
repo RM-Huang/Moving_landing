@@ -34,6 +34,7 @@ include_directories(
 add_library(rcin_remap src/rcin_remap.cpp)
 add_library(odom_remap src/odom_remap.cpp)
 add_library(traj_analyse src/traj_analyse.cpp)
+add_library(ekf src/ekf_perching.cc)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

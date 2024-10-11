@@ -26,6 +26,7 @@ include_directories(
 
 add_executable(ekf_test 
   src/ekf_test.cpp
+  src/ekf_perching.cc
 )
 
 # add_dependencies(ekf_test car_odom_server)

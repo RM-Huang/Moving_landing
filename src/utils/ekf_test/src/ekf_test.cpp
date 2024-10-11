@@ -6,6 +6,7 @@
 #include <apriltag_ros/AprilTagDetectionArray.h>
 #include <ekf_test/ekf.hpp>
 
+Ekf::CTRV ekf_ctrv;
 nav_msgs::Odometry car_odom;
 geometry_msgs::Pose vision_msg;
 nav_msgs::Odometry gps_msg;
@@ -58,13 +59,42 @@ void handler()
     /* 在头文件中写好函数后在此调用 */
     if(odom_sub_tri = true)
     {
-        geometry_msgs::Point ekf_pos;
-    
-        ekf_pos.x = car_odom.pose.pose.position.x;
-        ekf_pos.y = car_odom.pose.pose.position.y;
-        ekf_pos.z = car_odom.pose.pose.position.z; // 此处暂时将输出值赋为未处理值
+        Eigen::Vector3d pos, vel;
+        Eigen::Quaterniond ori;
+        double theta;
 
-        ekf_pub.publish(ekf_pos);
+        pos << car_odom.pose.pose.position.x, car_odom.pose.pose.position.y, car_odom.pose.pose.position.z;
+        vel << car_odom.twist.twist.linear.x, car_odom.twist.twist.linear.y, car_odom.twist.twist.linear.z;
+        ori.w() = car_odom.pose.pose.orientation.w;
+        ori.x() = car_odom.pose.pose.orientation.x;
+        ori.y() = car_odom.pose.pose.orientation.y;
+        ori.z() = car_odom.pose.pose.orientation.z;
+
+        Eigen::Matrix3d rx = ori.toRotationMatrix();
+        Eigen::Vector3d eular = rx.eulerAngles(2,1,0);
+        theta = eular[2];
+
+        ekf_ctrv.update(pos, vel, theta);
+        Eigen::Quaterniond q = Eigen::AngleAxisd(ekf_ctrv.theta,Eigen::Vector3d::UnitZ())
+        * Eigen::AngleAxisd(eular[1],Eigen::Vector3d::UnitY())
+        * Eigen::AngleAxisd(eular[0],Eigen::Vector3d::UnitX());
+
+        nav_msgs::Odometry ekf_odom;
+        ekf_odom.pose.pose.position.x = ekf_ctrv.p_x;
+        ekf_odom.pose.pose.position.y = ekf_ctrv.p_y;
+        ekf_odom.pose.pose.position.z = ekf_ctrv.p_z; // 此处暂时将输出值赋为未处理值
+        ekf_odom.pose.pose.orientation.w = q.w();
+        ekf_odom.pose.pose.orientation.x = q.x();
+        ekf_odom.pose.pose.orientation.y = q.y();
+        ekf_odom.pose.pose.orientation.z = q.z();
+        ekf_odom.twist.twist.linear.x = ekf_ctrv.v_hor * cos(ekf_ctrv.theta);
+        ekf_odom.twist.twist.linear.y = ekf_ctrv.v_hor * sin(ekf_ctrv.theta);
+        ekf_odom.twist.twist.linear.z = ekf_ctrv.v_ver;
+        ekf_odom.twist.twist.angular.x = car_odom.twist.twist.angular.x;
+        ekf_odom.twist.twist.angular.y = car_odom.twist.twist.angular.y;
+        ekf_odom.twist.twist.angular.z = ekf_ctrv.delta_the;
+
+        ekf_pub.publish(ekf_odom);
     }
 }
 
@@ -73,10 +103,24 @@ int main(int argc, char *argv[])
     ros::init(argc, argv, "ekf_test");
     ros::NodeHandle nh("~");
 
-    ekf_pub = nh.advertise<geometry_msgs::Point>("/pose_ekf", 10);
+    ekf_pub = nh.advertise<nav_msgs::Odometry>("/pose_ekf", 10);
     ros::Subscriber odom_sub = nh.subscribe("/odom/remap/car", 1, &car_odom_Callback, ros::TransportHints().tcpNoDelay()); // 小车里程计话题，local坐标系
     ros::Subscriber vision_sub = nh.subscribe("/tag_detections", 1, &vision_Callback, ros::TransportHints().tcpNoDelay()); // 二维码话题，相机坐标系
     ros::Subscriber gps_sub = nh.subscribe("/odom/remap/car/raw", 1, &car_gps_Callback, ros::TransportHints().tcpNoDelay()); // 小车px4话题，东北天坐标系
+
+    double error_ah_, error_av_, error_ddtheta_;
+    Eigen::VectorXd e_measure_(6);
+    nh.param("error_ah", error_ah_, 0.1);
+    nh.param("error_av", error_av_, 0.1);
+    nh.param("error_ddtheta", error_ddtheta_, 0.1);
+    nh.param("error_mpx", e_measure_(0), 0.1);
+    nh.param("error_mpy", e_measure_(1), 0.1);
+    nh.param("error_mpz", e_measure_(2), 0.1);
+    nh.param("error_mvx", e_measure_(3), 0.1);
+    nh.param("error_mvy", e_measure_(4), 0.1);
+    nh.param("error_mvz", e_measure_(5), 0.1);
+
+    ekf_ctrv.init(50, 0.005, error_ah_, error_av_, error_ddtheta_, e_measure_);
 
     while (ros::ok())
     {
