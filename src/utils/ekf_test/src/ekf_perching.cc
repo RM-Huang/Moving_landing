@@ -65,6 +65,14 @@ namespace Ekf{
         return x_;
     }
 
+    void CTRV::estimate_err(){
+
+    }
+
+    void CTRV::estimate_acc(){
+
+    }
+
     void CTRV::update(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &the){
         // p_x = x(0);
         // p_y = x(1);
@@ -83,11 +91,26 @@ namespace Ekf{
         // update
         Eigen::MatrixXd K = P_pred * H.transpose() * (H * P_pred * H.transpose() + R).inverse(); // 7*6
         Eigen::VectorXd z(6);
-        z.segment(0,3) = pos;
-        z.segment(3,3) = vel;
-        z(6) = the;
+        z(0) = pos(0);
+        z(1) = pos(1);
+        z(2) = pos(2);
+        z(3) = sqrt(vel(0) * vel(0) + vel(1) * vel(1));
+        z(4) = vel(2);
+        z(5) = the;
         x = x_pred + K * (z - H * x_pred);
         P = (I - K * H) * P_pred;
+
+        predict_list.erase(predict_list.begin());
+        predict_list.push_back(x);
+
+        estimate_err();
+        estimate_acc();
+
+        //debug
+        printf("px:%6.3f, py:%6.3f, pz:%6.3f, vx:%6.3f, vy:%6.3f, vz:%6.3f\r",p_x,p_y,p_z,v_hor*cos(theta),v_hor*sin(theta),v_ver);
+        // Eigen::Vector3d ekf_err = ekf_err_list.back();
+        // printf("err_px:%6.3f, err_py:%6.3f, err_pz:%6.3f, vx:%6.3f, vy:%6.3f, vz:%6.3f",ekf_err(0),ekf_err(1),ekf_err(2),v_hor*cos(theta),v_hor*sin(theta),v_ver);
+        fflush(stdout);
     }
 
     void CTRV::reset(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &theta){
@@ -95,13 +118,22 @@ namespace Ekf{
         P = 1000 * Eigen::MatrixXd::Identity(7,7);
         F = Eigen::Matrix<double,7,7>::Identity();
 
+        predict_list.clear();
+        predict_list.resize(_MAX_SEG);
+        ekf_err_list.clear();
+        ekf_err_list.resize(_MAX_SEG);
+
         x << pos(0), pos(1), pos(2), sqrt(pow(vel(0),2) + pow(vel(1),2)), vel(2), theta, 0;
+
+        std::cout << "x:" << x.transpose() << std::endl;
+
+        predict_list.push_back(x);
+        ekf_err_list.push_back((Eigen::Vector3d){10,10,10}); // set a huge num
     }
 
     void CTRV::init(int max_seg, double t_, const double& e_ah_, const double& e_av_, const double& e_ddtheta_, const Eigen::VectorXd& e_measure_){
         dt = t_;
         _MAX_SEG = max_seg;
-        error_detect_list.resize(_MAX_SEG);
 
         /* ekf param init */
         H = Eigen::MatrixXd::Zero(6,7);

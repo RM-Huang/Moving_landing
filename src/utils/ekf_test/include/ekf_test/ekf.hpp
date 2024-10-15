@@ -42,9 +42,13 @@ class CTRV{
     double& theta = x(5);
     double& delta_the = x(6);
 
-    //误差输出-设定帧数
+    //估计的加速度和位置估计误差队列，不参与ekf过程
+    Eigen::Vector3d acc;
+    std::vector<Eigen::Vector3d> ekf_err_list;
+
+    //设定帧数, predict_list存放x队列
     int _MAX_SEG = 50;// x/0.005
-    std::vector<double> error_detect_list;  
+    std::vector<Eigen::VectorXd> predict_list;  
 
     void init(int max_seg, double t_, const double& e_ah_, const double& e_av_, const double& e_ddtheta_, const Eigen::VectorXd& e_measure_);
 
@@ -54,9 +58,11 @@ class CTRV{
     Eigen::MatrixXd updateQ();
     Eigen::VectorXd predictX();
 
-    void update(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &the);
+    void estimate_err();
 
-    std::vector<double>list_cb(double &state_error);
+    void estimate_acc();
+
+    void update(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &the);
 };
 
 class LinearCV{

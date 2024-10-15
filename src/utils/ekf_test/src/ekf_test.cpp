@@ -14,6 +14,7 @@ nav_msgs::Odometry gps_msg;
 ros::Publisher ekf_pub;
 
 bool odom_sub_tri = false;
+double tmp = -3.14159265;
 
 void car_odom_Callback(const nav_msgs::Odometry::ConstPtr &msg)
 {
@@ -61,7 +62,7 @@ void handler()
     {
         Eigen::Vector3d pos, vel;
         Eigen::Quaterniond ori;
-        double theta;
+        double theta_raw;
 
         pos << car_odom.pose.pose.position.x, car_odom.pose.pose.position.y, car_odom.pose.pose.position.z;
         vel << car_odom.twist.twist.linear.x, car_odom.twist.twist.linear.y, car_odom.twist.twist.linear.z;
@@ -70,14 +71,22 @@ void handler()
         ori.y() = car_odom.pose.pose.orientation.y;
         ori.z() = car_odom.pose.pose.orientation.z;
 
-        Eigen::Matrix3d rx = ori.toRotationMatrix();
-        Eigen::Vector3d eular = rx.eulerAngles(2,1,0);
-        theta = eular[2];
+        // TODO add roll, pitch
+        theta_raw = atan2(2.0*(ori.x()*ori.y() + ori.w()*ori.z()), 1.0 - 2.0 * (ori.y() * ori.y() + ori.z() * ori.z())); // quat=[w,x,y,z]
+        // if(theta < 0){
+        //     theta = 2 * 3.1415926 + theta;
+        // }
 
-        ekf_ctrv.update(pos, vel, theta);
+        ekf_ctrv.update(pos, vel, theta_raw);
         Eigen::Quaterniond q = Eigen::AngleAxisd(ekf_ctrv.theta,Eigen::Vector3d::UnitZ())
-        * Eigen::AngleAxisd(eular[1],Eigen::Vector3d::UnitY())
-        * Eigen::AngleAxisd(eular[0],Eigen::Vector3d::UnitX());
+        * Eigen::AngleAxisd(0,Eigen::Vector3d::UnitY())
+        * Eigen::AngleAxisd(0,Eigen::Vector3d::UnitX());
+        
+        
+        tmp += 0.005;
+        if(tmp >= 3.14159265){
+            tmp -= 2 * 3.14159265;
+        }
 
         nav_msgs::Odometry ekf_odom;
         ekf_odom.pose.pose.position.x = ekf_ctrv.p_x;
@@ -87,6 +96,11 @@ void handler()
         ekf_odom.pose.pose.orientation.x = q.x();
         ekf_odom.pose.pose.orientation.y = q.y();
         ekf_odom.pose.pose.orientation.z = q.z();
+        ekf_odom.twist.covariance[0] = ekf_ctrv.v_hor;
+        ekf_odom.twist.covariance[1] = std::cos(ekf_ctrv.theta);
+        ekf_odom.twist.covariance[2] = std::sin(ekf_ctrv.theta);
+        ekf_odom.twist.covariance[3] = ekf_ctrv.theta;
+        ekf_odom.twist.covariance[4] = theta_raw;
         ekf_odom.twist.twist.linear.x = ekf_ctrv.v_hor * cos(ekf_ctrv.theta);
         ekf_odom.twist.twist.linear.y = ekf_ctrv.v_hor * sin(ekf_ctrv.theta);
         ekf_odom.twist.twist.linear.z = ekf_ctrv.v_ver;
@@ -116,11 +130,12 @@ int main(int argc, char *argv[])
     nh.param("error_mpx", e_measure_(0), 0.1);
     nh.param("error_mpy", e_measure_(1), 0.1);
     nh.param("error_mpz", e_measure_(2), 0.1);
-    nh.param("error_mvx", e_measure_(3), 0.1);
-    nh.param("error_mvy", e_measure_(4), 0.1);
-    nh.param("error_mvz", e_measure_(5), 0.1);
+    nh.param("error_mvh", e_measure_(3), 0.1);
+    nh.param("error_mvv", e_measure_(4), 0.1);
+    nh.param("error_theta", e_measure_(5), 0.1);
 
     ekf_ctrv.init(50, 0.005, error_ah_, error_av_, error_ddtheta_, e_measure_);
+    ROS_INFO("\033[32m[Ekf_perching]:Ekf for CTRV model initiated!\033[32m");
 
     while (ros::ok())
     {
