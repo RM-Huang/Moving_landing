@@ -69,19 +69,22 @@ namespace Ekf{
 
     }
 
-    void CTRV::estimate_acc(){
-
+    void CTRV::estimate_acc(Eigen::VectorXd& v_last){
+        v_last(0) = (v_hor - v_last(0)) / 0.005;
+        v_last(1) = (v_ver - v_last(1)) / 0.005;
+        a_sum = a_sum - acc_raw_list[0];
+        a_sum = a_sum + v_last;
+        acc_raw_list.erase(acc_raw_list.begin());
+        acc_raw_list.push_back(v_last);
+        int acc_est_flag = qp_solver.Count_x(-a_sum, l_lq, u_lq);
+        if(!acc_est_flag){
+            for(int i = 0; i < var_num; i++){
+                acc[i] = qp_solver.solver->solution->x[i];
+            }
+        }
     }
 
     void CTRV::update(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &the){
-        // p_x = x(0);
-        // p_y = x(1);
-        // p_z = x(2);
-        // v_hor = x(3);
-        // v_ver = x(4);
-        // theta = x(5);
-        // delta_the = x(6);
-
         // predict
         Eigen::VectorXd x_pred = predictX();
         updateF();
@@ -97,14 +100,33 @@ namespace Ekf{
         z(3) = sqrt(vel(0) * vel(0) + vel(1) * vel(1));
         z(4) = vel(2);
         z(5) = the;
-        x = x_pred + K * (z - H * x_pred);
+        z = z - H * x_pred;
+
+        if(abs(z(5)) > M_PI){
+            double delta_the = abs(z(5)) - M_PI;
+            if(z(5) > 0){
+                z(5) = -delta_the;
+            }else{
+                z(5) = delta_the;
+            }
+        } 
+
+        Eigen::VectorXd v_last(var_num);
+        v_last << v_hor, v_ver;
+
+        x = x_pred + K * z;
+        if(theta > M_PI){
+            theta -= 2 * M_PI;
+        }else if(theta < -M_PI){
+            theta += 2 * M_PI;
+        }
         P = (I - K * H) * P_pred;
 
         predict_list.erase(predict_list.begin());
         predict_list.push_back(x);
 
-        estimate_err();
-        estimate_acc();
+        // estimate_err();
+        estimate_acc(v_last);
 
         //debug
         printf("px:%6.3f, py:%6.3f, pz:%6.3f, vx:%6.3f, vy:%6.3f, vz:%6.3f\r",p_x,p_y,p_z,v_hor*cos(theta),v_hor*sin(theta),v_ver);
@@ -113,25 +135,28 @@ namespace Ekf{
         fflush(stdout);
     }
 
-    void CTRV::reset(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &theta){
+    int CTRV::reset(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &theta){
         x = Eigen::VectorXd::Zero(7);
         P = 1000 * Eigen::MatrixXd::Identity(7,7);
         F = Eigen::Matrix<double,7,7>::Identity();
 
         predict_list.clear();
         predict_list.resize(_MAX_SEG);
-        ekf_err_list.clear();
-        ekf_err_list.resize(_MAX_SEG);
+
+        acc_raw_list.clear();
+        acc_raw_list.resize(_MAX_SEG, Eigen::VectorXd::Zero(var_num));
+        a_sum = Eigen::VectorXd::Zero(var_num);
+        int lq_flag = qp_solver.init(var_num, cons_num, P_lq, A_lq, -a_sum, l_lq, u_lq);
 
         x << pos(0), pos(1), pos(2), sqrt(pow(vel(0),2) + pow(vel(1),2)), vel(2), theta, 0;
 
-        std::cout << "x:" << x.transpose() << std::endl;
-
         predict_list.push_back(x);
-        ekf_err_list.push_back((Eigen::Vector3d){10,10,10}); // set a huge num
+
+        return lq_flag;
+        // acc_raw_list.push_back((Eigen::Vector3d){10,10,10}); // set a huge num
     }
 
-    void CTRV::init(int max_seg, double t_, const double& e_ah_, const double& e_av_, const double& e_ddtheta_, const Eigen::VectorXd& e_measure_){
+    int CTRV::init(int max_seg, double t_, const double& e_ah_, const double& e_av_, const double& e_ddtheta_, const Eigen::VectorXd& e_measure_){
         dt = t_;
         _MAX_SEG = max_seg;
 
@@ -150,7 +175,15 @@ namespace Ekf{
             R(i,i) = e_measure_(i) * e_measure_(i);
         }
 
-        reset((Eigen::Vector3d){0,0,0}, (Eigen::Vector3d){0,0,0}, 0);
+        var_num = 2;
+        cons_num = 2;
+        acc = Eigen::VectorXd::Zero(var_num);
+        P_lq = _MAX_SEG * Eigen::MatrixXd::Identity(var_num, var_num);
+        A_lq = Eigen::MatrixXd::Identity(var_num, cons_num);
+        l_lq = -5.0 * Eigen::VectorXd::Ones(var_num);
+        u_lq = 5.0 * Eigen::VectorXd::Ones(var_num);
+
+        return reset((Eigen::Vector3d){0,0,0}, (Eigen::Vector3d){0,0,0}, 0);
     }
 
     void LinearCV::init(int max_seg, double t_){

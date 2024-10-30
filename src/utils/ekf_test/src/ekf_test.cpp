@@ -5,6 +5,7 @@
 #include <car_odom_server/car_status.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
 #include <ekf_test/ekf.hpp>
+#include <random>
 
 Ekf::CTRV ekf_ctrv;
 nav_msgs::Odometry car_odom;
@@ -64,6 +65,12 @@ void handler()
         Eigen::Quaterniond ori;
         double theta_raw;
 
+        std::default_random_engine e;
+        std::normal_distribution<double> pos_r(0.02,0.1); // 均值，标准差
+        std::normal_distribution<double> vel_r(0.1,0.06); // 均值，标准差
+        std::normal_distribution<double> yaw_r(0.02,0.05); // 均值，标准差
+        e.seed(ros::Time::now().toSec());
+
         pos << car_odom.pose.pose.position.x, car_odom.pose.pose.position.y, car_odom.pose.pose.position.z;
         vel << car_odom.twist.twist.linear.x, car_odom.twist.twist.linear.y, car_odom.twist.twist.linear.z;
         ori.w() = car_odom.pose.pose.orientation.w;
@@ -77,6 +84,10 @@ void handler()
         //     theta = 2 * 3.1415926 + theta;
         // }
 
+        // pos += pos_r(e) * Eigen::Vector3d::Ones();
+        // vel += vel_r(e) * Eigen::Vector3d::Ones();
+        // theta_raw += yaw_r(e);
+
         ekf_ctrv.update(pos, vel, theta_raw);
         Eigen::Quaterniond q = Eigen::AngleAxisd(ekf_ctrv.theta,Eigen::Vector3d::UnitZ())
         * Eigen::AngleAxisd(0,Eigen::Vector3d::UnitY())
@@ -89,6 +100,10 @@ void handler()
         }
 
         nav_msgs::Odometry ekf_odom;
+        ekf_odom.pose.covariance[0] = pos(0);
+        ekf_odom.pose.covariance[1] = pos(1);
+        ekf_odom.pose.covariance[2] = pos(2);
+        ekf_odom.pose.covariance[3] = theta_raw;
         ekf_odom.pose.pose.position.x = ekf_ctrv.p_x;
         ekf_odom.pose.pose.position.y = ekf_ctrv.p_y;
         ekf_odom.pose.pose.position.z = ekf_ctrv.p_z; // 此处暂时将输出值赋为未处理值
@@ -96,11 +111,10 @@ void handler()
         ekf_odom.pose.pose.orientation.x = q.x();
         ekf_odom.pose.pose.orientation.y = q.y();
         ekf_odom.pose.pose.orientation.z = q.z();
-        ekf_odom.twist.covariance[0] = ekf_ctrv.v_hor;
-        ekf_odom.twist.covariance[1] = std::cos(ekf_ctrv.theta);
-        ekf_odom.twist.covariance[2] = std::sin(ekf_ctrv.theta);
-        ekf_odom.twist.covariance[3] = ekf_ctrv.theta;
-        ekf_odom.twist.covariance[4] = theta_raw;
+        ekf_odom.twist.covariance[0] = std::sqrt(vel(0) * vel(0) + vel(1) * vel(1));
+        ekf_odom.twist.covariance[1] = vel(2);
+        ekf_odom.twist.covariance[2] = ekf_ctrv.acc(0);
+        ekf_odom.twist.covariance[3] = ekf_ctrv.acc(1);
         ekf_odom.twist.twist.linear.x = ekf_ctrv.v_hor * cos(ekf_ctrv.theta);
         ekf_odom.twist.twist.linear.y = ekf_ctrv.v_hor * sin(ekf_ctrv.theta);
         ekf_odom.twist.twist.linear.z = ekf_ctrv.v_ver;
@@ -123,6 +137,7 @@ int main(int argc, char *argv[])
     ros::Subscriber gps_sub = nh.subscribe("/odom/remap/car/raw", 1, &car_gps_Callback, ros::TransportHints().tcpNoDelay()); // 小车px4话题，东北天坐标系
 
     double error_ah_, error_av_, error_ddtheta_;
+    int max_seg_;
     Eigen::VectorXd e_measure_(6);
     nh.param("error_ah", error_ah_, 0.1);
     nh.param("error_av", error_av_, 0.1);
@@ -133,9 +148,13 @@ int main(int argc, char *argv[])
     nh.param("error_mvh", e_measure_(3), 0.1);
     nh.param("error_mvv", e_measure_(4), 0.1);
     nh.param("error_theta", e_measure_(5), 0.1);
+    nh.param("max_seg", max_seg_, 100);
 
-    ekf_ctrv.init(50, 0.005, error_ah_, error_av_, error_ddtheta_, e_measure_);
-    ROS_INFO("\033[32m[Ekf_perching]:Ekf for CTRV model initiated!\033[32m");
+    int init_flag = ekf_ctrv.init(max_seg_, 0.005, error_ah_, error_av_, error_ddtheta_, e_measure_);
+    if(!init_flag) 
+        ROS_INFO("\033[32m[Ekf_perching]:Ekf for CTRV model initiated!\033[32m");
+    else
+        ROS_INFO("\033[32m[Ekf_perching]:Ekf for CTRV model initiation failed! flag = %d\033[32m",init_flag);
 
     while (ros::ok())
     {

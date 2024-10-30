@@ -182,7 +182,7 @@ class CmdVel2Gazebo:
         #     self.x = self.x + direction * vel_acc + min(0.2, -self.x)
         # else:
         self.x = self.x + direction * vel_acc
-        self.x = max(-18, min(self.x, 18))
+        self.x = max(-6, min(self.x, 6))
         # self.x = self.x / 3
 
         # if ang_acc != 0:
@@ -198,7 +198,7 @@ class CmdVel2Gazebo:
         #         self.z = 0
         # self.z = max(-self.maxsteer,min(self.maxsteer,self.z))
         
-        print("vel = %f , ang = %f" %(self.x / 3, self.z))
+        print("vel = %f , ang = %f" %(self.x, self.z))
         
         self.odom.header.stamp = rospy.Time.now()
         

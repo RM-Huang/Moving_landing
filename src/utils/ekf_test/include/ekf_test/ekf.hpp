@@ -1,15 +1,17 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <osqp.h>
+#include <ekf_test/qp_solver.hpp>
 #include <iostream>
 #include <vector>
 #include <cmath>
 
-using std::cout;
-using std::endl;
-
 namespace Ekf {
 class CTRV{
+    private:
+    QP_Solver::Update_vec qp_solver;    
+
     public:
      //状态矩阵(px,py,pz,v_hor,v_ver,theta,delta_the)
     Eigen::VectorXd x = Eigen::VectorXd::Zero(7);
@@ -30,6 +32,19 @@ class CTRV{
     Eigen::Matrix<double,7,7> Q;
     Eigen::Matrix<double,3,3> E;
 
+    //最小二乘法求加速度
+    Eigen::MatrixXd P_lq;
+    Eigen::MatrixXd A_lq;
+    Eigen::VectorXd l_lq;
+    Eigen::VectorXd u_lq;
+    int var_num; // indicating the dimensions of acc
+    int cons_num; // indicating the dimensions of acc constrain
+
+    //估计的加速度和速度差分队列，不参与ekf过程
+    Eigen::VectorXd acc;
+    std::vector<Eigen::VectorXd> acc_raw_list;
+    Eigen::VectorXd a_sum;
+
     //状态量
     // double& p_x, p_y, p_z;
     // double& v_hor, v_ver;
@@ -42,17 +57,13 @@ class CTRV{
     double& theta = x(5);
     double& delta_the = x(6);
 
-    //估计的加速度和位置估计误差队列，不参与ekf过程
-    Eigen::Vector3d acc;
-    std::vector<Eigen::Vector3d> ekf_err_list;
-
     //设定帧数, predict_list存放x队列
     int _MAX_SEG = 50;// x/0.005
     std::vector<Eigen::VectorXd> predict_list;  
 
-    void init(int max_seg, double t_, const double& e_ah_, const double& e_av_, const double& e_ddtheta_, const Eigen::VectorXd& e_measure_);
+    int init(int max_seg, double t_, const double& e_ah_, const double& e_av_, const double& e_ddtheta_, const Eigen::VectorXd& e_measure_);
 
-    void reset(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &theta);
+    int reset(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &theta);
 
     void updateF();
     Eigen::MatrixXd updateQ();
@@ -60,7 +71,7 @@ class CTRV{
 
     void estimate_err();
 
-    void estimate_acc();
+    void estimate_acc(Eigen::VectorXd& v_last);
 
     void update(const Eigen::Vector3d &pos, const Eigen::Vector3d &vel, const double &the);
 };

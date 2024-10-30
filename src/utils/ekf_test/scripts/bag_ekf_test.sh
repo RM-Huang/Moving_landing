@@ -1,5 +1,5 @@
 gnome-terminal --window -e 'bash -c "roslaunch ekf_test ekf_test.launch; exec bash"' \
---tab -e 'bash -c "sleep 1; rosbag play standard.bag; exec bash"' \
+--tab -e 'bash -c "sleep 1; rosbag play 2.1m.s_suc.bag; exec bash"' \
 gnome-terminal --window -e --tab -e 'bash -c "rosbag record --tcpnodelay /odom/remap/car /pose_ekf; exec bash"' \
 
 # gnome-terminal --window -e 'bash -c "roslaunch simulation_utils smartcar_display.launch; exec bash"' \
