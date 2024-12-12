@@ -13,11 +13,9 @@ rosbag record --tcpnodelay \
 /odom/remap/car/raw \
 /vision_received \
 /ir_pose_topic \
-/analyse/posdiffer \
-/analyse/yawdiffer \
-/analyse/pitchdiffer \
-/analyse/rolldiffer \
-/analyse/desPath \
-/analyse/truthPath \
-/analyse/rpy_des \
-/analyse/rpy_truth 
+/drone0/planning/traj \
+/drone0/odom_visualization/robot \
+/drone0/planning/target_odom \
+/drone0/planning/tail_vel \
+/drone0/odom_visualization_plate/polygon \
+/drone0/planning/traj_wayPts \

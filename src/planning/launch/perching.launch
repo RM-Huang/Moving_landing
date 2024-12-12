@@ -101,8 +101,8 @@
       <param name="rhoVisibleDomain" value="60000.0"/>
       <param name="rhoPerchingCollision" value="500000.0"/>
 
-      <param name="perching_px" value="8.16"/>
-      <param name="perching_py" value="8.08"/>
+      <param name="perching_px" value="13.28"/>
+      <param name="perching_py" value="0.11"/>
       <param name="perching_pz" value="0.03"/>
       <param name="perching_vx" value="0.0"/>
       <param name="perching_vy" value="0.0"/>
