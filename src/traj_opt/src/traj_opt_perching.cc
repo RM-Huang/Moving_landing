@@ -658,7 +658,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     //   // std::cout<<"P:"<<std::endl;
     //   // std::cout<<P<<std::endl;
     // }
-    // t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
+    t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
     // // }
     // std::cout << "initial guess >>> t: " << t << std::endl;
     // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
