@@ -1,28 +1,22 @@
-#########################################################################
-# ⭐⭐⭐  Set parameters carefully for satisfied performance!   ⭐⭐⭐ #
-#########################################################################
-
+controller_type: 2 # 0:position, 1:velocity, 2:attitude, 3:angular_velocity
+estimator_type: 0 # 0:ude, 1:TVUDE, 2:ESO
 mass        : 4 # kg 需根据实际飞机的重量调整
 gra         : 9.81
-pose_solver : 1     # 0:From ZhepeiWang (drag & less singular) 1:From ZhepeiWang, 2:From rotor-drag    
-ctrl_freq_max   : 100.0
-use_bodyrate_ctrl: false
 max_manual_vel: 0.0
-max_angle: 15  # Attitude angle limit in degree. A negative value means no limit.
-low_voltage: 22 # 4S battery
 
-rc_reverse: # *
-    roll: false
-    pitch: false
-    yaw: false
-    throttle: false
+takeoff_state:
+    height: 2.0 # m
+    speed: 0.6 # m/s
 
-auto_takeoff_land:
-    enable: true # 使能自动起降功能
-    enable_auto_arm: true #
-    no_RC: false
-    takeoff_height: 4.0 # m
-    takeoff_land_speed: 0.6 # m/s
+fsmparam:
+    frequncy: 100
+
+kine_cons:
+    vel_ver_max: 1.0
+    vel_hor_max: 2.0
+    acc_ver_max: 0.5
+    acc_hor_max: 1.5
+    omega_yaw_max: 0.2
 
 thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(Unit:N): F=K1*Voltage^K2*(K3*u^2+(1-K3)*u). 
     print_value: false # display the value of “thr_scale_compensate” or “hover_percentage” during thrust model estimating.
@@ -35,25 +29,23 @@ thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(
     hover_percentage: 0.5  # Thrust percentage in Stabilize/Arco mode # *
 
 gain: 
-    # Cascade PID controller. Recommend to read the code.可以尝试逐步增大
+    # velocity PID
+    Kvp0: 1 #2.0
+    Kvp1: 1 #1.5
+    Kvp2: 1 #1.5
+    Kvi0: 1.5 #1.8
+    Kvi1: 1.5 #1.8
+    Kvi2: 1.5 #1.8
+    Kvd0: 120
+    Kvd1: 120
+    Kvd2: 100
+    # attitude PID
     Kp0: 1.5 #2.0
     Kp1: 1.5 #1.5
     Kp2: 1.5 #1.5
     Kv0: 1.5 #1.8
     Kv1: 1.5 #1.8
     Kv2: 1.5 #1.8
-    # ↓↓↓ No use now --
-    Katt0: 6
-    Katt1: 6
-    Katt2: 6
-
-    Kvd0: 0.0
-    Kvd1: 0.0
-    Kvd2: 0.0
-    # ↓↓↓ Only used in rate control mode.
-    KAngR: 20.0
-    KAngP: 20.0
-    KAngY: 20.0
     # ↓↓↓ used in UDE.
     Trou0: 0.5
     Trou1: 0.5
@@ -72,17 +64,9 @@ gain:
     Omg_eso_pos1: 1
     Omg_eso_pos2: 1
 
-
-
-rotor_drag:  
-    x: 0.0  # The reduced acceleration on each axis caused by rotor drag. Unit:(m*s^-2)/(m*s^-1).
-    y: 0.0  # Same as above
-    z: 0.0  # Same as above
-    k_thrust_horz: 0.0 # Set to 0 recommended... --
-
 msg_timeout:
     odom: 0.5
     rc:   0.5
-    cmd:  5.0
+    cmd:  0.1
     imu:  0.5
     bat:  0.5

@@ -35,3 +35,7 @@ float64 fb_rate_x
 float64 fb_rate_y
 float64 fb_rate_z
 
+float64 cmd_v_x
+float64 cmd_v_y
+float64 cmd_v_z
+float64 des_yaw

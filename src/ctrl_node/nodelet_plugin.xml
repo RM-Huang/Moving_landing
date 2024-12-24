@@ -1,0 +1,5 @@
+<library path="lib/libctrl_node">
+  <class name="ctrl_node/FSM" type="ctrl_node::FSM" base_class_type="nodelet::Nodelet">
+    <description></description>
+  </class>
+</library>

@@ -1,5 +1,5 @@
 gnome-terminal --window -e 'bash -c "roslaunch uav_utils base_sim_single_vehicle_ground_truth.launch; exec bash"' \
---tab -e 'bash -c "sleep 3; roslaunch px4ctrl run_ctrl.launch; exec bash"' \
+--tab -e 'bash -c "sleep 3; roslaunch ctrl_node run_ctrl.launch; exec bash"' \
 --tab -e 'bash -c "sleep 4; rosrun mavros mavcmd long 511 105 5000 0 0 0 0 0; "' \
 --tab -e 'bash -c "sleep 4; rosrun mavros mavcmd long 511 31 5000 0 0 0 0 0; "' \
 --tab -e 'bash -c "sleep 4; rosrun mavros mavcmd long 511 32 5000 0 0 0 0 0; "' \
