@@ -608,56 +608,6 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
       // std::cout<<"P:"<<std::endl;
       // std::cout<<P<<std::endl;
     }
-
-    // /* minimum jerk traj generate */
-    // std::cout<<"minimun jerk opt"<<std::endl;
-    // Eigen::MatrixXd bvp_i(3, 3);
-    // bvp_i.col(0) = initS_.col(0);
-    // bvp_i.col(1) = initS_.col(1);
-    // bvp_i.col(2) = initS_.col(2);
-    // Eigen::MatrixXd bvp_f(3, 3);
-    // bvp_f.col(0) = car_p_;
-    // bvp_f.col(1) = car_v_;
-    // bvp_f.col(0)[2] = traj_tail_alt;
-    // // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
-    // bvp_f.col(2).setZero();
-    // double T_min = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_;
-    // double T_bvp = T_min; // 得到初始相对距离最小时间
-    // CoefficientMat_jerk coeffMat;
-    // std::cout<<"T_min = "<<T_min<<std::endl;
-    // do {
-    //   if(*plan_state_ == TrajOpt::plan_s::LAND)
-    //     T_bvp += 0.1; // 1.0
-    //   else
-    //     T_bvp += 1.0;
-      
-    //   if(T_bvp > 50 * T_min)
-    //   {
-    //     std::cout<<"minumsnap T cost too high"<<" T = "<<T_bvp<<" max_omega = "<<max_omega<<std::endl;
-    //     return false;
-    //   }
-    //   bvp_jerk(T_bvp, bvp_i, bvp_f, coeffMat); // 得到多项式系数
-    //   std::vector<double> durs{T_bvp};
-    //   std::vector<CoefficientMat_jerk> coeffs{coeffMat};
-    //   // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-    //   Trajectory_jerk traj(durs, coeffs); // 保存粗轨迹
-    //   max_omega = getMaxOmega(traj);
-    //   // std::cout<<T_bvp<<" "<<max_omega<<" , ";
-    // } while (max_omega > 2.0 * omega_max_);
-    // // std:;cout<<std::endl;
-    // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
-    // Eigen::VectorXd tt(6);
-    // tt(5) = 1.0;
-    // for (int i = 1; i < N_; ++i) {
-    //   double tt0 = (i * 1.0 / N_) * T_bvp;
-    //   for (int j = 4; j >= 0; j -= 1) {
-    //     tt(j) = tt(j + 1) * tt0;
-    //   }
-    //   P.col(i - 1) = coeffMat * tt; // 根据粗轨迹获得N-1个中间点
-    //   // std::cout<<"tt:"<<tt.transpose()<<std::endl;
-    //   // std::cout<<"P:"<<std::endl;
-    //   // std::cout<<P<<std::endl;
-    // }
     t = logC2(T_bvp / N_); // 为了将T>0约束等式化方便计算cost
     // // }
     // std::cout << "initial guess >>> t: " << t << std::endl;
@@ -844,35 +794,16 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
         // grad_car_t += grad_tmp3.dot(car_v);
       }
 
-      // if(*plan_state_ == TrajOpt::plan_s::LAND)
-      // {
-        // if(grad_cost_visible_domain(pos, car_p, grad_tmp, grad_tmp2, cost_tmp)){
-        // grad_p += grad_tmp;
-        // grad_car_p += grad_tmp2;
-        // cost_inner += cost_tmp;
-        // }
-        // if(grad_cost_visible_domain(pos, acc, car_p,
-        //                            grad_tmp, grad_tmp2, grad_tmp3,
-        //                            cost_tmp)){
-        //   grad_p += grad_tmp;
-        //   grad_a += grad_tmp2;
-        //   grad_car_p += grad_tmp3;
-        //   cost_inner += cost_tmp;
-        //   // grad_car_t += grad_tmp3.dot(car_v);
-        // }
-        // std::cout<<" , ";
-
-        // Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
-        if (grad_cost_perching_collision(pos, acc, car_p,
-                                        grad_tmp, grad_tmp2, grad_tmp3,
-                                        cost_tmp)) { // ??
-          grad_p += grad_tmp;
-          grad_a += grad_tmp2;
-          grad_car_p += grad_tmp3;
-          cost_inner += cost_tmp;
-          // grad_car_t += grad_tmp3.dot(car_v);
-        }
-      // }
+      // Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
+      if (grad_cost_perching_collision(pos, acc, car_p,
+                                      grad_tmp, grad_tmp2, grad_tmp3,
+                                      cost_tmp)) { // ??
+        grad_p += grad_tmp;
+        grad_a += grad_tmp2;
+        grad_car_p += grad_tmp3;
+        cost_inner += cost_tmp;
+        // grad_car_t += grad_tmp3.dot(car_v);
+      }
 
       double grad_car_t = grad_car_p.transpose() * car_v_;
 
@@ -927,20 +858,6 @@ TrajOpt::TrajOpt(ros::NodeHandle& nh) {
   nh.getParam("pause_debug", pause_debug_);
   visPtr_ = std::make_shared<vis_utils::VisUtils>(nh);
 }
-
-// bool TrajOpt::grad_cost_v(const Eigen::Vector3d& v,
-//                           Eigen::Vector3d& gradv,
-//                           double& costv) {
-//   double vpen = v.squaredNorm() - vmax_ * vmax_;
-//   if (vpen > 0) {
-//     double grad = 0;
-//     costv = smoothedL1(vpen, grad);
-//     gradv = rhoV_ * grad * 2 * v;
-//     costv *= rhoV_;
-//     return true;
-//   }
-//   return false;
-// }
 
 bool TrajOpt::grad_cost_v(const Eigen::Vector3d& v,
                           Eigen::Vector3d& gradv,
@@ -1004,80 +921,6 @@ bool TrajOpt::grad_cost_thrust(const Eigen::Vector3d& a,
 
   return ret;
 }
-
-// bool TrajOpt::grad_cost_visible_domain(const Eigen::Vector3d& pos,
-//                                            const Eigen::Vector3d& acc,
-//                                            const Eigen::Vector3d& car_p,
-//                                            Eigen::Vector3d& gradp,
-//                                            Eigen::Vector3d& grada,
-//                                            Eigen::Vector3d& grad_car_p,
-//                                            double& cost){
-//   Eigen::Vector3d pc = - car_p + pos;
-//   double dist_sqr = pc.squaredNorm();
-//   double safe_r = platform_r_;
-//   double safe_r_sqr = safe_r * safe_r;
-//   double pen_dist = - safe_r_sqr + dist_sqr;
-//   //pen_dist /= safe_r_sqr;
-//   double grad_dist = 0;
-//   double var01 = smoothed01(pen_dist, grad_dist);
-
-//   if (var01 == 0) {
-//     return false;
-//   }
-  
-//   Eigen::Vector3d thrust_f = acc - g_;
-//   Eigen::Vector3d zb = f_N(thrust_f);
-//   // Eigen::Vector3d zb(0,0,1);
-//   Eigen::Vector3d zc(0,0,1);
-//   // Eigen::Vector3d pc = - car_p + pos;
-//   Eigen::Vector3d pc_norm = pc.normalized(); // normalize pc
-
-//   double dtheta = cos(M_PI / 4);
-//   double costheta = pc_norm.dot(zc);
-//   double cosphi = zb.dot(zc);
-//   // double theta = acos(costheta);
-//   double grad = 0;
-
-//   double pen = (dtheta - costheta);
-//   cost = smoothedL1(pen, grad);
-
-//   // gradp.x() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (zb.x() * pc.norm() - zb.x() * pow(pc.x(),2) / pc.norm()) / pow(pc.norm(),2);
-//   // gradp.y() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (zb.y() * pc.norm() - zb.y() * pow(pc.y(),2) / pc.norm()) / pow(pc.norm(),2);
-//   // gradp.z() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (zb.z() * pc.norm() - zb.z() * pow(pc.z(),2) / pc.norm()) / pow(pc.norm(),2);
-//   // gradp = gradp * var01 + cost * grad_dist * 2 * pc;
-
-//   // gradp = - grad * 2 * theta * (1 / sqrt(1 - costheta * costheta)) * f_DN(pc).transpose() * zb;
-//   // gradp = - 2 * (1 - costheta) * f_DN(pc).transpose() * zb;
-//   gradp = - grad * f_DN(pc).transpose() * zb;
-
-//   // grad_car_p.x() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (- zb.x() * pc.norm() + zb.x() * pow(pc.x(),2) / pc.norm()) / pow(pc.norm(),2);
-//   // grad_car_p.y() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (- zb.y() * pc.norm() + zb.y() * pow(pc.y(),2) / pc.norm()) / pow(pc.norm(),2);
-//   // grad_car_p.z() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (- zb.z() * pc.norm() + zb.z() * pow(pc.z(),2) / pc.norm()) / pow(pc.norm(),2);
-//   // grad_car_p = grad_car_p * var01 - cost * grad_dist * 2 * pc;
-//   // gradp = 2 * (1 - costheta) * f_DN(pc).transpose() * zb;
-//   grad_car_p = grad * f_DN(pc).transpose() * zb;
-//   // grad_car_p.setZero();
-
-//   cost += (1 - cosphi) * (1 - cosphi);
-//   // grada.x() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * f_DN(thrust_f)
-//   // grada.y() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (pc.y() * thrust_f.norm() - pc.y() * pow(thrust_f.y(),2) / thrust_f.norm()) / (pc.norm() * pow(thrust_f.norm(),2));
-//   // grada.z() = - 2 * grad * theta * (1 / sqrt(1 - pow(costheta,2))) * (pc.z() * thrust_f.norm() - pc.z() * pow(thrust_f.z(),2) / thrust_f.norm()) / (pc.norm() * pow(thrust_f.norm(),2));
-//   grada = - 2 * (1 - cosphi) * f_DN(thrust_f).transpose() * zc;
-//   // grada = - 2 * (1 - costheta) * f_DN(thrust_f).transpose() * pc_norm;
-//   // grada *= var01;
-//   // grada.setZero();
-  
-//   cost *= var01;
-//   gradp = grad_dist * 2 * pc * cost + var01 * gradp;
-//   grad_car_p = - grad_dist * 2 * pc * cost + var01 * grad_car_p;
-//   grada *= var01;
-//   cost *= rhoVisibleDomain_;
-//   gradp *= rhoVisibleDomain_;
-//   grad_car_p *= rhoVisibleDomain_;
-//   grada *= rhoVisibleDomain_;
-
-//   return true;
-// }
 
 bool TrajOpt::grad_cost_visible_domain(const Eigen::Vector3d& pos,
                                            const Eigen::Vector3d& acc,
