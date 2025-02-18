@@ -2,9 +2,9 @@
 <package format="2">
   <name>traj_opt</name>
   <version>0.0.0</version>
-  <description>The traj_opt package</description>
+  <description>The traj_opt package for Moving_landing</description>
 
-  <maintainer email="jlji@zju.edu.cn">ji</maintainer>
+  <maintainer email="hrmramond@gmail.com">Huang</maintainer>
 
   <license>GPLv3</license>
 

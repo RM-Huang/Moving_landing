@@ -2,4 +2,8 @@
   <class name="planning/Nodelet" type="planning::Nodelet" base_class_type="nodelet::Nodelet">
     <description></description>
   </class>
+
+  <class name="planning/StaticNodelet" type="planning::StaticNodelet" base_class_type="nodelet::Nodelet">
+    <description></description>
+  </class>
 </library>

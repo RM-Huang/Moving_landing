@@ -31,6 +31,7 @@ include_directories(
 # planning node
 add_library(${PROJECT_NAME}_nodelet
 src/${PROJECT_NAME}_nodelet.cpp
+src/static_planning.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}_nodelet
