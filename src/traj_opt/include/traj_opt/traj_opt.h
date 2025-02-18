@@ -74,6 +74,22 @@ class TrajOpt {
 
     void addTimeIntPenalty(double& cost);
 
+    void forwardP(const Eigen::Ref<const Eigen::MatrixXd>& p,
+                       const std::vector<Eigen::VectorXd> o,
+                       const double T,
+                       Eigen::MatrixXd& inP);
+
+    void backwardP(const Eigen::Ref<const Eigen::MatrixXd>& inP,
+                      const std::vector<Eigen::VectorXd> o,
+                      const double T,
+                      Eigen::MatrixXd& p);
+
+    void addLayerPGrad(const Eigen::Ref<const Eigen::MatrixXd>& p,
+                          const Eigen::Ref<const Eigen::MatrixXd>& gradInPs,
+                          const double T,
+                          Eigen::Ref<Eigen::MatrixXd> gradp,
+                          double& gradT);
+
     bool grad_cost_v(const Eigen::Vector3d& v,
                     Eigen::Vector3d& gradv,
                     double& costv);

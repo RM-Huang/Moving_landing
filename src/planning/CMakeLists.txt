@@ -22,6 +22,7 @@ catkin_package(
 )
 
 include_directories(
+  include
   ${EIGEN3_INCLUDE_DIR}
   ${DECOMP_UTIL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}

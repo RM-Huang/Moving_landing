@@ -113,49 +113,50 @@ static inline double gdT2t(double t) {
   }
 }
 
-static double forwardP(const Eigen::Ref<const Eigen::MatrixXd>& p,
-                       const std::vector<Eigen::Vector3d> o,
+void TrajOpt::forwardP(const Eigen::Ref<const Eigen::MatrixXd>& p,
+                       const std::vector<Eigen::VectorXd> o,
                        const double T,
                        Eigen::MatrixXd& inP){
   Eigen::VectorXd q;
   double tv = T * vmax_;
   for (int i = 0; i < dim_p_; ++i) {//for循环负责遍历整个vecotr容器
     //向量的平方范数由squaredNorm()获得，等价于向量对自身做点积，也等同于所有元素的平方和
-    q = 2.0 / (1.0 + p[i].squaredNorm()) * p[i] * tv * (i + 1);
+    q = p.col(i);
+    q *= 2.0 / (1.0 + p.col(i).squaredNorm()) * tv * (i + 1);
     inP.col(i) = o[i] + q;
   }
-  return;
 }
 
-static void backwardP(const Eigen::Ref<const Eigen::MatrixXd>& inP,
-                      const std::vector<Eigen::Vector3d> o,
+void TrajOpt::backwardP(const Eigen::Ref<const Eigen::MatrixXd>& inP,
+                      const std::vector<Eigen::VectorXd> o,
                       const double T,
                       Eigen::MatrixXd& p) {
   Eigen::VectorXd q;
   double q_norm2, r_i;
   double tv = T * vmax_;
   for (int i = 0; i < dim_p_; ++i) {
-    q = inP[i] - o[i];
+    q = inP.col(i) - o[i];
     q_norm2 = q.squaredNorm();
     r_i = tv * (i + 1);
-    p[i] = (r_i - sqrt(r_i * r_i - q_norm2)) / q_norm2 * q;
+    p.col(i) = q;
+    p.col(i) *= (r_i - sqrt(r_i * r_i - q_norm2)) / q_norm2;
   }
-  return;
 }
 
-static void addLayerPGrad(const Eigen::Ref<const Eigen::MatrixXd>& p,
+void TrajOpt::addLayerPGrad(const Eigen::Ref<const Eigen::MatrixXd>& p,
                           const Eigen::Ref<const Eigen::MatrixXd>& gradInPs,
                           const double T,
-                          Eigen::Ref<Eigen::VectorXd> gradp,
-                          Eigen::Ref<Eigen::VectorXd> gradT) {
-  Eigen::VectorXd q, r_i;
+                          Eigen::Ref<Eigen::MatrixXd> gradp,
+                          double& gradT) {
+  double q, r_i, pdotgq;
   double tv = T * vmax_;
   for (int i = 0; i < dim_p_; i++) {
-    q = p[i].squaredNorm() + 1;
+    q = p.col(i).squaredNorm() + 1;
     r_i = (i + 1) * tv;
-    gradp[i] = 2 * r_i * gradInPs[i] / q;
-    gradp[i] -= 4 * r_i * (p[i].transpose() * gradInPs[i]) * p[i] / q.transpose() * q;
-    gradT[i] = 2 * (i + 1) * vmax_ * p[i] / q;
+    pdotgq = p.col(i).transpose() * gradInPs.col(i);
+    gradp.col(i) = gradInPs.col(i) / q * 2 * r_i ;
+    gradp.col(i) -= p.col(i) / (q * q) * 4 * r_i * pdotgq;
+    gradT += 2 * (i + 1) * vmax_ / q * pdotgq;
   }
   return;
 }
@@ -257,7 +258,7 @@ static inline double objectiveFunc(void* ptrObj,
   TrajOpt& obj = *(TrajOpt*)ptrObj;
   const double& t = x[0];
   double& gradt = grad[0];
-  Eigen::Map<Eigen::MatrixXd> P(x + obj.dim_t_, 3, obj.dim_p_);
+  Eigen::Map<const Eigen::MatrixXd> P(x + obj.dim_t_, 3, obj.dim_p_);
   Eigen::Map<Eigen::MatrixXd> gradP(grad + obj.dim_t_, 3, obj.dim_p_);
   const double& tail_f = x[obj.dim_t_ + obj.dim_p_ * 3];
   double& grad_f = grad[obj.dim_t_ + obj.dim_p_ * 3];

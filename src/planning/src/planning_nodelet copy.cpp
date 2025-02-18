@@ -2,21 +2,106 @@
 
 namespace planning {
 
+// std::string sep = "\n-----------------------";
+// Eigen::IOFormat CommaInitFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", " << ", ";");
+// Eigen::IOFormat CommaInitFmt2(Eigen::StreamPrecision, 0, ", ", ", ", "", "", " << ", ";");
+
+class Nodelet : public nodelet::Nodelet {
+ private:
+  std::thread initThread_;
+  ros::Subscriber triger_sub_;
+  ros::Subscriber target_odom_sub_;
+  ros::Subscriber vision_statu_sub_;
+  ros::Subscriber uav_odom_sub_;
+  ros::Subscriber ctrl_ready_tri_sub_;
+
+  ros::Publisher cmd_pub_;
+  ros::Publisher des_pub_;
+  // ros::Publisher land_pub_;
+  // ros::Publisher hover_pub_;
+  ros::ServiceClient FCU_command_srv;
+
+  int plan_hz_;
+
+  ros::Timer plan_timer_;
+  ros::Timer cmd_timer_;
+
+  std::shared_ptr<vis_utils::VisUtils> visPtr_;
+  std::shared_ptr<traj_opt::TrajOpt> trajOptPtr_;
+
+  // Using for prediction
+  // int predict_seg;
+  double sample_dur;
+  double predict_dur;
+  // Bezierpredict tgpredict;
+  std::vector<Eigen::Vector4d> target_detect_list;
+  bool predict_success = false;
+  // std::vector<Eigen::MatrixXd> bezier_polyc_list;
+  // std::vector<double> bezierT_list;
+  // std::vector<double> bezier_init_time_list;
+
+  // Using for planning timer
+  Eigen::MatrixXd iniState;
+  int plan_type; // 0 for sim, 1 for real
+  double target_odom_time = 0;
+  bool generate_new_traj_success = false;
+  bool visualize_sig;
+  bool target_odom_recrived = false;
+  bool land_first = false;
+  Trajectory traj;
+  Eigen::Vector3d target_p, target_v, uav_p, uav_v;
+  Eigen::Vector3d ekf_error;
+  Eigen::Vector3d target_p_last, target_v_last;
+  double vision_stamp = 0;
+  double trajStamp_observe;
+  Eigen::Quaterniond target_q, uav_q;
+  traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::HOVER;
+
+  Eigen::Vector3d follow_p;
+  Eigen::Vector3d follow_v;
+
+  // static param
+  double vehicleMass;
+  double gravAcc;
+  double horizDrag;
+  double vertDrag;
+  double parasDrag;
+  double speedEps;
+  double robot_l_;
+  double land_r_;
+  double omega_yaw_max_;
+
+  // NOTE just for debug
+  bool debug_replan_ = false;
+  bool ifanalyse =false;
+
+  // double tracking_dur_, tracking_dist_, tolerance_d_;
+  Eigen::Vector3d perching_p_, perching_v_, perching_axis_; // for simulation
+  double perching_theta_;
+
+  Trajectory traj_poly_;
+  double trajStamp;
+  double trigerStamp = 0; // time stamp for current plan start triger from other program
+
+  bool ctrl_ready_triger = false;
+  bool publishing_cmd = false;
+  std::atomic_bool triger_received_ = ATOMIC_VAR_INIT(false);
+
   //--------------------- func ---------------------------
 
-  void Nodelet::triger_callback(const geometry_msgs::PoseStampedConstPtr& msgPtr) 
+  void triger_callback(const geometry_msgs::PoseStampedConstPtr& msgPtr) 
   {
     triger_received_ = true; // for static platfrom landing
     ROS_INFO("\033[32m[planning]:plan triger received!\033[32m");
   }
 
-  void Nodelet::ctrl_ready_tri_callback(const geometry_msgs::PoseStampedConstPtr& msg)
+  void ctrl_ready_tri_callback(const geometry_msgs::PoseStampedConstPtr& msg)
   {
     ctrl_ready_triger = true;
     ROS_INFO("\033[32m[planning]:ctrl triger accept!\033[32m");
   }
 
-  void Nodelet::uav_odom_callback(const nav_msgs::OdometryConstPtr& msg)
+  void uav_odom_callback(const nav_msgs::OdometryConstPtr& msg)
   {
     uav_p << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
     uav_v << msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z;
@@ -26,12 +111,12 @@ namespace planning {
     uav_q.z() = msg->pose.pose.orientation.z;
   }
 
-  void Nodelet::vision_statu_callback(const std_msgs::Float64ConstPtr& msg)
+  void vision_statu_callback(const std_msgs::Float64ConstPtr& msg)
   {
     vision_stamp = msg->data;
   }
 
-  void Nodelet::target_odom_callback(const nav_msgs::OdometryConstPtr& msg)
+  void target_odom_callback(const nav_msgs::OdometryConstPtr& msg)
   {
     // if(msg->pose.pose.position.x < 10 && msg->pose.pose.position.y < 5 && msg->pose.pose.position.z < 3)
     // {
@@ -52,7 +137,7 @@ namespace planning {
     }
   }
 
-  void Nodelet::planning_fsm(const ros::TimerEvent& event) // for moving platform
+  void planning_fsm(const ros::TimerEvent& event)
   {
     /* ________________________________ Predict entry condition _________________________________ */
     if(plan_type == 1 && !target_odom_recrived)
@@ -70,11 +155,48 @@ namespace planning {
     Eigen::Quaterniond uav_q_ = uav_q;
     bool static_landing = true; // test
 
+    //TODO plaform predict
     /* ______________________________________ Prediction _________________________________________ */
     bool prediction_flag = false; // for static landing test, always false
     if(prediction_flag)
     {
-      //TODO:prediction
+      // double detect_time = target_odom_time;
+      // if(abs(detect_time - ros::Time::now().toSec()) < 0.1)
+      // {
+      //   target_detect_list.push_back(Eigen::Vector4d(target_p[0], target_p[1], target_p[2], detect_time));
+      //   if(target_detect_list.size() >= sample_dur * plan_hz_)
+      //   {
+      //     int bezier_flag = tgpredict.TrackingGeneration(4,1.5,target_detect_list);
+      //     if(bezier_flag != 0)
+      //     {
+      //       ROS_WARN("[planning]:platform predict error");
+      //       // using velocity stable assumption while bezier failed
+      //       // static_landing = true;
+      //     }
+      //     else
+      //     {
+      //       // bezier_polyc_list.push_back(tgpredict.getPolyCoeff());
+      //       // bezierT_list.push_back(tgpredict.getPolyTime()(0));
+      //       // bezier_init_time_list.push_back(detect_time);
+
+      //       // if(bezier_init_time_list.size() > predict_dur * plan_hz_)
+      //       // {
+      //       //     bezier_polyc_list.erase(bezier_polyc_list.begin());
+      //       //     bezier_init_time_list.erase(bezier_init_time_list.begin());
+      //       //     bezierT_list.erase(bezierT_list.begin());
+      //       // }
+      //       predict_success = true; 
+      //     }
+      //     target_detect_list.erase(target_detect_list.begin());
+      //   }
+      // }
+      // else
+      // {
+      //   predict_success = false;
+      //   std::cout<<"detect_time = "<<detect_time<<" now_time = "<<ros::Time::now().toSec()<<std::endl;
+      //   ROS_ERROR("[planning]:predict error, failed to align target odom, target odom delay:%f", abs(detect_time - ros::Time::now().toSec()));
+      //   return; // for test
+      // }
     }
 
     /* ________________________________ plan entry condition _________________________________ */
@@ -193,6 +315,35 @@ namespace planning {
     std::cout << "target_v: " << target_v.transpose() << std::endl;
     ROS_INFO("\033[32m[planning]:start planning!\033[32m");
 
+    // else
+    // {
+    //   // visualize_pre(Sample_list);
+    //   // int flag_pp = 0;
+    //   // Eigen::Vector3d begin_point = predict_state_list[0].head(3);
+    //   // flag_pp = kinosearch.search(start_pt,start_vel,predict_state_list,_TIME_INTERVAL); 
+
+    //   // for test
+    //   // uav_p << 0.0, 0.0, 1.5;
+    //   // uav_v << 0.0,0.0,0.0; 
+    //   target_q.x() = 0.0;
+    //   target_q.y() = 0.0;
+    //   target_q.z() = 0.0;
+    //   target_q.w() = 1.0; // target_q表示平台的预设姿态
+    //   // Eigen::Vector3d axis = perching_axis_.normalized(); //将perching_axis_向量化为单位向量
+    //   // double theta = perching_theta_ * 0.5; // 四元数乘法中除以2以保证旋转角为theta
+    //   // /* 定义降落姿态四元数为target_q绕axis旋转theta角 */
+    //   // land_q.w() = cos(theta);
+    //   // land_q.x() = axis.x() * sin(theta);
+    //   // land_q.y() = axis.y() * sin(theta);
+    //   // land_q.z() = axis.z() * sin(theta);
+    //   // land_q = target_q * land_q;
+    //   land_q = target_q; 
+    // }
+
+    /* 轨迹生成器traj_opt::TrajOpt::generate_traj
+      input：初始状态iniState、目标位置target_p、目标速度target_v、降落点四元数land_q、段数N
+      output：轨迹tarj
+    */
     bool generate_new_traj; 
     // double stamp_tmp = ros::Time::now().toSec();
     // Eigen::Vector3d target_p_tmp = target_p;
@@ -219,7 +370,7 @@ namespace planning {
     // triger_received_ = false;
   }
 
-  bool Nodelet::force_arm_disarm(bool arm)
+  bool force_arm_disarm(bool arm)
   {
     // https://mavlink.io/en/messages/common.html#MAV_CMD_COMPONENT_ARM_DISARM
     mavros_msgs::CommandLong force_arm_disarm_srv;
@@ -241,7 +392,7 @@ namespace planning {
     return true;
   }
 
-  void Nodelet::cmd_pub(const ros::TimerEvent& event)
+  void cmd_pub(const ros::TimerEvent& event)
   {
     if(ctrl_ready_triger && triger_received_)
     {
@@ -383,7 +534,7 @@ namespace planning {
     }
   }
 
-  void Nodelet::init(ros::NodeHandle& nh) {
+  void init(ros::NodeHandle& nh) {
     double platform_r_;
     double robot_r_;
     // set parameters of planning
@@ -450,10 +601,13 @@ namespace planning {
     ROS_WARN("Planning node initialized!");
   }
 
-  void Nodelet::onInit(void) {
+ public:
+  void onInit(void) {
     ros::NodeHandle nh(getMTPrivateNodeHandle()); //线程并行回调
     initThread_ = std::thread(std::bind(&Nodelet::init, this, nh)); //在单独的线程中运行Nodelet::init()
   }
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
 
 }  // namespace planning
 
