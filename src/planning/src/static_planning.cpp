@@ -1,4 +1,5 @@
 #include <geometry_msgs/PoseStamped.h>
+#include <quadrotor_msgs/OutputData.h>
 #include <nav_msgs/Odometry.h>
 #include <nodelet/nodelet.h>
 #include <ros/package.h>
@@ -19,6 +20,7 @@ class StaticNodelet : public nodelet::Nodelet {
  private:
   std::thread initThread_;
   ros::Subscriber triger_sub_;
+  ros::Publisher data_pub_;
   ros::Timer plan_timer_;
 
   std::shared_ptr<vis_utils::VisUtils> visPtr_;
@@ -97,7 +99,7 @@ class StaticNodelet : public nodelet::Nodelet {
               << land_q.y() << ","
               << land_q.z() << "," << std::endl;
 
-    traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::FOLLOW;
+    traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::LAND;
     // generate_new_traj_success = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, uav_q_, false, 10, traj, &plan_state);
     generate_new_traj_success = trajOptPtr_->generate_traj(iniState, target_p, target_v, land_q, uav_q_, 
                                                            false, 10, traj, &plan_state, -1);
@@ -150,6 +152,7 @@ class StaticNodelet : public nodelet::Nodelet {
     // };
 
     nav_msgs::Odometry msg;
+    quadrotor_msgs::OutputData debug_msg;
     msg.header.frame_id = "world";
     double dt = 0.001;
     Eigen::Quaterniond q_last;
@@ -218,6 +221,12 @@ class StaticNodelet : public nodelet::Nodelet {
         visPtr_->visualize_traj(traj, "traj");
         visPtr_->pub_msg(msg, "odom");
       }
+
+      debug_msg.thrust.x = thrust.x();
+      debug_msg.thrust.y = thrust.y();
+      debug_msg.thrust.z = thrust.z();
+      debug_msg.header.stamp = ros::Time::now();
+      data_pub_.publish(debug_msg);
       // target
       // Eigen::Vector3d fake_target_v = target_v * (1.0 + 0.5 * sin(1e6 * t));
       // target_p = target_p + fake_target_v * dt;
@@ -300,6 +309,8 @@ class StaticNodelet : public nodelet::Nodelet {
 
     visPtr_ = std::make_shared<vis_utils::VisUtils>(nh);
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);
+
+    data_pub_ = nh.advertise<quadrotor_msgs::OutputData>("planner_debug", 1);
 
     plan_timer_ = nh.createTimer(ros::Duration(1.0 / plan_hz_), &StaticNodelet::debug_timer_callback, this);
 

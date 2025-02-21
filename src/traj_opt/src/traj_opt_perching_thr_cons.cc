@@ -114,32 +114,41 @@ static inline double gdT2t(double t) {
 }
 
 void TrajOpt::forwardP(const Eigen::Ref<const Eigen::MatrixXd>& p,
-                       const std::vector<Eigen::VectorXd> o,
                        const double T,
-                       Eigen::MatrixXd& inP){
+                       Eigen::Ref<Eigen::MatrixXd> inP){
   Eigen::VectorXd q;
-  double tv = T * vmax_;
+  double v0_normT = initS_.col(1).norm() * T;
+  double cons_mT = (thrust_max_ - g_[2]) * T * T / 2;
+  double r_i;
   for (int i = 0; i < dim_p_; ++i) {//for循环负责遍历整个vecotr容器
     //向量的平方范数由squaredNorm()获得，等价于向量对自身做点积，也等同于所有元素的平方和
+    r_i = (i + 1) * v0_normT + cons_mT * (i + 1) * (i + 1);
     q = p.col(i);
-    q *= 2.0 / (1.0 + p.col(i).squaredNorm()) * tv * (i + 1);
-    inP.col(i) = o[i] + q;
+    q *= 2.0 * r_i / (1.0 + p.col(i).squaredNorm());
+    inP.col(i) = O_.col(i) + q;
   }
 }
 
 void TrajOpt::backwardP(const Eigen::Ref<const Eigen::MatrixXd>& inP,
-                      const std::vector<Eigen::VectorXd> o,
                       const double T,
-                      Eigen::MatrixXd& p) {
+                      Eigen::Ref<Eigen::MatrixXd> p) {
   Eigen::VectorXd q;
   double q_norm2, r_i;
-  double tv = T * vmax_;
+  double v0_normT = initS_.col(1).norm() * T;
+  // std::cout << "v0_normT = " <<v0_normT << std::endl;
+  double cons_mT = (thrust_max_ - g_[2]) * T * T / 2;
+  // std::cout << "cons_mT = " <<cons_mT << std::endl;
   for (int i = 0; i < dim_p_; ++i) {
-    q = inP.col(i) - o[i];
+    // std::cout << "----------------- i = " <<i << " -----------------" << std::endl;
+    q = inP.col(i) - O_.col(i);
+    // std::cout << "q = " <<q.transpose() << std::endl;
     q_norm2 = q.squaredNorm();
-    r_i = tv * (i + 1);
+    // std::cout << "q_2 = " <<q_norm2 << std::endl;
+    r_i = (i + 1) * v0_normT + cons_mT * (i + 1) * (i + 1);
+    // std::cout << "r_i = " <<r_i << std::endl;
     p.col(i) = q;
     p.col(i) *= (r_i - sqrt(r_i * r_i - q_norm2)) / q_norm2;
+    // std::cout << "p.col(i) = " <<p.col(i).transpose() << std::endl;
   }
 }
 
@@ -149,14 +158,18 @@ void TrajOpt::addLayerPGrad(const Eigen::Ref<const Eigen::MatrixXd>& p,
                           Eigen::Ref<Eigen::MatrixXd> gradp,
                           double& gradT) {
   double q, r_i, pdotgq;
-  double tv = T * vmax_;
+  double v0_norm = initS_.col(1).norm();
+  double v0_normT = v0_norm * T;
+  double cons_m = (thrust_max_ - g_[2]) * T;
+  double cons_mT = cons_m * T / 2;
   for (int i = 0; i < dim_p_; i++) {
+    // std::cout << "----------------- i = " <<i << " -----------------" << std::endl;
     q = p.col(i).squaredNorm() + 1;
-    r_i = (i + 1) * tv;
+    r_i = (i + 1) * v0_normT + cons_mT * (i + 1) * (i + 1);
     pdotgq = p.col(i).transpose() * gradInPs.col(i);
-    gradp.col(i) = gradInPs.col(i) / q * 2 * r_i ;
-    gradp.col(i) -= p.col(i) / (q * q) * 4 * r_i * pdotgq;
-    gradT += 2 * (i + 1) * vmax_ / q * pdotgq;
+    gradp.col(i) = gradInPs.col(i) * 2 * r_i / q;
+    gradp.col(i) -= p.col(i) * 4 * r_i * pdotgq / (q * q);
+    gradT += (2 * pdotgq / q) * ((i + 1) * v0_norm + (i + 1) * (i + 1) * cons_m);
   }
   return;
 }
@@ -258,14 +271,18 @@ static inline double objectiveFunc(void* ptrObj,
   TrajOpt& obj = *(TrajOpt*)ptrObj;
   const double& t = x[0];
   double& gradt = grad[0];
-  Eigen::Map<const Eigen::MatrixXd> P(x + obj.dim_t_, 3, obj.dim_p_);
-  Eigen::Map<Eigen::MatrixXd> gradP(grad + obj.dim_t_, 3, obj.dim_p_);
+  Eigen::Map<const Eigen::MatrixXd> p_(x + obj.dim_t_, 3, obj.dim_p_);
+  Eigen::Map<Eigen::MatrixXd> gradp(grad + obj.dim_t_, 3, obj.dim_p_);
   const double& tail_f = x[obj.dim_t_ + obj.dim_p_ * 3];
   double& grad_f = grad[obj.dim_t_ + obj.dim_p_ * 3];
   Eigen::Map<const Eigen::Vector2d> vt(x + obj.dim_t_ + 3 * obj.dim_p_ + 1);
   Eigen::Map<Eigen::Vector2d> grad_vt(grad + obj.dim_t_ + 3 * obj.dim_p_ + 1);
 
+  /* traj params cons forward */
+  Eigen::MatrixXd P(3, obj.dim_p_);
   double dT = expC2(t);
+  obj.forwardP(p_, dT, P);
+
   double T = obj.N_ * dT;
   Eigen::Vector3d tailV, grad_tailV, tail_p_, tail_v_, car_a_;
   // land_v_ = bezier_ptr->getVelFromBezier(t,0) - tail_q_v_ * v_plus_;
@@ -277,11 +294,9 @@ static inline double objectiveFunc(void* ptrObj,
   // std::cout<<"car_v_tail = "<<tail_v_.transpose()<<std::endl;
 
   Eigen::MatrixXd tailS(3, 4);
-  // tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_; // cons 4d
   tailS.col(0) = tail_p_ + tail_q_v_ * obj.robot_l_;
   tailS.col(1) = tailV;
-  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
-  // tailS.col(1) = vt;
+  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
   // tailS.col(2).setZero();
   tailS.col(3).setZero();
 
@@ -328,11 +343,14 @@ static inline double objectiveFunc(void* ptrObj,
     grad_vt += obj.rhoVt_ * 2 * vt;
   }
 
-  obj.mincoOpt_.gdT += obj.rhoT_;
+  double gradq_dT = 0;
+  obj.addLayerPGrad(p_, obj.mincoOpt_.gdP, dT, gradp, gradq_dT);
+  // std::cout << "gradq_dT = " << gradq_dT <<std::endl;
+
+  obj.mincoOpt_.gdT += obj.rhoT_ + gradq_dT;
+  // std::cout << "gdT = " << obj.mincoOpt_.gdT <<std::endl;
   cost += obj.rhoT_ * dT;
   gradt = obj.mincoOpt_.gdT * gdT2t(t);
-
-  gradP = obj.mincoOpt_.gdP;
 
   // std::cout<<"cost = "<<cost<<" grad_t = "<<gradt<<" grad_vt = "<<grad_vt.transpose()<<std::endl;;
   return cost;
@@ -352,11 +370,14 @@ static inline int earlyExit(void* ptrObj,
   TrajOpt& obj = *(TrajOpt*)ptrObj;
   if (obj.pause_debug_) {
     const double& t = x[0];
-    Eigen::Map<const Eigen::MatrixXd> P(x + obj.dim_t_, 3, obj.dim_p_);
+    Eigen::Map<const Eigen::MatrixXd> p_(x + obj.dim_t_, 3, obj.dim_p_);
     const double& tail_f = x[obj.dim_t_ + obj.dim_p_ * 3];
     Eigen::Map<const Eigen::Vector2d> vt(x + obj.dim_t_ + 3 * obj.dim_p_ + 1);
 
+    Eigen::MatrixXd P(3, obj.dim_p_);
     double dT = expC2(t);
+    obj.forwardP(p_, dT, P);
+
     double T = obj.N_ * dT;
     Eigen::Vector3d tailV, tail_p_, tail_v_, car_a_;
     getTailPVAQ(T, tail_p_, tail_v_, car_a_);
@@ -542,7 +563,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   dim_p_ = N_ - 1;
   x_ = new double[dim_t_ + 3 * dim_p_ + 1 + 2];  // 1: tail thrust; 2: tail vt
   double& t = x_[0];
-  Eigen::Map<Eigen::MatrixXd> P(x_ + dim_t_, 3, dim_p_); // P为x_的映射矩阵，3行dim_p_列，从第dim_t_组开始取
+  Eigen::Map<Eigen::MatrixXd> p_(x_ + dim_t_, 3, dim_p_); // P为x_的映射矩阵，3行dim_p_列，从第dim_t_组开始取
   double& tail_f = x_[dim_t_ + 3 * dim_p_];
   Eigen::Map<Eigen::Vector2d> vt(x_ + dim_t_ + 3 * dim_p_ + 1);
   car_p_ = car_p;
@@ -551,6 +572,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   Eigen::Vector3d tail_p_, tail_v_, car_a_;
 
   double max_omega = 0;
+  double max_thr = 0;
 
   // NOTE set boundary conditions
   initS_ = iniState;
@@ -578,16 +600,20 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   tail_f = 0;
 
+  double dT = 0;
+  Eigen::MatrixXd P(3,dim_p_);
+
   bool opt_once = t_replan > 0 && t_replan < init_traj_.getTotalDuration(); // t_replan = -1
   if (opt_once) {
     double init_T = init_traj_.getTotalDuration() - t_replan;
-    t = logC2(init_T / N_);
+    // t = logC2(init_T / N_);
     for (int i = 1; i < N_; ++i) {
       double tt0 = (i * 1.0 / N_) * init_T;
       P.col(i - 1) = init_traj_.getPos(tt0 + t_replan);
     }
     tail_f = init_tail_f_;
     vt = init_vt_;
+    dT = init_T / N_;
   } else {
     /* minimum snap traj generate */
     Eigen::MatrixXd bvp_i = initS_; // 无人机初始状态
@@ -608,9 +634,9 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
       else
         T_bvp += 1.0;
       
-      if(T_bvp > 50 * T_min)
+      if(T_bvp > 200 * T_min)
       {
-        std::cout<<"minumsnap T cost too high"<<" T = "<<T_bvp<<" max_omega = "<<max_omega<<std::endl;
+        std::cout<<"minumsnap T cost too high"<<" T = "<<T_bvp<<", max_omega = "<<max_omega << ", max_thr = "<<max_thr<<std::endl;
         return false;
       }
       getPVA(T_bvp, tail_p_, tail_v_, car_a_);
@@ -622,8 +648,9 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
       // std::cout<<"T_bvp = "<<T_bvp<<std::endl;
       Trajectory traj(durs, coeffs); // 保存粗轨迹
       max_omega = getMaxOmega(traj);
+      max_thr = traj.getMaxThrust();
       // std::cout<<T_bvp<<" "<<max_omega<<" , ";
-    } while (max_omega > 2.0 * omega_max_);
+    } while (max_omega > 1.5 * omega_max_ || max_thr > 1.0 * thrust_max_);
     // std:;cout<<std::endl;
     std::cout<<"T_bvp = "<<T_bvp<<std::endl;
     Eigen::VectorXd tt(8);
@@ -638,15 +665,21 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
       // std::cout<<"P:"<<std::endl;
       // std::cout<<P<<std::endl;
     }
-    
-    t = logC2(T_bvp / N_); // 时间约束消除
+    dT = T_bvp / N_;
+    // t = logC2(T_bvp / N_); // 时间约束消除
     // // }
     // std::cout << "initial guess >>> t: " << t << std::endl;
     // std::cout << "initial guess >>> tail_f: " << tail_f << std::endl;
     // std::cout << "initial guess >>> vt: " << vt.transpose() << std::endl;
   }
 
-  //TODO backward p
+  //TODO traj params mapping backward
+  t = logC2(dT); // 时间约束消除
+  Eigen::Vector3d o = initS_.col(0);
+  O_ = o.replicate(1,dim_p_);
+  backwardP(P, dT, p_);
+  std::cout << "p_ = "<< std::endl;
+  std::cout << p_ << std::endl;
 
   // NOTE optimization
   lbfgs::lbfgs_parameter_t lbfgs_params;
@@ -685,7 +718,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     delete[] x_;
     return false;
   }
-  double dT = expC2(t);
+  dT = expC2(t);
   double T = N_ * dT;
   Eigen::Vector3d tailV;
   getTailPVAQ(T, tail_p_, tail_v_, car_a_);
@@ -706,6 +739,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   max_omega = getMaxOmega(traj_tmp);
   // std::cout << "tailV: " << tailV.transpose() << std::endl;
+  std::cout << "dT: "<<dT<<std::endl;
   std::cout << "maxOmega: " << max_omega << std::endl;
   std::cout << "maxThrust: " << traj_tmp.getMaxThrust() << std::endl;
   std::cout << "maxVel: " << getMaxVel(traj_tmp) << std::endl;
@@ -713,7 +747,7 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
 
   // if(*plan_state == LAND)
   // {
-  // if(max_omega > 5 * omega_max_)
+  // if(max_omega > 2.5 * omega_max_)
   // {
   //   std::cout<<"[planning]: Omega too high"<<std::endl;
   //   return false;

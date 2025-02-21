@@ -28,7 +28,7 @@ class TrajOpt {
     double rhoThrust_, rhoOmega_;
     double rhoPerchingCollision_;
     // landing parameters
-    double robot_l_, robot_r_, platform_r_, platform_l_, visual_region_;
+    double robot_l_, robot_r_, platform_r_, platform_l_;
     // SE3 dynamic limitation parameters
     double thrust_max_, thrust_min_;
     double omega_max_, omega_yaw_max_;
@@ -37,6 +37,8 @@ class TrajOpt {
     Eigen::MatrixXd initS_;
     // duration of each piece of the trajectory
     Eigen::VectorXd t_;
+    Eigen::MatrixXd p_;
+    Eigen::MatrixXd O_;
     double* x_;
 
    enum plan_s
@@ -73,6 +75,20 @@ class TrajOpt {
     bool feasibleCheck(Trajectory& traj);
 
     void addTimeIntPenalty(double& cost);
+
+    void forwardP(const Eigen::Ref<const Eigen::MatrixXd>& p,
+                       const double T,
+                       Eigen::Ref<Eigen::MatrixXd> inP);
+
+    void backwardP(const Eigen::Ref<const Eigen::MatrixXd>& inP,
+                      const double T,
+                      Eigen::Ref<Eigen::MatrixXd> p);
+
+    void addLayerPGrad(const Eigen::Ref<const Eigen::MatrixXd>& p,
+                          const Eigen::Ref<const Eigen::MatrixXd>& gradInPs,
+                          const double T,
+                          Eigen::Ref<Eigen::MatrixXd> gradp,
+                          double& gradT);
 
     bool grad_cost_v(const Eigen::Vector3d& v,
                     Eigen::Vector3d& gradv,
@@ -116,20 +132,13 @@ class TrajOpt {
                                         double& cost);
                                         
 
-      // bool grad_cost_visible_domain(const Eigen::Vector3d& pos,
-      //                                        const Eigen::Vector3d& acc,
-      //                                        const Eigen::Vector3d& car_p,
-      //                                        Eigen::Vector3d& gradp,
-      //                                        Eigen::Vector3d& grada,
-      //                                        Eigen::Vector3d& grad_car_p,
-      //                                        double& cost);
-   bool grad_cost_visible_domain(const Eigen::Vector3d& pos,
-                                    const Eigen::Vector3d& car_p,
-                                    const Eigen::Vector3d& vel,
-                                    const Eigen::Vector3d& car_v,
-                                    Eigen::Vector3d& gradp,
-                                    Eigen::Vector3d& grad_car_p,
-                                    double& cost);
+      bool grad_cost_visible_domain(const Eigen::Vector3d& pos,
+                                             const Eigen::Vector3d& acc,
+                                             const Eigen::Vector3d& car_p,
+                                             Eigen::Vector3d& gradp,
+                                             Eigen::Vector3d& grada,
+                                             Eigen::Vector3d& grad_car_p,
+                                             double& cost);
 
     bool check_collilsion(const Eigen::Vector3d& pos,
                             const Eigen::Vector3d& acc,
