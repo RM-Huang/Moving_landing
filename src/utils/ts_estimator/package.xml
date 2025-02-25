@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>ground_platform</name>
+  <name>ts_estimator</name>
   <version>0.0.0</version>
-  <description>The ground_platform package</description>
+  <description>The ts_estimator package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="LuSP@todo.todo">pc205</maintainer>
+  <maintainer email="pc205@todo.todo">pc205</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -19,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/ground_platform</url> -->
+  <!-- <url type="website">http://wiki.ros.org/ts_estimator</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->

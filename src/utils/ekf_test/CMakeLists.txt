@@ -5,6 +5,7 @@ add_compile_options(-std=c++14)
 set(CMAKE_BUILD_TYPE "Release")
 
 find_package(Eigen3 REQUIRED)
+find_package(osqp REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   quadrotor_msgs
@@ -26,10 +27,13 @@ include_directories(
 
 add_executable(ekf_test 
   src/ekf_test.cpp
+  src/ekf_perching.cc
+  src/qp_solver.cc
 )
 
 # add_dependencies(ekf_test car_odom_server)
 
 target_link_libraries(ekf_test
   ${catkin_LIBRARIES}
+  osqp::osqp
 )
