@@ -18,6 +18,8 @@ include_directories(
 
 add_message_files(
   FILES
+  EstimatorDebug.msg
+  EstimatorOdom.msg
   AuxCommand.msg
   Corrections.msg
   Gains.msg

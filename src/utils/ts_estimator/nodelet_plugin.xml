@@ -1,0 +1,5 @@
+<library path="lib/libsim_odom">
+  <class name="sim_odom/SimOdom" type="sim_odom::SimOdom" base_class_type="nodelet::Nodelet">
+    <description></description>
+  </class>
+</library>

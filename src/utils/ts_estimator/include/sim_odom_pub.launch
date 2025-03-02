@@ -1,0 +1,35 @@
+<launch>
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find estimator)/config/rviz_sim.rviz">
+  </node>
+
+  <group ns="drone0">
+    <!-- rviz中可视化无人机位姿变化 -->
+    <node pkg="odom_visualization" name="odom_visualization" type="odom_visualization" output="screen">
+      <!-- 将订阅的odom重定向至/drone0/odom -->
+      <remap from="~odom" to="odom" />
+      <param name="robot_scale" value="1.0"/>
+    </node>
+    <!-- rviz中可视化平台运动 -->
+    <node pkg="odom_visualization" name="odom_visualization_plate" type="odom_visualization_plate" output="screen">
+      <remap from="~odom" to="estimator/target_odom" />
+      <param name="height" value="1.2"/>
+      <param name="width" value="1.6"/>
+      <param name="platform_r" value="1.0"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="manager" args="manager" output="screen">
+      <param name="num_worker_threads" value="16"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="sim_odom" args="load sim_odom/SimOdom manager" output="screen">
+      <!-- visuallize用，将发布的/drone0/estimator/odom重命名为/drone0/odom -->
+      <remap from="~odom" to="odom"/>
+      <remap from="~target" to="estimator/target_odom"/>
+
+      <rosparam command="load" file="$(find estimator)/config/odom_param.yaml" />
+
+    </node>
+
+  </group>
+</launch>

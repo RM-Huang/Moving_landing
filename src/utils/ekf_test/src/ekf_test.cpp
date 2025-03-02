@@ -59,7 +59,7 @@ void car_gps_Callback(const car_odom_server::car_status::ConstPtr &msg)
 void handler()
 {
     /* 在头文件中写好函数后在此调用 */
-    if(odom_sub_tri = true)
+    if(odom_sub_tri == true)
     {
         Eigen::Vector3d pos, vel;
         Eigen::Quaterniond ori;
@@ -132,9 +132,9 @@ int main(int argc, char *argv[])
     ros::NodeHandle nh("~");
 
     ekf_pub = nh.advertise<nav_msgs::Odometry>("/pose_ekf", 10);
-    ros::Subscriber odom_sub = nh.subscribe("/odom/remap/car", 1, &car_odom_Callback, ros::TransportHints().tcpNoDelay()); // 小车里程计话题，local坐标系
-    ros::Subscriber vision_sub = nh.subscribe("/tag_detections", 1, &vision_Callback, ros::TransportHints().tcpNoDelay()); // 二维码话题，相机坐标系
-    ros::Subscriber gps_sub = nh.subscribe("/odom/remap/car/raw", 1, &car_gps_Callback, ros::TransportHints().tcpNoDelay()); // 小车px4话题，东北天坐标系
+    ros::Subscriber odom_sub = nh.subscribe<nav_msgs::Odometry>("/odom/remap/car", 1, &car_odom_Callback, ros::TransportHints().tcpNoDelay()); // 小车里程计话题，local坐标系
+    // ros::Subscriber vision_sub = nh.subscribe("/tag_detections", 1, &vision_Callback, ros::TransportHints().tcpNoDelay()); // 二维码话题，相机坐标系
+    // ros::Subscriber gps_sub = nh.subscribe("/odom/remap/car/raw", 1, &car_gps_Callback, ros::TransportHints().tcpNoDelay()); // 小车px4话题，东北天坐标系
 
     double error_ah_, error_av_, error_ddtheta_;
     int max_seg_;

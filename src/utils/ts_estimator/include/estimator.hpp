@@ -1,9 +1,13 @@
 #include <ros/ros.h>
 #include <coptcpp_pch.h>
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <unsupported/Eigen/KroneckerProduct>
 #include <omp.h>
+#include <time.h>
 #include <cmath>
+#include <iostream>
+#include <string>
 
 namespace estimate
 {
@@ -17,25 +21,42 @@ namespace estimate
         std::vector<Eigen::MatrixXd> At;
 
         Envr copt_env;
-        Model model;
-        void init_Psd_quastion();
+        Model model = copt_env.CreateModel("sdp_q");
+        PsdVar Z = model.AddPsdVar(20, "Z");;
+        // void init_sdp_quastion();
+
+        void init_constrains();
+
+        void get_nonZero_vals(const Eigen::MatrixXd& Mat, std::vector<int>& rows, std::vector<int>& cols, std::vector<double>& vals);
+
+        void print_DenseMatrix_asSym(const Eigen::MatrixXd& Mat, std::string name);
+
+        int rank_count(const Eigen::MatrixXd& Mat, const std::string& name);
+
+        Eigen::MatrixXd psdVector_2_MatrixXd(const std::vector<double>& vec, const int dim);
+
+        Eigen::VectorXd revert_z_from_Z(const std::vector<double>& vec, const int dim);
+
+        // SymMatrix EigenMatrix_2_SymMatrix(const Eigen::MatrixXd& Mat, int size);
+
+        Eigen::Vector3d time_shift(const Eigen::Vector3d& p, const Eigen::Vector3d& v);
         
         Eigen::MatrixXd get_At_matrix(const Eigen::Vector3d& p_uu, const Eigen::Vector3d& p_cc, const Eigen::Quaterniond& q_uu,
                                     const Eigen::Vector3d& v_cc, const Eigen::Vector3d& b, const int n);
 
-        void update_At_matrix(const int n, Eigen::Ref(Eigen::MatrixXd) At);
+        void update_At_vector(const int n, Eigen::MatrixXd& At);
 
-        void update_Q_matrix(Eigen::Ref(Eigen::MatrixXd) Q);
+        void update_Q_matrix(Eigen::MatrixXd& Q);
 
         public:
-        Solver(bool if_iter);
+        Solver(){};
         ~Solver(){};
 
-        void reset();
+        int init(const bool if_iter, const int N, const double R);
 
-        bool optimize(const Eigen::Vector3d& p_uu, const Eigen::Vector3d& p_cc, const Eigen::Quaterniond& q_uu,
-                        const Eigen::Vector3d& v_cc, const Eigen::Vector3d& b);
+        int optimize(const Eigen::Vector3d& p_uu, const Eigen::Vector3d& p_cc, const Eigen::Quaterniond& q_uu,
+                        const Eigen::Vector3d& v_cc, const Eigen::Vector3d& b, Eigen::VectorXd& x);
 
         
-    }
+    };
 } // namespace estimate

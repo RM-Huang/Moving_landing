@@ -1,0 +1,226 @@
+#include <geometry_msgs/PoseStamped.h>
+#include <quadrotor_msgs/EstimatorOdom.h>
+#include <nav_msgs/Odometry.h>
+#include <nodelet/nodelet.h>
+#include <ros/ros.h>
+#include <traj_opt/minco.hpp>
+
+#include <Eigen/Core>
+#include <atomic>
+#include <thread>
+#include <vis_utils/vis_utils.hpp>
+
+namespace sim_odom {
+
+class SimOdom : public nodelet::Nodelet {
+private:
+    std::thread initThread_;
+    ros::Publisher odom_pub;
+    ros::Publisher car_truth_pub;
+    ros::Timer timer_;
+
+    std::shared_ptr<vis_utils::VisUtils> visPtr_;
+    minco::MINCO_S4_Uniform mincoOpt_;
+    Trajectory traj;
+
+    // traj param
+    Eigen::MatrixXd P_u;
+    double T_u;
+    double R_c;
+    double v_c;
+    double omega_c;
+    double t_0;
+
+    // bias param
+    double time_delay = 0;
+    Eigen::Vector3d pos_bias;
+    Eigen::Quaterniond q_bias;
+
+    void vec_2_Matrix(const std::vector<std::vector<double>>& vec){
+      int rows = vec.size();
+      int cols = vec[0].size();
+      P_u = Eigen::MatrixXd::Zero(rows, cols);
+
+      for (int i = 0; i < rows; ++i) {
+          for (int j = 0; j < cols; ++j) {
+              P_u(i, j) = vec[i][j];
+          }
+      }
+    }
+
+    bool v2q(const Eigen::Vector3d& v, Eigen::Quaterniond& q){
+      double a = v.x();
+      double b = v.y();
+      double c = v.z();
+      if (c == -1) {
+        return false;
+      }
+      double d = 1.0 / sqrt(2.0 * (1 + c));
+      q.w() = (1 + c) * d;
+      q.x() = -b * d;
+      q.y() = a * d;
+      q.z() = 0;
+      return true;
+    }
+
+    void generate_uav_traj(){
+      Eigen::MatrixXd initS = Eigen::MatrixXd::Zero(3, 4);
+      initS.col(0) = P_u.col(0);
+      Eigen::MatrixXd tailS = initS;
+      Eigen::MatrixXd p_u = P_u.block(0, 1, P_u.rows(), P_u.cols() - 1);
+      mincoOpt_.generate(initS, tailS, p_u, T_u);
+      traj = mincoOpt_.getTraj();
+      visPtr_->visualize_traj(traj, "traj");
+    }
+
+    void get_car_odom(const double t, bool set_bias, nav_msgs::Odometry& car_odom){
+      double theta = omega_c * t;       // 当前旋转角度
+      double cos_theta = cos(theta);
+      double sin_theta = sin(theta);
+
+      Eigen::Vector3d p_tmp(R_c * cos_theta, R_c * sin_theta, 0);
+      Eigen::Vector3d v_tmp(-v_c * sin_theta, v_c * cos_theta, 0);
+
+      double yaw = theta + M_PI_2;
+      // 标准化角度到[0, 2π)范围
+      yaw = fmod(yaw, 2*M_PI);
+      if (yaw < 0) {
+          yaw += 2*M_PI;
+      }
+      Eigen::AngleAxisd rollAngle(0, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd pitchAngle(0, Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
+      Eigen::Quaterniond q_tmp = yawAngle * pitchAngle * rollAngle;
+      
+      if(set_bias){
+        p_tmp = q_bias * p_tmp + pos_bias;
+        v_tmp = q_bias * v_tmp;
+        q_tmp = q_bias * q_tmp;
+      }
+
+      car_odom.pose.pose.position.x = p_tmp(0);
+      car_odom.pose.pose.position.y = p_tmp(1);
+      car_odom.pose.pose.position.z = p_tmp(2);
+      car_odom.twist.twist.linear.x = v_tmp(0);
+      car_odom.twist.twist.linear.y = v_tmp(1);
+      car_odom.twist.twist.linear.z = v_tmp(2);
+      car_odom.pose.pose.orientation.w = q_tmp.w();
+      car_odom.pose.pose.orientation.x = q_tmp.x();
+      car_odom.pose.pose.orientation.y = q_tmp.y();
+      car_odom.pose.pose.orientation.z = q_tmp.z();
+      car_odom.header.stamp = ros::Time().fromSec(t);
+      car_odom.header.frame_id = "world";
+    }
+
+    void get_uav_odom(const double t_cur, Eigen::Vector3d& p, Eigen::Quaterniond& q, nav_msgs::Odometry& uav_odom){
+      
+      double t = t_cur - std::floor(t_cur / traj.getTotalDuration()) * traj.getTotalDuration();
+      p = traj.getPos(t);
+      Eigen::Vector3d v = traj.getVel(t);
+      Eigen::Vector3d a = traj.getAcc(t);
+      Eigen::Vector3d j = traj.getJer(t);
+      Eigen::Vector3d g(0, 0, -9.8);
+      Eigen::Vector3d thrust = a - g;
+      Eigen::Vector3d zb = thrust.normalized();
+      bool no_singlarity = v2q(zb, q);
+      if (no_singlarity) {
+        uav_odom.pose.pose.position.x = p.x();
+        uav_odom.pose.pose.position.y = p.y();
+        uav_odom.pose.pose.position.z = p.z();
+        uav_odom.pose.pose.orientation.w = q.w();
+        uav_odom.pose.pose.orientation.x = q.x();
+        uav_odom.pose.pose.orientation.y = q.y();
+        uav_odom.pose.pose.orientation.z = q.z();
+        uav_odom.twist.twist.linear.x = v.x();
+        uav_odom.twist.twist.linear.y = v.y();
+        uav_odom.twist.twist.linear.z = v.z();
+        uav_odom.header.stamp = ros::Time().fromSec(t_cur);
+        uav_odom.header.frame_id = "world";
+        visPtr_->visualize_traj(traj, "traj");
+        visPtr_->pub_msg(uav_odom, "odom");
+      }
+    }
+
+    void timer_callback(const ros::TimerEvent& event){
+      double t = ros::Time::now().toSec() - t_0 + time_delay;
+      // std::cout << "t = " << t <<std::endl;
+      quadrotor_msgs::EstimatorOdom odom_msg;
+      nav_msgs::Odometry car_truth;
+      Eigen::Quaterniond uav_q;
+      Eigen::Vector3d uav_p, car_p;
+
+      get_car_odom(t - time_delay, true, odom_msg.car_odom);
+      visPtr_->pub_msg(odom_msg.car_odom, "fake_target");
+
+      get_uav_odom(t, uav_p, uav_q, odom_msg.uav_odom);
+
+      get_car_odom(t, false, car_truth);
+      visPtr_->pub_msg(car_truth, "target");
+
+      car_p << car_truth.pose.pose.position.x, car_truth.pose.pose.position.y, car_truth.pose.pose.position.z;
+      // Eigen::Vector3d dir = uav_q.inverse() * (car_p - uav_p);
+      Eigen::Vector3d dir = (car_p - uav_p);
+      dir.normalize();
+      odom_msg.dir_uc.x = dir(0);
+      odom_msg.dir_uc.y = dir(1);
+      odom_msg.dir_uc.z = dir(2);
+
+      odom_pub.publish(odom_msg);
+      car_truth_pub.publish(car_truth);
+    }
+
+    void init(ros::NodeHandle& nh) {
+      std::vector<std::vector<double>> p_u_vec(3);
+      int pub_hz_;
+      double trans_x, trans_y, trans_z, rotat_roll, rotat_pitch, rotat_yaw;
+
+      nh.getParam("pub_hz_", pub_hz_);
+      nh.getParam("t_uav_per", T_u);
+      nh.getParam("car_R", R_c);
+      nh.getParam("car_V", v_c);
+      nh.getParam("uav_P_x", p_u_vec[0]);
+      nh.getParam("uav_P_y", p_u_vec[1]);
+      nh.getParam("uav_P_z", p_u_vec[2]);
+
+      nh.param("time_delay", time_delay, 0.0);
+      nh.param("trans_x", trans_x, 0.0);
+      nh.param("trans_y", trans_y, 0.0);
+      nh.param("trans_z", trans_z, 0.0);
+      nh.param("rotat_roll", rotat_roll, 0.0);
+      nh.param("rotat_pitch", rotat_pitch, 0.0);
+      nh.param("rotat_yaw", rotat_yaw, 0.0);
+
+      pos_bias << trans_x, trans_y, trans_z;
+      Eigen::AngleAxisd rollAngle(rotat_roll, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd pitchAngle(rotat_pitch, Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd yawAngle(rotat_yaw, Eigen::Vector3d::UnitZ());
+      q_bias = yawAngle * pitchAngle * rollAngle;
+
+      visPtr_ = std::make_shared<vis_utils::VisUtils>(nh);
+      vec_2_Matrix(p_u_vec);
+      omega_c = v_c / R_c;
+      t_0 = ros::Time::now().toSec();
+      mincoOpt_.reset(p_u_vec[0].size() - 1);
+
+      generate_uav_traj();
+
+      odom_pub = nh.advertise<quadrotor_msgs::EstimatorOdom>("/estimator/sim_odom", 1);
+      car_truth_pub = nh.advertise<nav_msgs::Odometry>("/estimator/car_truth", 1);
+
+      timer_ = nh.createTimer(ros::Duration(1.0 / pub_hz_), &SimOdom::timer_callback, this);
+
+      ROS_INFO("\033[32mSimulation odom publisher initialized!\033[32m");
+    }
+
+public:
+    void onInit(void) {
+    ros::NodeHandle nh(getMTPrivateNodeHandle());
+    initThread_ = std::thread(std::bind(&SimOdom::init, this, nh));
+    }
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
+}
+
+#include <pluginlib/class_list_macros.h>
+PLUGINLIB_EXPORT_CLASS(sim_odom::SimOdom, nodelet::Nodelet);

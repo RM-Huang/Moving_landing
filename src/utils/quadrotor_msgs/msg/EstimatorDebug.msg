@@ -1,0 +1,2 @@
+geometry_msgs/PoseStamped pose_bias
+float64 time_bias
