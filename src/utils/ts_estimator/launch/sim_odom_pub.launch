@@ -27,6 +27,8 @@
       <remap from="~odom" to="odom"/>
       <remap from="~target" to="estimator/target_odom"/>
 
+      <remap from="~car_odom_topic" to="/smart/odom"/>
+
       <rosparam command="load" file="$(find estimator)/config/odom_param.yaml" />
 
     </node>

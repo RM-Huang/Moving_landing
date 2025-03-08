@@ -225,6 +225,12 @@ class StaticNodelet : public nodelet::Nodelet {
       debug_msg.thrust.x = thrust.x();
       debug_msg.thrust.y = thrust.y();
       debug_msg.thrust.z = thrust.z();
+      debug_msg.p.x = p.x();
+      debug_msg.p.y = p.y();
+      debug_msg.p.z = p.z();
+      debug_msg.v.x = v.x();
+      debug_msg.v.y = v.y();
+      debug_msg.v.z = v.z();
       debug_msg.header.stamp = ros::Time::now();
       data_pub_.publish(debug_msg);
       // target

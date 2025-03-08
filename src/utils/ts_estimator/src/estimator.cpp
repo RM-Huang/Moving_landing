@@ -178,8 +178,9 @@ namespace estimate
         return Mat;
     }
 
-    Eigen::VectorXd Solver::revert_z_from_Z(const std::vector<double>& vec, const int dim){
+    Eigen::VectorXd Solver::revert_z_from_Z(const std::vector<double>& vec, const int dim, int& rank){
         Eigen::MatrixXd Z_ = psdVector_2_MatrixXd(vec, dim);
+        rank = rank_count(Z_,"Z_");
         Eigen::VectorXd z = Eigen::VectorXd::Zero(dim);
 
         // // direct decomp
@@ -195,13 +196,12 @@ namespace estimate
         Eigen::VectorXd eigenvalues = eigen_solver.eigenvalues();
         Eigen::MatrixXd eigenvectors = eigen_solver.eigenvectors();
 
-        Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(Z_);
-        std::cout << "rank_num = " << qr.rank() << std::endl;
-        std::cout << "eigenvalue = " << eigenvalues.transpose() << std::endl;
-        std::cout << std::endl;
-        
-        int idx = eigenvalues.size() - 1;
-        z = eigenvectors.col(idx) * std::sqrt(eigenvalues[idx]);
+        int max_index;
+        double max_eigenvalue = eigenvalues.maxCoeff(&max_index);
+
+        // Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(Z_);
+        z = std::sqrt(max_eigenvalue) * eigenvectors.col(max_index);
+        // std::cout << eigenvectors.col(idx)
         return z;
     }
 
@@ -218,6 +218,14 @@ namespace estimate
         int ind = 22 + n;
         Atk.col(ind) = Atk.col(ind + 1);
         Atk.col(ind + 1) = Eigen::Vector3d::Zero();
+
+        if(CONTINUES_ESTIMATE_){
+            Eigen::Vector3d p(-Atk(0, 0), -Atk(0, 3), -Atk(0, 6));
+            Eigen::Vector3d v(-Atk(0, 9), -Atk(0, 12), -Atk(0, 15));
+            Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
+            p = time_shift(p, v);
+            Atk.block(0, 0, 3, 9) = Eigen::KroneckerProduct<Eigen::RowVector3d, Eigen::Matrix3d>(p.transpose(), -1 * I);
+        }
     }
 
     Eigen::MatrixXd Solver::get_At_matrix(const Eigen::Vector3d& p_uu, const Eigen::Vector3d& p_cc, const Eigen::Quaterniond& q_uu,
@@ -230,9 +238,6 @@ namespace estimate
         Eigen::Vector3d p_cct = time_shift(p_cc, v_cc);
 
         A_x.block(0, 0, 3, 9) = Eigen::KroneckerProduct<Eigen::RowVector3d, Eigen::Matrix3d>(p_cct.transpose(), -1 * I);
-        // std::cout << "p_cc = " << p_cc.transpose() << std::endl;
-        // std::cout << "A_x.block(0, 0, 3, 9) = " << std::endl;
-        // std::cout << A_x.block(0, 0, 3, 9) << std::endl;
         A_x.block(0, 9, 3, 9) = Eigen::KroneckerProduct<Eigen::RowVector3d, Eigen::Matrix3d>(v_cc.transpose(), -1 * I);
         A_x.col(18) = p_uu;
 
@@ -297,9 +302,10 @@ namespace estimate
         Eigen::MatrixXd Q = A_latest.transpose() * A_latest;
         // rank_count(A_latest.transpose(),"A_latest"); // debug
         update_Q_matrix(Q);
-        // rank_count(Q,"Q"); // debug
-        auto toc = std::chrono::steady_clock::now();
-        double dur = std::chrono::duration_cast<std::chrono::milliseconds>(toc - tic).count();
+        // int rank_Q = rank_count(Q,"Q"); // debug
+
+        auto toc_1 = std::chrono::steady_clock::now();
+        std::cout << "dur_1 : " << (toc_1 - tic).count() * 1e-6 << "ms" << std::endl;
 
         Eigen::Block<Eigen::MatrixXd> Q_a = Q.block(0, 0, 19, 19);
         Eigen::Block<Eigen::MatrixXd> Q_b = Q.block(0, 19, 19, 3 + N_);
@@ -307,8 +313,8 @@ namespace estimate
         Eigen::MatrixXd Q_c_inv = Q_c.inverse();
         // print_DenseMatrix_asSym(Q_a, "Q_a"); //debug
         // print_DenseMatrix_asSym(Q_b, "Q_b"); //debug
-        std::cout << "Q_a.det = " << Q_a.determinant() << std::endl;
-        rank_count(Q_a,"Q_a"); // debug
+        // std::cout << "Q_a.det = " << Q_a.determinant() << std::endl;
+        // rank_count(Q_a,"Q_a"); // debug
         // rank_count(Q_b,"Q_b"); // debug
 
         Eigen::MatrixXd Q_0_x = Q_a - Q_b * Q_c_inv * Q_b.transpose();
@@ -326,57 +332,57 @@ namespace estimate
             model.SetPsdObjective(Q_0 * Z, COPT_MINIMIZE);
             model.Solve();
 
-            auto tic = std::chrono::steady_clock::now();
-            auto toc = std::chrono::steady_clock::now();
-            double dur = std::chrono::duration_cast<std::chrono::milliseconds>(toc - tic).count();
+            auto toc_2 = std::chrono::steady_clock::now();
+            std::cout << "dur_2 : " << (toc_2 - toc_1).count() * 1e-6 << "ms" << std::endl;
+
             // Output solution
-            while(dur <= 10000) // ms
-            {
-                if(model.GetIntAttr(COPT_INTATTR_LPSTATUS) == COPT_LPSTATUS_OPTIMAL){
-                    std::cout << "\nOptimal objective value: " << model.GetDblAttr(COPT_DBLATTR_LPOBJVAL) << std::endl; // 目标函数最优值
-                    std::cout << std::endl;
+            if(model.GetIntAttr(COPT_INTATTR_LPSTATUS) == COPT_LPSTATUS_OPTIMAL){
+                std::cout << "\nOptimal objective value: " << model.GetDblAttr(COPT_DBLATTR_LPOBJVAL) << std::endl; // 目标函数最优值
+                std::cout << std::endl;
 
-                    PsdVarArray psdvars = model.GetPsdVars();
-                    PsdVar psdvar = psdvars.GetPsdVar(0);
-                    int psdLen = psdvar.GetLen();
-                    int psdDim = psdvar.GetDim();
+                PsdVarArray psdvars = model.GetPsdVars();
+                PsdVar psdvar = psdvars.GetPsdVar(0);
+                int psdLen = psdvar.GetLen();
+                int psdDim = psdvar.GetDim();
 
-                    std::vector<double> psdVal(psdLen);
-                    // // std::vector<double> psdDual(psdLen);
+                std::vector<double> psdVal(psdLen);
+                // // std::vector<double> psdDual(psdLen);
 
-                    /* Get flattened SDP primal/dual solution */
-                    psdvar.Get(COPT_DBLINFO_VALUE, psdVal.data(), psdLen); // 原变量
-                    // // psdvar.Get(COPT_DBLINFO_DUAL, psdDual.data(), psdLen); // 对偶变量
+                /* Get flattened SDP primal/dual solution */
+                psdvar.Get(COPT_DBLINFO_VALUE, psdVal.data(), psdLen); // 原变量
+                // // psdvar.Get(COPT_DBLINFO_DUAL, psdDual.data(), psdLen); // 对偶变量
+                
+                int rankZ;
+                Eigen::VectorXd z = revert_z_from_Z(psdVal, psdDim, rankZ);
 
-                    Eigen::VectorXd z = revert_z_from_Z(psdVal, psdDim);
+                Eigen::VectorXd R(9);
+                R << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
+                // std::cout << "R:" << R.transpose() << std::endl;
+                Eigen::VectorXd tR(9);
+                tR << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
+                Eigen::Matrix3d Rot, tRot;
+                Rot << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
+                tRot << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
+                Eigen::Quaterniond q_cu(Rot);
+                q_cu.normalize();
 
-                    Eigen::VectorXd R(9);
-                    R << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
-                    // std::cout << "R:" << R.transpose() << std::endl;
-                    Eigen::VectorXd tR(9);
-                    tR << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
-                    Eigen::Matrix3d Rot;
-                    Rot << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
-                    Eigen::Quaterniond q_cu(Rot);
-                    q_cu.normalize();
-
-                    double t_d = z(19);
-                    // std::cout << "t_d:" << t_d << std::endl;
-
-                    Eigen::VectorXd x_s = z.head(19);
-                    x_s = - Q_c_inv * Q_b.transpose() * x_s;
-                    // std::cout << "x_s:" << x_s.transpose() << std::endl;
-                    
-                    x = Eigen::VectorXd::Zero(8);
-                    x << q_cu.w(), q_cu.x(), q_cu.y(), q_cu.z(), x_s(0), x_s(1), x_s(2), t_d;
-                    // std::cout << "x:" << x.transpose() << std::endl;
-
-                    std::cout << "solving duration : " << model.GetDblAttr(COPT_DBLATTR_SOLVINGTIME) << " s" << std::endl;
-                    return 1;
+                double t_d = std::cbrt(tRot.determinant());
+                if(CONTINUES_ESTIMATE_){
+                    T_total += t_d;
                 }
-                toc = std::chrono::steady_clock::now();
-                dur += std::chrono::duration_cast<std::chrono::milliseconds>(toc - tic).count();
-                // std::cout << "solver: " << s_idx << " time = " << dur <<std::endl;
+                std::cout << "t_d:" << t_d << ", z(19):" << z(19) << std::endl;
+                std::cout << "cons_12:" << (tR * z(18) - R * t_d).norm() << std::endl;
+
+                Eigen::VectorXd x_s = z.head(19);
+                x_s = - Q_c_inv * Q_b.transpose() * x_s;
+                // std::cout << "x_s:" << x_s.transpose() << std::endl;
+                
+                x = Eigen::VectorXd::Zero(10);
+                x << q_cu.w(), q_cu.x(), q_cu.y(), q_cu.z(), x_s(0), x_s(1), x_s(2), t_d, rankZ, T_total;
+                // std::cout << "x:" << x.transpose() << std::endl;
+
+                std::cout << "solving duration : " << model.GetDblAttr(COPT_DBLATTR_SOLVINGTIME) << " s" << std::endl;
+                return 1;
             }
             model.Interrupt();
             return -1;

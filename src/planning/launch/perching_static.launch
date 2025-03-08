@@ -80,7 +80,7 @@
       <param name="platform_r" value="0.3"/>
       <param name="v_plus" value="0.3"/> -->
 
-      <param name="rhoT" value="4500000.0"/>
+      <!-- <param name="rhoT" value="4500000.0"/>
       <param name="rhoPf" value="12500000.0"/>
       <param name="rhoPt" value="750000.0"/>
       <param name="rhoV" value="2000000.0"/>
@@ -89,29 +89,28 @@
       <param name="rhoThrust" value="2500000.0"/>
       <param name="rhoOmega" value="10000000.0"/>
       <param name="rhoVisibleDomain" value="4000000.0"/>
-      <param name="rhoPerchingCollision" value="50000000.0"/>
-      <!-- <param name="rhoT" value="60000.0"/>
-      <param name="rhoPf" value="10000000.0"/>
-      <param name="rhoPt" value="15000.0"/>
-      <param name="rhoV" value="10000.0"/>
-      <param name="rhoVZ" value="20000.0"/>
-      <param name="rhoVt" value="150000.0"/>
-      <param name="rhoThrust" value="15000.0"/>
-      <param name="rhoOmega" value="400000.0"/>
-      <param name="rhoVisibleDomain" value="80000.0"/>
-      <param name="rhoPerchingCollision" value="1000000.0"/> -->
+      <param name="rhoPerchingCollision" value="50000000.0"/> -->
 
-      <param name="perching_px" value="1.5"/>
-      <param name="perching_py" value="1.5"/>
-      <param name="perching_pz" value="0.0"/>
-      <param name="perching_vx" value="2.5"/>
-      <param name="perching_vy" value="2.5"/>
-      <!-- <param name="perching_vx" value="0.0"/>
-      <param name="perching_vy" value="0.0"/> -->
+      <param name="rhoT" value="50000.0"/>
+      <param name="rhoPf" value="0.0"/>
+      <param name="rhoPt" value="0.0"/>
+      <param name="rhoV" value="60000.0"/>
+      <param name="rhoVZ" value="0.0"/>
+      <param name="rhoVt" value="0.0"/>
+      <param name="rhoThrust" value="0.0"/>
+      <param name="rhoOmega" value="0.0"/>
+      <param name="rhoVisibleDomain" value="0.0"/>
+      <param name="rhoPerchingCollision" value="0.0"/>
+
+      <param name="perching_px" value="3.0"/>
+      <param name="perching_py" value="3.0"/>
+      <param name="perching_pz" value="2.0"/>
+      <param name="perching_vx" value="1.0"/>
+      <param name="perching_vy" value="1.0"/>
       <param name="perching_vz" value="0.0"/>
       <param name="uav_p_x" value="0.0"/>
       <param name="uav_p_y" value="0.0"/>
-      <param name="uav_p_z" value="4.0"/>
+      <param name="uav_p_z" value="1.5"/>
       <param name="uav_v_x" value="0.0"/>
       <param name="uav_v_y" value="0.0"/>
       <param name="uav_v_z" value="0.0"/>

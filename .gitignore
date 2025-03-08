@@ -2,6 +2,7 @@
 *.a
 *.bag
 *.zip
+*.npy
 
 # lib.a 除外
 !lib.a

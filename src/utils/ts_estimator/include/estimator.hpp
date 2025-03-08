@@ -35,7 +35,7 @@ namespace estimate
 
         Eigen::MatrixXd psdVector_2_MatrixXd(const std::vector<double>& vec, const int dim);
 
-        Eigen::VectorXd revert_z_from_Z(const std::vector<double>& vec, const int dim);
+        Eigen::VectorXd revert_z_from_Z(const std::vector<double>& vec, const int dim, int& rank);
 
         // SymMatrix EigenMatrix_2_SymMatrix(const Eigen::MatrixXd& Mat, int size);
 

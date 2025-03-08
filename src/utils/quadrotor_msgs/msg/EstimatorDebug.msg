@@ -1,2 +1,5 @@
 geometry_msgs/PoseStamped pose_bias
 float64 time_bias
+float64 time_bias_total
+int64 rank
+float64 solving_t
