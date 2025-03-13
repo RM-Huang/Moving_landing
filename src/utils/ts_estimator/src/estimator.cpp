@@ -202,6 +202,12 @@ namespace estimate
         // Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(Z_);
         z = std::sqrt(max_eigenvalue) * eigenvectors.col(max_index);
         // std::cout << eigenvectors.col(idx)
+        
+        // int eigennums = eigenvalues.size();
+        // for(int i = 0; i < eigennums; i++){
+        //     z += std::sqrt(eigenvalues[i]) * eigenvectors.col(i);
+        // }
+        // z = z / eigennums;
         return z;
     }
 
@@ -363,13 +369,15 @@ namespace estimate
                 Eigen::Matrix3d Rot, tRot;
                 Rot << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
                 tRot << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
-                Eigen::Quaterniond q_cu(Rot);
-                q_cu.normalize();
 
                 double t_d = std::cbrt(tRot.determinant());
+                // double t_d = z[19];
                 if(CONTINUES_ESTIMATE_){
                     T_total += t_d;
                 }
+                Eigen::Quaterniond q_cu(Rot);
+                q_cu.normalize();
+
                 std::cout << "t_d:" << t_d << ", z(19):" << z(19) << std::endl;
                 std::cout << "cons_12:" << (tR * z(18) - R * t_d).norm() << std::endl;
 
