@@ -4,6 +4,7 @@
         <param name="time_iter" value="false"/>
         <param name="sample_num" value="300"/>
         <param name="weight_decrese_rate" value="1.0"/>
+        <param name="valid_rank" value="8"/>
 
         <remap from="~odom_topic" to="/estimator/sim_odom"/>
         <remap from="~car_truth_topic" to="/estimator/car_truth"/>

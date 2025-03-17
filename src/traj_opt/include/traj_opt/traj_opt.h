@@ -29,6 +29,7 @@ class TrajOpt {
     double rhoPerchingCollision_;
     // landing parameters
     double robot_l_, robot_r_, platform_r_, platform_l_;
+    double visual_region_;
     // SE3 dynamic limitation parameters
     double thrust_max_, thrust_min_;
     double omega_max_, omega_yaw_max_;
@@ -123,7 +124,7 @@ class TrajOpt {
                         Eigen::Vector3d& gradp,
                         double& costp);
 
-    bool grad_cost_perching_collision(const Eigen::Vector3d& pos,
+   bool grad_cost_perching_collision(const Eigen::Vector3d& pos,
                                         const Eigen::Vector3d& acc,
                                         const Eigen::Vector3d& car_p,
                                         Eigen::Vector3d& gradp,
@@ -132,7 +133,7 @@ class TrajOpt {
                                         double& cost);
                                         
 
-      bool grad_cost_visible_domain(const Eigen::Vector3d& pos,
+   bool grad_cost_visible_domain(const Eigen::Vector3d& pos,
                                              const Eigen::Vector3d& acc,
                                              const Eigen::Vector3d& car_p,
                                              Eigen::Vector3d& gradp,
@@ -140,7 +141,9 @@ class TrajOpt {
                                              Eigen::Vector3d& grad_car_p,
                                              double& cost);
 
-    bool check_collilsion(const Eigen::Vector3d& pos,
+   double check_visible(const Eigen::Vector3d& pos, const Eigen::Vector3d& acc, const Eigen::Vector3d& car_p);
+
+   bool check_collilsion(const Eigen::Vector3d& pos,
                             const Eigen::Vector3d& acc,
                             const Eigen::Vector3d& car_p);
 };

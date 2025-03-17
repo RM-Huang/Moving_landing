@@ -1,8 +1,11 @@
 Header header
-geometry_msgs/Vector3 thrust
 geometry_msgs/Vector3 p
 geometry_msgs/Vector3 v
 geometry_msgs/Vector3 a
 geometry_msgs/Vector3 j
 float64 yaw
+float64 thrust
+float64 omega
+int8 colli
+float64 vis_ang
 uint8 seq

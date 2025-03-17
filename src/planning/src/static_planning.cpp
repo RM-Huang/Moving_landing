@@ -221,18 +221,6 @@ class StaticNodelet : public nodelet::Nodelet {
         visPtr_->visualize_traj(traj, "traj");
         visPtr_->pub_msg(msg, "odom");
       }
-
-      debug_msg.thrust.x = thrust.x();
-      debug_msg.thrust.y = thrust.y();
-      debug_msg.thrust.z = thrust.z();
-      debug_msg.p.x = p.x();
-      debug_msg.p.y = p.y();
-      debug_msg.p.z = p.z();
-      debug_msg.v.x = v.x();
-      debug_msg.v.y = v.y();
-      debug_msg.v.z = v.z();
-      debug_msg.header.stamp = ros::Time::now();
-      data_pub_.publish(debug_msg);
       // target
       // Eigen::Vector3d fake_target_v = target_v * (1.0 + 0.5 * sin(1e6 * t));
       // target_p = target_p + fake_target_v * dt;
@@ -247,9 +235,27 @@ class StaticNodelet : public nodelet::Nodelet {
       msg.pose.pose.orientation.z = land_q.z();
       msg.header.stamp = ros::Time::now();
       visPtr_->pub_msg(msg, "target");
+
+      int colli = 0;
       if (trajOptPtr_->check_collilsion(p, a, target_p)) {
+        colli = 1;
         std::cout << "collide!  t: " << t << " x_err = " << abs(p.x() - target_p.x()) << " y_err = " << abs(p.y() - target_p.y()) <<std::endl;
       }
+
+      double vis = trajOptPtr_->check_visible(p, a, target_p);
+      debug_msg.p.x = p.x();
+      debug_msg.p.y = p.y();
+      debug_msg.p.z = p.z();
+      debug_msg.v.x = v.x();
+      debug_msg.v.y = v.y();
+      debug_msg.v.z = v.z();
+      debug_msg.thrust = thrust.norm();
+      debug_msg.omega = omega_real.norm();
+      debug_msg.colli = colli;
+      debug_msg.vis_ang = vis;
+      debug_msg.header.stamp = ros::Time::now();
+      data_pub_.publish(debug_msg);
+
       // triger_received_ = false;
       while(!triger_received_){
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -310,8 +316,8 @@ class StaticNodelet : public nodelet::Nodelet {
     nh.getParam("perching_axis_z", perching_axis_.z());
     nh.getParam("perching_theta", perching_theta_);
 
-    std::cout << "uav_p: " << uav_p_.transpose() << std::endl;
-    std::cout << "uav_v: " << uav_v_.transpose() << std::endl;
+    // std::cout << "uav_p: " << uav_p_.transpose() << std::endl;
+    // std::cout << "uav_v: " << uav_v_.transpose() << std::endl;
 
     visPtr_ = std::make_shared<vis_utils::VisUtils>(nh);
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);

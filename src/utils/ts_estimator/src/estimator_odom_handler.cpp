@@ -79,8 +79,16 @@ private:
       return true;
     }
 
-    void uav_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
-      uav_sub_msg = *msg;
+    // void uav_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
+    //   uav_sub_msg = *msg;
+    //   if(!uav_sub_tri){
+    //     uav_sub_tri = true;
+    //     ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
+    //   }
+    // }
+    void uav_odom_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
+      uav_sub_msg.header = msg->header;
+      uav_sub_msg.pose.pose = msg->pose;
       if(!uav_sub_tri){
         uav_sub_tri = true;
         ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
@@ -143,6 +151,7 @@ private:
         // q_tmp = yawAngle * pitchAngle * rollAngle;
 
         double t = t_cur - std::floor(t_cur / traj_c.getTotalDuration()) * traj_c.getTotalDuration();
+        // car_odom.header.stamp = ros::Time().fromSec(t_cur);
         p_tmp = traj_c.getPos(t);
         v_tmp = traj_c.getVel(t);
 
@@ -181,6 +190,7 @@ private:
           q_tmp.coeffs() << car_sub_msg.pose.pose.orientation.x, car_sub_msg.pose.pose.orientation.y, 
                             car_sub_msg.pose.pose.orientation.z, car_sub_msg.pose.pose.orientation.w;
         }
+        // car_odom.header.stamp = car_sub_msg.header.stamp;
       }
       car_odom.pose.pose.position.x = p_tmp(0);
       car_odom.pose.pose.position.y = p_tmp(1);
@@ -192,8 +202,8 @@ private:
       car_odom.pose.pose.orientation.x = q_tmp.x();
       car_odom.pose.pose.orientation.y = q_tmp.y();
       car_odom.pose.pose.orientation.z = q_tmp.z();
-      car_odom.header.stamp = ros::Time().fromSec(t_cur);
       car_odom.header.frame_id = "world";
+      car_odom.header.stamp = ros::Time::now();
       visPtr_->visualize_traj(traj_c, "car_traj");
     }
 
@@ -219,13 +229,14 @@ private:
           uav_odom.twist.twist.linear.x = v.x();
           uav_odom.twist.twist.linear.y = v.y();
           uav_odom.twist.twist.linear.z = v.z();
-          uav_odom.header.stamp = ros::Time().fromSec(t_cur);
+          uav_odom.header.stamp = ros::Time::now();
           uav_odom.header.frame_id = "world";
           visPtr_->visualize_traj(traj_u, "traj");
-          visPtr_->pub_msg(uav_odom, "odom");
         }
+      }else{
+        uav_odom = uav_sub_msg;
       }
-      
+      visPtr_->pub_msg(uav_odom, "odom");
     }
 
     void timer_callback(const ros::TimerEvent& event){
@@ -308,14 +319,14 @@ private:
         uav_sub_tri = true;
         generate_uav_traj();
       }else{
-        uav_sub = nh.subscribe<nav_msgs::Odometry>("uav_odom_topic", 5, &SimOdom::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
+        uav_sub = nh.subscribe("uav_odom_topic", 5, &SimOdom::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
       }
 
       if(use_sim_car){
         car_sub_tri = true;
         generate_car_traj();
       }else{
-        car_sub = nh.subscribe<nav_msgs::Odometry>("car_odom_topic", 5, &SimOdom::car_odom_callback, this, ros::TransportHints().tcpNoDelay());
+        car_sub = nh.subscribe("car_odom_topic", 5, &SimOdom::car_odom_callback, this, ros::TransportHints().tcpNoDelay());
       }
       
       odom_pub = nh.advertise<quadrotor_msgs::EstimatorOdom>("/estimator/sim_odom", 1);

@@ -385,14 +385,13 @@ namespace estimate
                 x_s = - Q_c_inv * Q_b.transpose() * x_s;
                 // std::cout << "x_s:" << x_s.transpose() << std::endl;
                 
-                x = Eigen::VectorXd::Zero(10);
                 x << q_cu.w(), q_cu.x(), q_cu.y(), q_cu.z(), x_s(0), x_s(1), x_s(2), t_d, rankZ, T_total;
                 // std::cout << "x:" << x.transpose() << std::endl;
 
                 std::cout << "solving duration : " << model.GetDblAttr(COPT_DBLATTR_SOLVINGTIME) << " s" << std::endl;
                 return 1;
             }
-            model.Interrupt();
+            // model.Interrupt();
             return -1;
         // }catch(CoptException e){
         //     std::cout << "Error Code = " << e.GetCode() << std::endl;

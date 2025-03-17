@@ -27,7 +27,8 @@
       <remap from="~odom" to="odom"/>
       <remap from="~target" to="estimator/target_odom"/>
 
-      <remap from="~car_odom_topic" to="/smart/odom"/>
+      <remap from="~car_odom_topic" to="/odom_kalman/car"/>
+      <remap from="~uav_odom_topic" to="/vrpn_client_node/uav/pose"/>
 
       <rosparam command="load" file="$(find estimator)/config/odom_param.yaml" />
 

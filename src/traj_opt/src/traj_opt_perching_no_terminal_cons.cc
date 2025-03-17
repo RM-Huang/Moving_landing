@@ -281,9 +281,9 @@ static inline double objectiveFunc(void* ptrObj,
   // tailS.col(0) = car_p_ + car_v_ * obj.N_ * dT + tail_q_v_ * obj.robot_l_; // cons 4d
   tailS.col(0) = tail_p_ + tail_q_v_ * obj.robot_l_;
   tailS.col(1) = tailV;
-  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+  // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
   // tailS.col(1) = vt;
-  // tailS.col(2).setZero();
+  tailS.col(2).setZero();
   tailS.col(3).setZero();
 
   auto tic = std::chrono::steady_clock::now();
@@ -312,8 +312,8 @@ static inline double objectiveFunc(void* ptrObj,
   // obj.mincoOpt_.gdT += obj.mincoOpt_.gdTail.col(0).dot(obj.N_ * car_v_ + obj.N_ * car_a_ * dT);
   // obj.mincoOpt_.gdT += obj.mincoOpt_.gdTail.col(1).dot(obj.N_ * car_a_);
   grad_tailV = obj.mincoOpt_.gdTail.col(1);
-  double grad_thrust = obj.mincoOpt_.gdTail.col(2).dot(tail_q_v_);
-  addLayerThrust(tail_f, grad_thrust, grad_f);
+  // double grad_thrust = obj.mincoOpt_.gdTail.col(2).dot(tail_q_v_);
+  // addLayerThrust(tail_f, grad_thrust, grad_f);
 
   // if(obj.rhoTf_ > -1)
   // {
@@ -367,8 +367,8 @@ static inline int earlyExit(void* ptrObj,
     Eigen::MatrixXd tailS(3, 4);
     tailS.col(0) = tail_p_ + tail_q_v_ * obj.robot_l_;
     tailS.col(1) = tailV;
-    tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
-    // tailS.col(2).setZero();
+    // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+    tailS.col(2).setZero();
     tailS.col(3).setZero();
 
     obj.mincoOpt_.generate(obj.initS_, tailS, P, dT);
@@ -595,8 +595,8 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     bvp_f.col(0) = car_p_;
     bvp_f.col(1) = car_v_;
     bvp_f.col(0)[2] = traj_tail_alt;
-    bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
-    // bvp_f.col(2).setZero();
+    // bvp_f.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_; // 公式22
+    bvp_f.col(2).setZero();
     bvp_f.col(3).setZero();
     double T_min = (bvp_f.col(0) - bvp_i.col(0)).norm() / vmax_;
     double T_bvp = T_min; // 得到初始相对距离最小时间
@@ -695,8 +695,8 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
   // tailS.col(0) = car_p_ + car_v_ * T + tail_q_v_ * robot_l_;
   tailS.col(0) = tail_p_ + tail_q_v_ * robot_l_;
   tailS.col(1) = tailV;
-  tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
-  // tailS.col(2).setZero();
+  // tailS.col(2) = forward_thrust(tail_f) * tail_q_v_ + g_;
+  tailS.col(2).setZero();
   tailS.col(3).setZero();
   // std::cout << "tail thrust: " << forward_thrust(tail_f) << std::endl;
   std::cout << "tailS : " << std::endl;

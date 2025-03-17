@@ -1,3 +1,5 @@
+geometry_msgs/PoseStamped pose_bias_cur
+float64 time_bias_cur
 geometry_msgs/PoseStamped pose_bias
 float64 time_bias
 float64 time_bias_total
