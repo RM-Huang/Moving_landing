@@ -9,7 +9,7 @@ takeoff_state:
     speed: 0.6 # m/s
 
 fsmparam:
-    frequncy: 100
+    frequncy: 150
 
 kine_cons:
     vel_ver_max: 1.0
@@ -67,6 +67,6 @@ gain:
 msg_timeout:
     odom: 0.5
     rc:   0.5
-    cmd:  0.1
+    cmd:  0.01
     imu:  0.5
     bat:  0.5

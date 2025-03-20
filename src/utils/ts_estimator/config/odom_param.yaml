@@ -1,8 +1,8 @@
-use_sim_uav: true
+use_sim_uav: false
 
 use_sim_car: false
 
-pub_hz_: 130
+pub_hz_: 200
 
 t_uav_per: 3.0
 

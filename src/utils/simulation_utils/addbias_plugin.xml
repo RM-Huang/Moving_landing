@@ -1,0 +1,5 @@
+<library path="lib/libadd_bias">
+  <class name="add_bias/AddBias" type="add_bias::AddBias" base_class_type="nodelet::Nodelet">
+    <description></description>
+  </class>
+</library>

@@ -1,6 +1,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <quadrotor_msgs/EstimatorOdom.h>
 #include <nav_msgs/Odometry.h>
+#include <gazebo_msgs/ModelStates.h>
 #include <nodelet/nodelet.h>
 #include <ros/ros.h>
 #include <traj_opt/minco.hpp>
@@ -19,8 +20,6 @@ private:
     std::thread initThread_;
     ros::Publisher odom_pub;
     ros::Publisher car_truth_pub;
-    ros::Subscriber uav_sub;
-    ros::Subscriber car_sub;
     ros::Timer timer_;
 
     std::shared_ptr<vis_utils::VisUtils> visPtr_;
@@ -28,14 +27,6 @@ private:
     // minco::MINCO_S4_Uniform mincoOpt_car;
     Trajectory traj_u;
     Trajectory traj_c;
-
-    bool use_sim_uav = true;
-    bool use_sim_car = true;
-    nav_msgs::Odometry uav_sub_msg;
-    nav_msgs::Odometry car_sub_msg;
-    std::vector<nav_msgs::Odometry> car_odom_list;
-    bool car_sub_tri = false;
-    bool uav_sub_tri = false;
 
     // traj param
     Eigen::MatrixXd P_u;
@@ -79,31 +70,6 @@ private:
       return true;
     }
 
-    // void uav_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
-    //   uav_sub_msg = *msg;
-    //   if(!uav_sub_tri){
-    //     uav_sub_tri = true;
-    //     ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
-    //   }
-    // }
-    void uav_odom_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
-      uav_sub_msg.header = msg->header;
-      uav_sub_msg.pose.pose = msg->pose;
-      if(!uav_sub_tri){
-        uav_sub_tri = true;
-        ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
-      }
-    }
-
-    void car_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
-      car_sub_msg = *msg;
-      car_odom_list.push_back(car_sub_msg);
-      if(!car_sub_tri){
-        car_sub_tri = true;
-        ROS_INFO("\033[32m[estimator_odom_handler]:car odom received!\033[32m");
-      }
-    }
-
     void generate_uav_traj(){
       mincoOpt_.reset(P_u.cols() - 1);
       Eigen::MatrixXd initS = Eigen::MatrixXd::Zero(3, 4);
@@ -130,67 +96,43 @@ private:
     void get_car_odom(const double t_cur, bool set_bias, nav_msgs::Odometry& car_odom){
       Eigen::Vector3d p_tmp, v_tmp;
       Eigen::Quaterniond q_tmp;
+      // double theta = omega_c * t;       // 当前旋转角度
+      // double cos_theta = cos(theta);
+      // double sin_theta = sin(theta);
 
-      if(use_sim_car){
-        // double theta = omega_c * t;       // 当前旋转角度
-        // double cos_theta = cos(theta);
-        // double sin_theta = sin(theta);
+      // p_tmp << R_c * cos_theta, R_c * sin_theta, 0;
+      // v_tmp << -v_c * sin_theta, v_c * cos_theta, 0;
 
-        // p_tmp << R_c * cos_theta, R_c * sin_theta, 0;
-        // v_tmp << -v_c * sin_theta, v_c * cos_theta, 0;
+      // double yaw = theta + M_PI_2;
+      // // 标准化角度到[0, 2π)范围
+      // yaw = fmod(yaw, 2*M_PI);
+      // if (yaw < 0) {
+      //     yaw += 2*M_PI;
+      // }
+      // Eigen::AngleAxisd rollAngle(0, Eigen::Vector3d::UnitX());
+      // Eigen::AngleAxisd pitchAngle(0, Eigen::Vector3d::UnitY());
+      // Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
+      // q_tmp = yawAngle * pitchAngle * rollAngle;
 
-        // double yaw = theta + M_PI_2;
-        // // 标准化角度到[0, 2π)范围
-        // yaw = fmod(yaw, 2*M_PI);
-        // if (yaw < 0) {
-        //     yaw += 2*M_PI;
-        // }
-        // Eigen::AngleAxisd rollAngle(0, Eigen::Vector3d::UnitX());
-        // Eigen::AngleAxisd pitchAngle(0, Eigen::Vector3d::UnitY());
-        // Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
-        // q_tmp = yawAngle * pitchAngle * rollAngle;
+      double t = t_cur - std::floor(t_cur / traj_c.getTotalDuration()) * traj_c.getTotalDuration();
+      // car_odom.header.stamp = ros::Time().fromSec(t_cur);
+      p_tmp = traj_c.getPos(t);
+      v_tmp = traj_c.getVel(t);
 
-        double t = t_cur - std::floor(t_cur / traj_c.getTotalDuration()) * traj_c.getTotalDuration();
-        // car_odom.header.stamp = ros::Time().fromSec(t_cur);
-        p_tmp = traj_c.getPos(t);
-        v_tmp = traj_c.getVel(t);
-
-        double yaw = std::atan2(v_tmp(1), v_tmp(0));
-        if (yaw < 0) {
-            yaw += 2 * M_PI;
-        }
-        Eigen::AngleAxisd rollAngle(0, Eigen::Vector3d::UnitX());
-        Eigen::AngleAxisd pitchAngle(0, Eigen::Vector3d::UnitY());
-        Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
-        q_tmp = yawAngle * pitchAngle * rollAngle;
-        q_tmp.normalize();
-        
-        if(set_bias){
-          p_tmp = q_bias * p_tmp + pos_bias;
-          v_tmp = q_bias * v_tmp;
-          q_tmp = q_bias * q_tmp;
-        }
-      }else{
-        if(set_bias){
-          double t_cur = car_sub_msg.header.stamp.toSec();
-          while(t_cur - car_odom_list[0].header.stamp.toSec() > time_delay){
-            car_odom_list.erase(car_odom_list.begin());
-          }
-          p_tmp << car_odom_list[0].pose.pose.position.x, car_odom_list[0].pose.pose.position.y, car_odom_list[0].pose.pose.position.z;
-          v_tmp << car_odom_list[0].twist.twist.linear.x, car_odom_list[0].twist.twist.linear.y, car_odom_list[0].twist.twist.linear.z;
-          q_tmp.coeffs() << car_odom_list[0].pose.pose.orientation.x, car_odom_list[0].pose.pose.orientation.y, 
-                            car_odom_list[0].pose.pose.orientation.z, car_odom_list[0].pose.pose.orientation.w;
-
-          p_tmp = q_bias * p_tmp + pos_bias;
-          v_tmp = q_bias * v_tmp;
-          q_tmp = q_bias * q_tmp;
-        }else{
-          p_tmp << car_sub_msg.pose.pose.position.x, car_sub_msg.pose.pose.position.y, car_sub_msg.pose.pose.position.z;
-          v_tmp << car_sub_msg.twist.twist.linear.x, car_sub_msg.twist.twist.linear.y, car_sub_msg.twist.twist.linear.z;
-          q_tmp.coeffs() << car_sub_msg.pose.pose.orientation.x, car_sub_msg.pose.pose.orientation.y, 
-                            car_sub_msg.pose.pose.orientation.z, car_sub_msg.pose.pose.orientation.w;
-        }
-        // car_odom.header.stamp = car_sub_msg.header.stamp;
+      double yaw = std::atan2(v_tmp(1), v_tmp(0));
+      if (yaw < 0) {
+          yaw += 2 * M_PI;
+      }
+      Eigen::AngleAxisd rollAngle(0, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd pitchAngle(0, Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
+      q_tmp = yawAngle * pitchAngle * rollAngle;
+      q_tmp.normalize();
+      
+      if(set_bias){
+        p_tmp = q_bias * p_tmp + pos_bias;
+        v_tmp = q_bias * v_tmp;
+        q_tmp = q_bias * q_tmp;
       }
       car_odom.pose.pose.position.x = p_tmp(0);
       car_odom.pose.pose.position.y = p_tmp(1);
@@ -208,68 +150,61 @@ private:
     }
 
     void get_uav_odom(const double t_cur, Eigen::Vector3d& p, Eigen::Quaterniond& q, nav_msgs::Odometry& uav_odom){
-      //TODO unsim odom handle
-      if(use_sim_uav){
-        double t = t_cur - std::floor(t_cur / traj_u.getTotalDuration()) * traj_u.getTotalDuration();
-        p = traj_u.getPos(t);
-        Eigen::Vector3d v = traj_u.getVel(t);
-        Eigen::Vector3d a = traj_u.getAcc(t);
-        Eigen::Vector3d j = traj_u.getJer(t);
-        Eigen::Vector3d thrust = a - g;
-        Eigen::Vector3d zb = thrust.normalized();
-        bool no_singlarity = v2q(zb, q);
-        if (no_singlarity) {
-          uav_odom.pose.pose.position.x = p.x();
-          uav_odom.pose.pose.position.y = p.y();
-          uav_odom.pose.pose.position.z = p.z();
-          uav_odom.pose.pose.orientation.w = q.w();
-          uav_odom.pose.pose.orientation.x = q.x();
-          uav_odom.pose.pose.orientation.y = q.y();
-          uav_odom.pose.pose.orientation.z = q.z();
-          uav_odom.twist.twist.linear.x = v.x();
-          uav_odom.twist.twist.linear.y = v.y();
-          uav_odom.twist.twist.linear.z = v.z();
-          uav_odom.header.stamp = ros::Time::now();
-          uav_odom.header.frame_id = "world";
-          visPtr_->visualize_traj(traj_u, "traj");
-        }
-      }else{
-        uav_odom = uav_sub_msg;
+      double t = t_cur - std::floor(t_cur / traj_u.getTotalDuration()) * traj_u.getTotalDuration();
+      p = traj_u.getPos(t);
+      Eigen::Vector3d v = traj_u.getVel(t);
+      Eigen::Vector3d a = traj_u.getAcc(t);
+      Eigen::Vector3d j = traj_u.getJer(t);
+      Eigen::Vector3d thrust = a - g;
+      Eigen::Vector3d zb = thrust.normalized();
+      bool no_singlarity = v2q(zb, q);
+      if (no_singlarity) {
+        uav_odom.pose.pose.position.x = p.x();
+        uav_odom.pose.pose.position.y = p.y();
+        uav_odom.pose.pose.position.z = p.z();
+        uav_odom.pose.pose.orientation.w = q.w();
+        uav_odom.pose.pose.orientation.x = q.x();
+        uav_odom.pose.pose.orientation.y = q.y();
+        uav_odom.pose.pose.orientation.z = q.z();
+        uav_odom.twist.twist.linear.x = v.x();
+        uav_odom.twist.twist.linear.y = v.y();
+        uav_odom.twist.twist.linear.z = v.z();
+        uav_odom.header.frame_id = "world";
+        uav_odom.header.stamp = ros::Time::now();
+        visPtr_->pub_msg(uav_odom, "odom");
+        visPtr_->visualize_traj(traj_u, "traj");
       }
-      visPtr_->pub_msg(uav_odom, "odom");
     }
 
     void timer_callback(const ros::TimerEvent& event){
-      if(car_sub_tri && uav_sub_tri){
-        double t = ros::Time::now().toSec() - t_0 + time_delay;
-        quadrotor_msgs::EstimatorOdom odom_msg;
-        nav_msgs::Odometry car_truth;
-        Eigen::Quaterniond uav_q;
-        Eigen::Vector3d uav_p, car_p;
+      double t = ros::Time::now().toSec() - t_0 + time_delay;
+      quadrotor_msgs::EstimatorOdom odom_msg;
+      nav_msgs::Odometry car_truth;
+      Eigen::Quaterniond uav_q;
+      Eigen::Vector3d uav_p, car_p;
 
-        // odom_msg.car_odom.header.frame_id = "world";
-        // odom_msg.uav_odom.header.frame_id = "world";
+      // odom_msg.car_odom.header.frame_id = "world";
+      // odom_msg.uav_odom.header.frame_id = "world";
 
-        get_car_odom(t - time_delay, true, odom_msg.car_odom);
-        visPtr_->pub_msg(odom_msg.car_odom, "fake_target");
+      get_car_odom(t - time_delay, true, odom_msg.car_odom);
+      visPtr_->pub_msg(odom_msg.car_odom, "fake_target");
 
-        get_uav_odom(t, uav_p, uav_q, odom_msg.uav_odom);
+      get_uav_odom(t, uav_p, uav_q, odom_msg.uav_odom);
 
-        get_car_odom(t, false, car_truth);
-        visPtr_->pub_msg(car_truth, "target");
+      get_car_odom(t, false, car_truth);
+      visPtr_->pub_msg(car_truth, "target");
 
-        car_p << car_truth.pose.pose.position.x, car_truth.pose.pose.position.y, car_truth.pose.pose.position.z;
-        // Eigen::Vector3d dir = uav_q.inverse() * (car_p - uav_p);
-        Eigen::Vector3d dir = (car_p - uav_p);
-        dir.normalize();
-        odom_msg.dir_uc.x = dir(0);
-        odom_msg.dir_uc.y = dir(1);
-        odom_msg.dir_uc.z = dir(2);
-        // std::cout << "err = " << (dir * (car_p - uav_p).norm() + uav_p - car_p).transpose() << std::endl;
+      car_p << car_truth.pose.pose.position.x, car_truth.pose.pose.position.y, car_truth.pose.pose.position.z;
+      // Eigen::Vector3d dir = uav_q.inverse() * (car_p - uav_p);
+      Eigen::Vector3d dir = (car_p - uav_p);
+      dir.normalize();
+      odom_msg.dir_uc.x = dir(0);
+      odom_msg.dir_uc.y = dir(1);
+      odom_msg.dir_uc.z = dir(2);
+      // std::cout << "err = " << (dir * (car_p - uav_p).norm() + uav_p - car_p).transpose() << std::endl;
 
-        odom_pub.publish(odom_msg);
-        car_truth_pub.publish(car_truth);
-      }
+      odom_pub.publish(odom_msg);
+      car_truth_pub.publish(car_truth);
     }
 
     void init(ros::NodeHandle& nh) {
@@ -277,8 +212,6 @@ private:
       std::vector<std::vector<double>> p_c_vec(3);
       int pub_hz_;
       double trans_x, trans_y, trans_z, rotat_roll, rotat_pitch, rotat_yaw;
-      nh.param("use_sim_uav", use_sim_uav, true);
-      nh.param("use_sim_car", use_sim_car, true);
 
       nh.getParam("pub_hz_", pub_hz_);
       nh.getParam("t_uav_per", T_u);
@@ -315,26 +248,15 @@ private:
       // mincoOpt_uav.reset(P_u.cols() - 1);
       // mincoOpt_car.reset(P_c.cols() - 1);
 
-      if(use_sim_uav){
-        uav_sub_tri = true;
-        generate_uav_traj();
-      }else{
-        uav_sub = nh.subscribe("uav_odom_topic", 5, &SimOdom::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
-      }
-
-      if(use_sim_car){
-        car_sub_tri = true;
-        generate_car_traj();
-      }else{
-        car_sub = nh.subscribe("car_odom_topic", 5, &SimOdom::car_odom_callback, this, ros::TransportHints().tcpNoDelay());
-      }
+      generate_uav_traj();
+      generate_car_traj();
       
       odom_pub = nh.advertise<quadrotor_msgs::EstimatorOdom>("/estimator/sim_odom", 1);
       car_truth_pub = nh.advertise<nav_msgs::Odometry>("/estimator/car_truth", 1);
 
       timer_ = nh.createTimer(ros::Duration(1.0 / pub_hz_), &SimOdom::timer_callback, this);
 
-      ROS_INFO("\033[32mSimulation odom publisher initialized!\033[32m");
+      ROS_INFO("\033[32m[car_bias]: Car odom publisher initialized!\033[32m");
     }
 
 public:

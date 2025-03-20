@@ -8,6 +8,7 @@
 #include <ros/callback_queue.h>
 #include <mutex>
 #include "estimator.hpp"
+#include "filter.hpp"
 
 estimate::Solver solver;
 nav_msgs::Odometry car_truth;
@@ -16,27 +17,14 @@ quadrotor_msgs::EstimatorOdom odom_data;
 ros::Publisher debug_pub;
 ros::Publisher car_pub;
 
-// struct bias_data
-// {
-//     Eigen::Vector3d position;
-//     Eigen::Vector3d euler;
-//     double time;
-
-//     bias_data operator +(const bias_data& x) const {
-//         bias_data b;
-//         b.position = position + x.position;
-//         b.euler = euler + x.euler;
-//         b.time = time + x.time;
-//         return b;
-//     }
-// };
-
 Eigen::Quaterniond q_b_l(1.0, 0.0, 0.0, 0.0);
 Eigen::Vector3d pos_b_l(0.0, 0.0, 0.0);
 double t_b_l = 0.0;
 
 int valid_rank;
-std::vector<Eigen::VectorXd> bias_valid;
+int flit_win;
+// std::vector<bias_data> bias_valid;
+Filter::MedianFilterBias median_filter;
 
 Eigen::Quaterniond q_b;
 Eigen::Vector3d pos_b(0.0, 0.0, 0.0);
@@ -48,8 +36,15 @@ int idx = 0;
 
 bool odom_sub_tri = false;
 
-void odom_Callback(const quadrotor_msgs::EstimatorOdom::ConstPtr& msg)
-{
+Eigen::Vector3d q2rpy(const Eigen::Quaterniond &ori){
+    Eigen::Vector3d rpy;
+    rpy(0) = atan2(2.0 * (ori.w() * ori.x() + ori.y() * ori.z()), 1.0 - 2.0 * (ori.x() * ori.x() + ori.y() * ori.y()));
+    rpy(1) = asin(2.0 * (ori.w() * ori.y() - ori.x() * ori.z()));
+    rpy(2) = atan2(2.0 * (ori.x() * ori.y() + ori.w() * ori.z()), 1.0 - 2.0 * (ori.y() * ori.y() + ori.z() * ori.z()));
+    return rpy;
+}
+
+void odom_Callback(const quadrotor_msgs::EstimatorOdom::ConstPtr& msg){
     std::lock_guard<std::mutex> lock(data_mutex);
     odom_data = *msg;
     if(!odom_sub_tri){
@@ -58,8 +53,7 @@ void odom_Callback(const quadrotor_msgs::EstimatorOdom::ConstPtr& msg)
     }
 }
 
-void car_truth_Callback(const nav_msgs::Odometry::ConstPtr& msg)
-{
+void car_truth_Callback(const nav_msgs::Odometry::ConstPtr& msg){
     car_truth = *msg;
 }
 
@@ -77,34 +71,57 @@ void read_odom(Eigen::Vector3d& p_uu, Eigen::Vector3d& p_cc, Eigen::Vector3d& v_
     stamp = car_odom.header.stamp;
 }
 
-Eigen::VectorXd check_valid(const Eigen::VectorXd& res){
-    // b_cur.position = Eigen::Vector3d pos_b_tmp(res(4), res(5), res(6));
+int check_valid(const Eigen::VectorXd& res, Eigen::VectorXd& b_valid){
+    Filter::bias_data b_cur;
+    b_cur.position = Eigen::Vector3d(res(4), res(5), res(6));
     Eigen::Quaterniond q_b_cur(res(0), res(1), res(2), res(3));
-    Eigen::Vector3d euler = q_b_cur.matrix().eulerAngles(0,1,2);
+    b_cur.euler = q2rpy(q_b_cur);
+    b_cur.time = res(7);
     int rank = res(8);
 
-    Eigen::VectorXd b_cur(res(4), res(5), res(6), euler(0), euler(1), euler(2), res(7)); // pos(3), euler(3), time(1)
-
     if(rank <= valid_rank){
-        bias_valid.emplace_back(b_cur);
-        if(bias_valid.size() > 200){
-            bias_valid.erase(bias_valid.begin());
-        }
-    }
+        // bias_valid.emplace_back(b_cur);
+        // if(bias_valid.size() > flit_win){
+        //     bias_valid.erase(bias_valid.begin());
+        // }
 
-    // averaging
-    Eigen::VectorXd b_mean = std::accumulate(bias_valid.begin(), bias_valid.end(), Eigen::VectorXd::Zero(7), 
-                                            [](const Eigen::VectorXd& a, const Eigen::VectorXd& b){return a + b;});
-    b_mean = b_mean / bias_valid.size();
+        // // averaging
+        // #pragma omp parallel
+        // {
+        //     bias_data b_tmp;
 
-    Eigen::Quaterniond q_valid = Eigen::AngleAxisd(b_mean(5),Eigen::Vector3d::UnitZ())
-                                * Eigen::AngleAxisd(b_mean(4),Eigen::Vector3d::UnitY())
-                                * Eigen::AngleAxisd(b_mean(3),Eigen::Vector3d::UnitX());
+        //     // 并行累加
+        //     #pragma omp for
+        //     for (int i = 0; i < bias_valid.size(); i++) {
+        //         b_tmp = b_tmp + bias_valid[i];
+        //     }
+
+        //     // 将局部结果合并到全局结果 Q
+        //     #pragma omp critical
+        //     {
+        //         b_cur = b_cur + b_tmp;
+        //     }
+        // }
+        // b_cur.position = b_cur.position / bias_valid.size();
+        // b_cur.euler = b_cur.euler / bias_valid.size();
+        // b_cur.time = b_cur.time / bias_valid.size();
     
-    Eigen::VectorXd b_valid(q_valid.w(), q_valid.x(), q_valid.y(), q_valid.z(),
-                            b_mean(0), b_mean(1), b_mean(2), b_mean(6));
+        // median filter
+        Filter::bias_data b_filt = median_filter.update(b_cur);
 
-    return b_valid;
+        // Eigen::Quaterniond q_valid = Eigen::AngleAxisd(b_cur.euler(2),Eigen::Vector3d::UnitZ())
+        //                             * Eigen::AngleAxisd(b_cur.euler(1),Eigen::Vector3d::UnitY())
+        //                             * Eigen::AngleAxisd(b_cur.euler(0),Eigen::Vector3d::UnitX());
+        std::cout << "yaw_median = " << b_filt.euler(2) << std::endl;
+        Eigen::Quaterniond q_valid = Eigen::AngleAxisd(b_filt.euler(2),Eigen::Vector3d::UnitZ())
+                                    * Eigen::AngleAxisd(0.0 ,Eigen::Vector3d::UnitY())
+                                    * Eigen::AngleAxisd(0.0 ,Eigen::Vector3d::UnitX()); // debug
+
+        b_valid << q_valid.w(), q_valid.x(), q_valid.y(), q_valid.z(), b_filt.position(0), b_filt.position(1), b_filt.position(2), b_filt.time;
+
+        return 1;
+    }
+    return 0;
 }
 
 void handler()
@@ -121,14 +138,11 @@ void handler()
         nav_msgs::Odometry re_car_msg;
 
         read_odom(p_uu, p_cc, v_cc, q_uu, q_cc, b, stamp);
-        std::cout << "read odom" << std::endl;
 
         Eigen::VectorXd res = Eigen::VectorXd::Zero(10);
         auto tic = std::chrono::steady_clock::now();
         int ret = solver.optimize(p_uu, p_cc, q_uu, v_cc, b, res);
         auto toc = std::chrono::steady_clock::now();
-
-        std::cout << "solve comp" << std::endl;
 
         if(ret == -1){
             ROS_ERROR("[estimator]:solving time out!");
@@ -152,11 +166,12 @@ void handler()
             // if(std::abs(t_b - t_b_tmp) < 0.03){
             //     t_b_l = t_b_tmp;
             // }
-
-            Eigen::VectorXd bias = check_valid(res);
-            q_b_l = Eigen::Quaterniond(bias(0), bias(1), bias(2), bias(3));
-            pos_b_l = Eigen::Vector3d(bias(4), bias(5), bias(6));
-            t_b_l = bias(7);
+            Eigen::VectorXd bias = Eigen::VectorXd::Zero(8);
+            if(check_valid(res, bias)){
+                q_b_l = Eigen::Quaterniond(bias(0), bias(1), bias(2), bias(3));
+                pos_b_l = Eigen::Vector3d(bias(4), bias(5), bias(6));
+                t_b_l = bias(7);
+            }  
         }
         read_odom(p_uu, p_cc, v_cc, q_uu, q_cc, b, stamp);
 
@@ -219,6 +234,7 @@ int main(int argc, char *argv[])
     nh.param("time_iter", time_iter, false);
     nh.param("sample_num", sample_num, 100);
     nh.param("valid_rank", valid_rank, 9);
+    nh.param("fliter_window", flit_win, 21);
     nh.param("weight_decrese_rate", weight_decrese_rate, 0.8);
 
     double trans_x, trans_y, trans_z, rotat_roll, rotat_pitch, rotat_yaw;
@@ -235,6 +251,7 @@ int main(int argc, char *argv[])
     Eigen::AngleAxisd yawAngle(rotat_yaw, Eigen::Vector3d::UnitZ());
     q_b = yawAngle * pitchAngle * rollAngle;
 
+    median_filter.init(flit_win);
     // // debug
     // q_b_l = q_b;
     // pos_b_l = pos_b;

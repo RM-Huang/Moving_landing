@@ -6,7 +6,6 @@
   <group ns="drone0">
     <!-- rviz中可视化无人机位姿变化 -->
     <node pkg="odom_visualization" name="odom_visualization" type="odom_visualization" output="screen">
-      <!-- 将订阅的odom重定向至/drone0/odom -->
       <remap from="~odom" to="odom" />
       <param name="robot_scale" value="1.0"/>
     </node>
@@ -27,8 +26,9 @@
       <remap from="~odom" to="odom"/>
       <remap from="~target" to="estimator/target_odom"/>
 
-      <remap from="~car_odom_topic" to="/odom_kalman/car"/>
-      <remap from="~uav_odom_topic" to="/vrpn_client_node/uav/pose"/>
+      <!-- 接收的里程计数据话题 -->
+      <remap from="~car_odom_topic" to="/smart/odom"/>
+      <remap from="~uav_odom_topic" to="/gazebo/model_states"/>
 
       <rosparam command="load" file="$(find estimator)/config/odom_param.yaml" />
 

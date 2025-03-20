@@ -89,7 +89,8 @@ namespace planning {
     double delta_from_last = ros::Time::now().toSec() - trajStamp;
 
     /* debug */
-    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
+    if(abs(uav_p[2] - target_p[2]) <= 0.4|| 
+      sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
       vision_stamp = 1; //test
     else
       vision_stamp = 0;
@@ -101,7 +102,7 @@ namespace planning {
         if(generate_new_traj_success)
         {
           plan_state = traj_opt::TrajOpt::FOLLOW;
-          generate_new_traj_success = false;
+          // generate_new_traj_success = false;
           ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
           return;
         }
@@ -120,8 +121,8 @@ namespace planning {
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
           if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
-            land_first = false;
-            generate_new_traj_success = false;
+            land_first = true;
+            // generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::LAND;
             ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
             // ros::Duration(0.2).sleep();
@@ -158,22 +159,22 @@ namespace planning {
           // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
           if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
           {
-            generate_new_traj_success = false;
+            // generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::FOLLOW;
             ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
             return;
           }
-          else if(delta_from_last > T + 0.5)
+          else if(delta_from_last > T + 0.05)
           {
             plan_state = traj_opt::TrajOpt::HOVER;
-            generate_new_traj_success = false;
+            // generate_new_traj_success = false;
             ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
             return;
           }
         }
         else if(land_first)
         {
-          // delta_from_last = -1.0;
+          delta_from_last = -1.0;
           land_first = false;
         }
 
@@ -188,9 +189,16 @@ namespace planning {
     }
     std::cout<<"planning state: "<<plan_state<<std::endl;
     std::cout<<"uav_p = "<<uav_p.transpose()<<" uav_v = "<<uav_v.transpose()<<std::endl;
-    std::cout<<"inital_p = "<<iniState.col(0).transpose()<<" inital_v = "<<iniState.col(1).transpose()<<std::endl;
+    std::cout<<"inital_state = " << std::endl;
+    std::cout << iniState.transpose() <<std::endl;
     std::cout << "target_p: " << target_p.transpose() << std::endl;
     std::cout << "target_v: " << target_v.transpose() << std::endl;
+    std::cout << "target_q: "
+              << target_q.w() << ","
+              << target_q.x() << ","
+              << target_q.y() << ","
+              << target_q.z() << std::endl;
+    std::cout << "delta_from_last: " << delta_from_last << std::endl;
     ROS_INFO("\033[32m[planning]:start planning!\033[32m");
 
     bool generate_new_traj; 
@@ -213,7 +221,7 @@ namespace planning {
     }
     else if(!generate_new_traj)
     {
-      // generate_new_traj_success = false;
+      generate_new_traj_success = false;
       ROS_ERROR("[planning]:Traj generate fail!");
     }
     // triger_received_ = false;

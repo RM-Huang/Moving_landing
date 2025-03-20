@@ -966,7 +966,7 @@ bool TrajOpt::grad_cost_visible_domain(const Eigen::Vector3d& pos,
   double dist_sqr = pc.squaredNorm();
   // double safe_r = platform_r_;
   // double safe_r_sqr = platform_r_ * platform_r_;
-  double vis_r_sqr = traking_height * traking_height;
+  double vis_r_sqr = traking_height * traking_height * 100;
   double pen_dist = vis_r_sqr - dist_sqr;
   //pen_dist /= safe_r_sqr;
   double grad_dist = 0;
@@ -981,19 +981,35 @@ bool TrajOpt::grad_cost_visible_domain(const Eigen::Vector3d& pos,
   // Eigen::Vector3d zb(0,0,1);
   // Eigen::Vector3d zc(0,0,1);
   Eigen::Vector3d zc = tail_q_v_;
-  // Eigen::Vector3d pc = - car_p + pos;
   Eigen::Vector3d pc_norm = pc.normalized(); // normalize pc
 
   double costheta = pc_norm.dot(zc);
   double cosphi = zb.dot(zc);
-  // double theta = acos(costheta);
-  double grad = 0;
-  cost = (1 - costheta) * (1 - costheta) + (1 - cosphi) * (1 - cosphi);
+  // cost = (1 - costheta) * (1 - costheta) + (1 - cosphi) * (1 - cosphi);
+  double costheta_h = std::sqrt((costheta + 1) / 2);
+  double cosphi_h = std::sqrt((cosphi + 1) / 2);
+  // double costheta_max = std::cos(visual_region_ / 2);
+  double costheta_max = 1;
+
+  double pen = costheta_max - costheta_h;
+  double grad = 0.0;
+  double cost1 = smoothedL1(pen, grad);
+  double cost2 = (1 - cosphi_h);
+  cost = cost1 + cost2;
+  // std::cout << "costheta = " << costheta << ", pen = " << pen << ", cost1 = " << cost1 << ", cost2 = " << cost2 << ", cost = " << cost<< std::endl;
   // cost = smoothedL1(pen, grad);
   if(cost > 0){
-    gradp = - 2 * (1 - costheta) * f_DN(pc).transpose() * zc;
-    grad_car_p = 2 * (1 - costheta) * f_DN(pc).transpose() * zc;
-    grada = - 2 * (1 - cosphi) * f_DN(thrust_f).transpose() * zc;
+    if(cost1 > 0){
+      // gradp = - 2 * (1 - costheta) * f_DN(pc).transpose() * zc;
+      // grad_car_p = 2 * (1 - costheta) * f_DN(pc).transpose() * zc;
+      gradp = - grad * (1 / (4 * costheta_h)) * f_DN(pc).transpose() * zc;
+      grad_car_p = grad * (1 / (4 * costheta_h)) * f_DN(pc).transpose() * zc;
+    }else{
+      gradp = Eigen::Vector3d::Zero();
+      grad_car_p = Eigen::Vector3d::Zero();
+    }
+    // grada = - 2 * (1 - cosphi) * f_DN(thrust_f).transpose() * zc;
+    grada = - 1 * (1 / (4 * cosphi_h)) * f_DN(thrust_f).transpose() * zc;
     
     cost *= var01;
     gradp = - grad_dist * 2 * pc * cost + var01 * gradp;

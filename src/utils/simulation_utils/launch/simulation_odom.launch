@@ -1,0 +1,17 @@
+<launch>
+  <group ns="drone0">
+    <!-- <node pkg="nodelet" type="nodelet" name="manager"  args="manager" output="screen">
+      <param name="num_worker_threads" value="16"/>
+    </node> -->
+
+    <node pkg="nodelet" type="nodelet" name="odomSim" args="load odomSim/odomRemap manager" output="screen">
+        <param name="use_vis" value="1"/>
+
+        <remap from="~uavTopic" to="/gazebo/model_states"/>
+        <remap from="~carTopic" to="/estimator/sim_odom"/>
+        <remap from="~carbiasTopic" to="/estimator_debug"/>
+        <remap from="~visTopic" to="/smart/odom"/>
+    </node>   
+  </group>
+
+</launch>

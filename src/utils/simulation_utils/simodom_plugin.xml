@@ -1,0 +1,5 @@
+<library path="lib/libodomSim">
+  <class name="odomSim/odomRemap" type="odomSim::odomRemap" base_class_type="nodelet::Nodelet">
+    <description></description>
+  </class>
+</library>

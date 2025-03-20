@@ -89,6 +89,11 @@ class StaticNodelet : public nodelet::Nodelet {
     land_q.z() = axis.z() * sin(theta);
     land_q = target_q * land_q;
 
+    land_q.w() = 0.999872;
+    land_q.x() = -0.00102567;
+    land_q.y() = 4.78127e-05;
+    land_q.z() = 0.0159915;
+
     std::cout << "iniState: \n"
               << iniState << std::endl;
     std::cout << "target_p: " << target_p.transpose() << std::endl;

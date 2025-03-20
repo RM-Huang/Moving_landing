@@ -85,6 +85,13 @@ namespace estimate
         vals = {-1/2, -1/2, -1/2, -1/2, -1/2, -1/2, -1/2, -1/2, -1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2};
         SymMatrix Q_12 = model.AddSparseMat(20, 18, rows.data(), cols.data(), vals.data());
         model.AddPsdConstr(Q_12 * Z == 0, "Cons_12");
+
+        // tmp: t_bias = 0
+        rows = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
+        cols = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
+        vals = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        SymMatrix Q_tmp_1 = model.AddSparseMat(20, 10, rows.data(), cols.data(), vals.data());
+        model.AddPsdConstr(Q_tmp_1 * Z == 0, "tmp_Cons_1");
     }
 
     int Solver::init(const bool if_iter, const int N, const double R){
@@ -159,8 +166,8 @@ namespace estimate
         for (int i = 0; i < pivot_rows.size(); ++i) {
             independent_rows.row(i) = Mat.row(pivot_rows[i]);
         }
-        std::cout << name << "_rank = " << rank <<std::endl;
-        std::cout << name << "_corank = " << corank << std::endl;
+        // std::cout << name << "_rank = " << rank <<std::endl;
+        // std::cout << name << "_corank = " << corank << std::endl;
         // std::cout << name << "_independent_row_idx : " << pivot_rows.transpose() << std::endl;
 
         return rank;
@@ -311,7 +318,7 @@ namespace estimate
         // int rank_Q = rank_count(Q,"Q"); // debug
 
         auto toc_1 = std::chrono::steady_clock::now();
-        std::cout << "dur_1 : " << (toc_1 - tic).count() * 1e-6 << "ms" << std::endl;
+        // std::cout << "dur_1 : " << (toc_1 - tic).count() * 1e-6 << "ms" << std::endl;
 
         Eigen::Block<Eigen::MatrixXd> Q_a = Q.block(0, 0, 19, 19);
         Eigen::Block<Eigen::MatrixXd> Q_b = Q.block(0, 19, 19, 3 + N_);
@@ -339,12 +346,12 @@ namespace estimate
             model.Solve();
 
             auto toc_2 = std::chrono::steady_clock::now();
-            std::cout << "dur_2 : " << (toc_2 - toc_1).count() * 1e-6 << "ms" << std::endl;
+            // std::cout << "dur_2 : " << (toc_2 - toc_1).count() * 1e-6 << "ms" << std::endl;
 
             // Output solution
             if(model.GetIntAttr(COPT_INTATTR_LPSTATUS) == COPT_LPSTATUS_OPTIMAL){
-                std::cout << "\nOptimal objective value: " << model.GetDblAttr(COPT_DBLATTR_LPOBJVAL) << std::endl; // 目标函数最优值
-                std::cout << std::endl;
+                // std::cout << "\nOptimal objective value: " << model.GetDblAttr(COPT_DBLATTR_LPOBJVAL) << std::endl; // 目标函数最优值
+                // std::cout << std::endl;
 
                 PsdVarArray psdvars = model.GetPsdVars();
                 PsdVar psdvar = psdvars.GetPsdVar(0);
@@ -378,8 +385,8 @@ namespace estimate
                 Eigen::Quaterniond q_cu(Rot);
                 q_cu.normalize();
 
-                std::cout << "t_d:" << t_d << ", z(19):" << z(19) << std::endl;
-                std::cout << "cons_12:" << (tR * z(18) - R * t_d).norm() << std::endl;
+                // std::cout << "t_d:" << t_d << ", z(19):" << z(19) << std::endl;
+                // std::cout << "cons_12:" << (tR * z(18) - R * t_d).norm() << std::endl;
 
                 Eigen::VectorXd x_s = z.head(19);
                 x_s = - Q_c_inv * Q_b.transpose() * x_s;
@@ -388,7 +395,7 @@ namespace estimate
                 x << q_cu.w(), q_cu.x(), q_cu.y(), q_cu.z(), x_s(0), x_s(1), x_s(2), t_d, rankZ, T_total;
                 // std::cout << "x:" << x.transpose() << std::endl;
 
-                std::cout << "solving duration : " << model.GetDblAttr(COPT_DBLATTR_SOLVINGTIME) << " s" << std::endl;
+                // std::cout << "solving duration : " << model.GetDblAttr(COPT_DBLATTR_SOLVINGTIME) << " s" << std::endl;
                 return 1;
             }
             // model.Interrupt();

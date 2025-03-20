@@ -1,0 +1,19 @@
+<launch>
+
+  <group ns="drone0">
+
+    <!-- <node pkg="nodelet" type="nodelet" name="manager" args="manager" output="screen">
+      <param name="num_worker_threads" value="16"/>
+    </node> -->
+
+    <node pkg="nodelet" type="nodelet" name="add_bias" args="load add_bias/AddBias manager" output="screen">
+      <!-- 接收的里程计数据话题 -->
+      <remap from="~car_odom_topic" to="/smart/odom"/>
+      <remap from="~uav_odom_topic" to="/gazebo/model_states"/>
+
+      <rosparam command="load" file="$(find simulation_utils)/config/bias_param.yaml" />
+
+    </node>
+
+  </group>
+</launch>
