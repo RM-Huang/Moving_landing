@@ -1,17 +1,18 @@
 <launch>
+	<group ns="drone0">
+		<!-- <node pkg="nodelet" type="nodelet" name="manager" args="manager" output="screen">
+		<param name="num_worker_threads" value="16"/>
+		</node> -->
 
-	<node pkg="nodelet" type="nodelet" name="manager" args="manager" output="screen">
-      <param name="num_worker_threads" value="16"/>
-    </node>
+		<node pkg="nodelet" type="nodelet" name="ctrl_node" args="load ctrl_node/FSM manager" output="screen">
+				
+			<!-- <remap from="~odom" to="/mavros/local_position/odom" /> -->
+			<remap from="~odom" to="/odom/remap" />
 
-	<node pkg="nodelet" type="nodelet" name="ctrl_node" args="load ctrl_node/FSM manager" output="screen">
-			
-		<!-- <remap from="~odom" to="/mavros/local_position/odom" /> -->
-		<remap from="~odom" to="/odom/remap" />
+			<remap from="~cmd" to="/drone0/planning/cmd" />
 
-		<remap from="~cmd" to="/drone0/planning/cmd" />
-
-        <rosparam command="load" file="$(find ctrl_node)/config/ctrl_param.yaml" />
-	</node>
+			<rosparam command="load" file="$(find ctrl_node)/config/ctrl_param.yaml" />
+		</node>
+	</group>
  
 </launch>

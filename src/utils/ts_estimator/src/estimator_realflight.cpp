@@ -22,9 +22,6 @@ ros::Publisher vis_pub;
 Eigen::Quaterniond q_b_l(1.0, 0.0, 0.0, 0.0);
 Eigen::Vector3d pos_b_l(0.0, 0.0, 0.0);
 double t_b_l = 0.0;
-Eigen::Quaterniond q_b_v(1.0, 0.0, 0.0, 0.0);
-Eigen::Vector3d pos_b_v(0.0, 0.0, 0.0);
-double t_b_v = 0.0;
 
 int valid_rank;
 int flit_win;
@@ -155,7 +152,6 @@ int check_valid_vis(const Eigen::VectorXd& res, Eigen::VectorXd& b_valid){
 
 void handler()
 {
-    /* 在头文件中写好函数后在此调用 */
     if(odom_sub_tri)
     {
         // idx += 1;
@@ -169,36 +165,21 @@ void handler()
 
         read_odom(p_uu, p_cc, v_cc, q_uu, q_cc, b, stamp);
         int ret = -1;
-        // auto tic = std::chrono::steady_clock::now();
-        // if(!vision_sub_tri){
+        auto tic = std::chrono::steady_clock::now();
+        if(!vision_sub_tri){
             ret = solver.optimize(p_uu, p_cc, q_uu, v_cc, b, res);
-        // }else{
-        //     // TODO:需要增加逻辑防止首次降落失败后复飞时偏差不再更新
-        //     if(ros::Time::now().toSec() - vision_time_last > 0.01){ // 如果视觉信息中断则返回
-        //         return;
-        //     }
-        //     Eigen::Vector3d p_uv;
-        //     read_vis_odom(Eigen::Vector3d& p_uv);
-        //     ret = solver.optimize_vision(p_v, p_cc, v_cc, res);
-        // }
-        // ret = solver.optimize(p_uu, p_cc, q_uu, v_cc, b, res);
-            
-        // auto toc = std::chrono::steady_clock::now();
-
-        if(ret == -1){
-            ROS_ERROR("[estimator]:solving time out!");
-        }else if(ret == 1){
-            ROS_INFO("[estimator]:solving succeed!");
-            Eigen::VectorXd bias = Eigen::VectorXd::Zero(8);
-            if(check_valid(res, bias)){
-                q_b_l.w() = bias(0);
-                q_b_l.x() = bias(1);
-                q_b_l.y() = bias(2);
-                q_b_l.z() = bias(3);
-                pos_b_l = Eigen::Vector3d(bias(4), bias(5), bias(6));
-                t_b_l = bias(7);
-            }  
+        }else{
+            // TODO:需要增加逻辑防止首次降落失败后复飞时偏差不再更新
+            if(ros::Time::now().toSec() - vision_time_last > 0.01){ // 如果视觉信息中断则返回
+                return;
+            }
+            Eigen::Vector3d p_uv;
+            read_vis_odom(p_uv);
+            ret = solver.optimize_vision(p_uv, p_cc, v_cc, res);
         }
+            
+        auto toc = std::chrono::steady_clock::now();
+
         debug_msg->pose_bias_cur.pose.position.x = res(4);
         debug_msg->pose_bias_cur.pose.position.y = res(5);
         debug_msg->pose_bias_cur.pose.position.z = res(6);
@@ -216,98 +197,19 @@ void handler()
         debug_msg->pose_bias.pose.orientation.z = q_b_l.z();
         debug_msg->time_bias = t_b_l;
         debug_msg->rank = res(8);
-
-        res = Eigen::VectorXd::Zero(10);
-        ret = -1;
-        Eigen::Vector3d p_uv;
-        read_vis_odom(p_uv);
-        read_odom(p_uu, p_cc, v_cc, q_uu, q_cc, b, stamp);
-        auto tic = std::chrono::steady_clock::now();
-        ret = solver.optimize_vision(p_uv, p_cc, v_cc, res);
-        if(ret == -1){
-            ROS_ERROR("[estimator]:solving time out!");
-        }else if(ret == 1){
-            ROS_INFO("[estimator]:solving succeed!");
-            Eigen::VectorXd bias = Eigen::VectorXd::Zero(8);
-            if(check_valid_vis(res, bias)){
-                q_b_v.w() = bias(0);
-                q_b_v.x() = bias(1);
-                q_b_v.y() = bias(2);
-                q_b_v.z() = bias(3);
-                pos_b_v = Eigen::Vector3d(bias(4), bias(5), bias(6));
-                t_b_v = bias(7);
-            }  
-        }
-        auto toc = std::chrono::steady_clock::now();
-
-        debug_msg->pose_bias_cur_vis.pose.position.x = res(4);
-        debug_msg->pose_bias_cur_vis.pose.position.y = res(5);
-        debug_msg->pose_bias_cur_vis.pose.position.z = res(6);
-        debug_msg->pose_bias_cur_vis.pose.orientation.w = res(0);
-        debug_msg->pose_bias_cur_vis.pose.orientation.x = res(1);
-        debug_msg->pose_bias_cur_vis.pose.orientation.y = res(2);
-        debug_msg->pose_bias_cur_vis.pose.orientation.z = res(3);
-        debug_msg->time_bias_cur_vis = res(7);
-        debug_msg->pose_bias_vis.pose.position.x = pos_b_v(0);
-        debug_msg->pose_bias_vis.pose.position.y = pos_b_v(1);
-        debug_msg->pose_bias_vis.pose.position.z = pos_b_v(2);
-        debug_msg->pose_bias_vis.pose.orientation.w = q_b_v.w();
-        debug_msg->pose_bias_vis.pose.orientation.x = q_b_v.x();
-        debug_msg->pose_bias_vis.pose.orientation.y = q_b_v.y();
-        debug_msg->pose_bias_vis.pose.orientation.z = q_b_v.z();
-        debug_msg->time_bias_vis = t_b_v;
-        debug_msg->time_bias_total = t_b_total;
-        debug_msg->rank_vis = res(8);
         debug_msg->solving_t = (toc - tic).count() * 1e-6;
         debug_msg->pose_bias.header.stamp = stamp;
         debug_pub.publish(debug_msg);
-
-        
-        read_odom(p_uu, p_cc, v_cc, q_uu, q_cc, b, stamp);
-        Eigen::Vector3d p_rec, v_rec;
-        Eigen::Quaterniond q_rec;
-        p_rec = q_b_l.inverse() * (p_cc + v_cc * t_b_l) + pos_b_l;
-        v_rec = q_b_l.inverse() * v_cc;
-        q_rec = q_b_l.inverse() * q_cc;
-        re_car_msg.pose.pose.position.x = p_rec(0);
-        re_car_msg.pose.pose.position.y = p_rec(1);
-        re_car_msg.pose.pose.position.z = p_rec(2);
-        re_car_msg.pose.pose.orientation.w = q_rec.w();
-        re_car_msg.pose.pose.orientation.x = q_rec.x();
-        re_car_msg.pose.pose.orientation.y = q_rec.y();
-        re_car_msg.pose.pose.orientation.z = q_rec.z();
-        re_car_msg.twist.twist.linear.x = v_rec(0);
-        re_car_msg.twist.twist.linear.y = v_rec(1);
-        re_car_msg.twist.twist.linear.z = v_rec(2);
-        re_car_msg.header.stamp = stamp;
-        car_pub.publish(re_car_msg);
-
-        p_rec = q_b_v.inverse() * (p_cc + v_cc * t_b_v) + pos_b_v;
-        v_rec = q_b_v.inverse() * v_cc;
-        q_rec = q_b_v.inverse() * q_cc;
-        re_car_msg.pose.pose.position.x = p_rec(0);
-        re_car_msg.pose.pose.position.y = p_rec(1);
-        re_car_msg.pose.pose.position.z = p_rec(2);
-        re_car_msg.pose.pose.orientation.w = q_rec.w();
-        re_car_msg.pose.pose.orientation.x = q_rec.x();
-        re_car_msg.pose.pose.orientation.y = q_rec.y();
-        re_car_msg.pose.pose.orientation.z = q_rec.z();
-        re_car_msg.twist.twist.linear.x = v_rec(0);
-        re_car_msg.twist.twist.linear.y = v_rec(1);
-        re_car_msg.twist.twist.linear.z = v_rec(2);
-        re_car_msg.header.stamp = stamp;
-        vis_pub.publish(re_car_msg);
     }
 }
 
 int main(int argc, char *argv[])
 {
-    ros::init(argc, argv, "estimator");
+    ros::init(argc, argv, "estimator_realflight");
     ros::NodeHandle nh("~");
 
     debug_pub = nh.advertise<quadrotor_msgs::EstimatorDebug>("/estimator_debug", 10);
     car_pub = nh.advertise<nav_msgs::Odometry>("/car_recovery", 1);
-    vis_pub = nh.advertise<nav_msgs::Odometry>("/car_recovery_vis", 1);
 
     ros::Subscriber odom_sub = nh.subscribe("odom_topic", 1, odom_Callback);
     ros::Subscriber vision_sub = nh.subscribe("vision_topic", 1, vision_Callback);
@@ -338,13 +240,14 @@ int main(int argc, char *argv[])
 
     median_filter.init(flit_win);
     median_filter_vis.init(flit_win);
-    // debug
-    q_b_l = q_b;
-    pos_b_l = pos_b;
-    t_b_l = t_b;
-    q_b_v = q_b;
-    pos_b_v = pos_b;
-    t_b_v = t_b;
+
+    // // debug
+    // q_b_l = q_b;
+    // pos_b_l = pos_b;
+    // t_b_l = t_b;
+    // q_b_v = q_b;
+    // pos_b_v = pos_b;
+    // t_b_v = t_b;
 
     int init_flag = solver.init(time_iter, sample_num, weight_decrese_rate);
     if(init_flag == 1) 
@@ -356,7 +259,7 @@ int main(int argc, char *argv[])
     spinner.start();
     while (ros::ok())
     {
-        handler(); // test
+        handler();
         ros::Duration(0.01).sleep();
     }
     spinner.stop();

@@ -87,11 +87,11 @@ namespace estimate
         model.AddPsdConstr(Q_12 * Z == 0, "Cons_12");
 
         // tmp: t_bias = 0
-        rows = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
-        cols = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
-        vals = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-        SymMatrix Q_tmp_1 = model.AddSparseMat(20, 10, rows.data(), cols.data(), vals.data());
-        model.AddPsdConstr(Q_tmp_1 * Z == 0, "tmp_Cons_1");
+        // rows = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
+        // cols = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
+        // vals = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        // SymMatrix Q_tmp_1 = model.AddSparseMat(20, 10, rows.data(), cols.data(), vals.data());
+        // model.AddPsdConstr(Q_tmp_1 * Z == 0, "tmp_Cons_1");
     }
 
     int Solver::init(const bool if_iter, const int N, const double R){
@@ -102,6 +102,7 @@ namespace estimate
         
         T_total = 0;
         At.clear();
+        At_bar.clear();
 
         try{
             model.ResetAll();
@@ -263,6 +264,21 @@ namespace estimate
         return A_tk;
     }
 
+    Eigen::MatrixXd Solver::get_At_bar_matrix(const Eigen::Vector3d& p_uv, const Eigen::Vector3d& p_cc, const Eigen::Vector3d& v_cc){
+        Eigen::MatrixXd A_tk = Eigen::MatrixXd::Zero(3, 22);
+        Eigen::Block<Eigen::MatrixXd> A_x = A_tk.block(0, 0, 3, 19);
+        Eigen::Block<Eigen::MatrixXd> A_s = A_tk.block(0, 19, 3, 3);
+        Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
+
+        A_x.block(0, 0, 3, 9) = Eigen::KroneckerProduct<Eigen::RowVector3d, Eigen::Matrix3d>(p_cc.transpose(), -1 * I);
+        A_x.block(0, 9, 3, 9) = Eigen::KroneckerProduct<Eigen::RowVector3d, Eigen::Matrix3d>(v_cc.transpose(), -1 * I);
+        A_x.col(18) = p_uv;
+
+        A_s.block(0, 0, 3, 3) = -I;
+        // std::cout << "err_p = " << err_p.transpose() << std::endl;
+        return A_tk;
+    }
+
     void Solver::update_Q_matrix(Eigen::MatrixXd& Q){
         int size = At.size() - 1;
         // for(int i = 0; i < size; i++){
@@ -291,6 +307,134 @@ namespace estimate
                 Q += local_Q;
             }
         }
+    }
+
+    void Solver::update_Q_bar_matrix(Eigen::MatrixXd& Q){
+        int size = At_bar.size() - 1;
+        #pragma omp parallel
+        {
+            Eigen::MatrixXd local_Q = Eigen::MatrixXd::Zero(Q.rows(), Q.cols());
+
+            // 并行累加
+            #pragma omp for
+            for (int i = 0; i < size; i++) {
+                Eigen::MatrixXd tmp = At_bar[i].transpose() * At_bar[i] * pow(weight_decrese_rate, (N_ - 1 - i));
+
+                local_Q += tmp;
+            }
+
+            // 将局部结果合并到全局结果 Q
+            #pragma omp critical
+            {
+                Q += local_Q;
+            }
+        }
+    }
+
+    int Solver::optimize_vision(const Eigen::Vector3d& p_uv, const Eigen::Vector3d& p_cc, const Eigen::Vector3d& v_cc, Eigen::VectorXd& x){
+        // std::cout << "________________entering solver______________" <<std::endl;
+        auto tic = std::chrono::steady_clock::now();
+
+        int n = At_bar.size();
+        Eigen::MatrixXd A_latest;
+
+        if(n < N_){
+            A_latest = get_At_bar_matrix(p_uv, p_cc, v_cc);
+            At_bar.emplace_back(A_latest);
+            return 0;
+        }else{
+            At_bar.erase(At_bar.begin());
+            n -= 1;
+            A_latest = get_At_bar_matrix(p_uv, p_cc, v_cc);
+            At_bar.emplace_back(A_latest);
+        }
+
+        Eigen::MatrixXd Q = A_latest.transpose() * A_latest;
+        // rank_count(A_latest.transpose(),"A_latest"); // debug
+        update_Q_bar_matrix(Q);
+        // int rank_Q = rank_count(Q,"Q"); // debug
+
+        auto toc_1 = std::chrono::steady_clock::now();
+        // std::cout << "dur_1 : " << (toc_1 - tic).count() * 1e-6 << "ms" << std::endl;
+
+        Eigen::Block<Eigen::MatrixXd> Q_a = Q.block(0, 0, 19, 19);
+        Eigen::Block<Eigen::MatrixXd> Q_b = Q.block(0, 19, 19, 3);
+        Eigen::Block<Eigen::MatrixXd> Q_c = Q.block(19, 19, 3, 3);
+        Eigen::MatrixXd Q_c_inv = Q_c.inverse();
+        // print_DenseMatrix_asSym(Q_a, "Q_a"); //debug
+        // print_DenseMatrix_asSym(Q_b, "Q_b"); //debug
+        // std::cout << "Q_a.det = " << Q_a.determinant() << std::endl;
+        // rank_count(Q_a,"Q_a"); // debug
+        // rank_count(Q_b,"Q_b"); // debug
+
+        Eigen::MatrixXd Q_0_x = Q_a - Q_b * Q_c_inv * Q_b.transpose();
+        // rank_count(Q_0_x,"Q_0_x"); // debug
+        // print_DenseMatrix_asSym(Q_0_x, "Q_0_x"); //debug
+        Q_0_x.triangularView<Eigen::StrictlyUpper>().setZero();
+
+        // try{
+        std::vector<int> rows;
+        std::vector<int> cols;
+        std::vector<double> vals;
+        get_nonZero_vals(Q_0_x, rows, cols, vals);
+        SymMatrix Q_0 = model.AddSparseMat(20, vals.size(), rows.data(), cols.data(), vals.data());
+
+        model.SetPsdObjective(Q_0 * Z, COPT_MINIMIZE);
+        model.Solve();
+
+        auto toc_2 = std::chrono::steady_clock::now();
+        // std::cout << "dur_2 : " << (toc_2 - toc_1).count() * 1e-6 << "ms" << std::endl;
+
+        // Output solution
+        if(model.GetIntAttr(COPT_INTATTR_LPSTATUS) == COPT_LPSTATUS_OPTIMAL){
+        // std::cout << "\nOptimal objective value: " << model.GetDblAttr(COPT_DBLATTR_LPOBJVAL) << std::endl; // 目标函数最优值
+        // std::cout << std::endl;
+
+        PsdVarArray psdvars = model.GetPsdVars();
+        PsdVar psdvar = psdvars.GetPsdVar(0);
+        int psdLen = psdvar.GetLen();
+        int psdDim = psdvar.GetDim();
+
+        std::vector<double> psdVal(psdLen);
+        // // std::vector<double> psdDual(psdLen);
+
+        /* Get flattened SDP primal/dual solution */
+        psdvar.Get(COPT_DBLINFO_VALUE, psdVal.data(), psdLen); // 原变量
+        // // psdvar.Get(COPT_DBLINFO_DUAL, psdDual.data(), psdLen); // 对偶变量
+
+        int rankZ;
+        Eigen::VectorXd z = revert_z_from_Z(psdVal, psdDim, rankZ);
+
+        Eigen::VectorXd R(9);
+        R << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
+        // std::cout << "R:" << R.transpose() << std::endl;
+        Eigen::VectorXd tR(9);
+        tR << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
+        Eigen::Matrix3d Rot, tRot;
+        Rot << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
+        tRot << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
+
+        double t_d = std::cbrt(tRot.determinant());
+        // double t_d = z[19];
+        if(CONTINUES_ESTIMATE_){
+            T_total += t_d;
+        }
+        Eigen::Quaterniond q_cu(Rot);
+        q_cu.normalize();
+
+        // std::cout << "t_d:" << t_d << ", z(19):" << z(19) << std::endl;
+        // std::cout << "cons_12:" << (tR * z(18) - R * t_d).norm() << std::endl;
+
+        Eigen::VectorXd x_s = z.head(19);
+        x_s = - Q_c_inv * Q_b.transpose() * x_s;
+        // std::cout << "x_s:" << x_s.transpose() << std::endl;
+
+        x << q_cu.w(), q_cu.x(), q_cu.y(), q_cu.z(), x_s(0), x_s(1), x_s(2), t_d, rankZ, T_total;
+        // std::cout << "x:" << x.transpose() << std::endl;
+        return 1;
+        }
+        // model.Interrupt();
+        return -1;
     }
 
     int Solver::optimize(const Eigen::Vector3d& p_uu, const Eigen::Vector3d& p_cc, const Eigen::Quaterniond& q_uu, 

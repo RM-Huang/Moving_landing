@@ -16,9 +16,10 @@ namespace estimate
         bool CONTINUES_ESTIMATE_ = 0; // 是否使用迭代估计
         int N_ = 10; // 观测状态数
         double weight_decrese_rate = 1.0; // 权重下降比例
-
+        
         double T_total = 0; // 总时间偏移
         std::vector<Eigen::MatrixXd> At;
+        std::vector<Eigen::MatrixXd> At_bar;
 
         Envr copt_env;
         Model model = copt_env.CreateModel("sdp_q");
@@ -44,15 +45,21 @@ namespace estimate
         Eigen::MatrixXd get_At_matrix(const Eigen::Vector3d& p_uu, const Eigen::Vector3d& p_cc, const Eigen::Quaterniond& q_uu,
                                     const Eigen::Vector3d& v_cc, const Eigen::Vector3d& b, const int n);
 
+        Eigen::MatrixXd get_At_bar_matrix(const Eigen::Vector3d& p_uv, const Eigen::Vector3d& p_cc, const Eigen::Vector3d& v_cc);
+
         void update_At_vector(const int n, Eigen::MatrixXd& At);
 
         void update_Q_matrix(Eigen::MatrixXd& Q);
+
+        void update_Q_bar_matrix(Eigen::MatrixXd& Q);
 
         public:
         Solver(){};
         ~Solver(){};
 
         int init(const bool if_iter, const int N, const double R);
+
+        int optimize_vision(const Eigen::Vector3d& p_uv, const Eigen::Vector3d& p_cc, const Eigen::Vector3d& v_cc, Eigen::VectorXd& x);
 
         int optimize(const Eigen::Vector3d& p_uu, const Eigen::Vector3d& p_cc, const Eigen::Quaterniond& q_uu,
                         const Eigen::Vector3d& v_cc, const Eigen::Vector3d& b, Eigen::VectorXd& x);

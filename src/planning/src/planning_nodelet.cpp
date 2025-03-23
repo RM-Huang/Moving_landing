@@ -33,11 +33,6 @@ namespace planning {
 
   void Nodelet::target_odom_callback(const nav_msgs::OdometryConstPtr& msg)
   {
-    // if(msg->pose.pose.position.x < 10 && msg->pose.pose.position.y < 5 && msg->pose.pose.position.z < 3)
-    // {
-    //   target_p << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
-    //   target_odom_time = msg->header.stamp.toSec();
-    // }
     target_p << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
     ekf_error << msg->pose.covariance[0], msg->pose.covariance[1], msg->pose.covariance[2];
     target_odom_time = msg->header.stamp.toSec();
@@ -50,6 +45,21 @@ namespace planning {
     {
       target_odom_recrived = true;
     }
+  }
+
+  bool Nodelet::v2q(const Eigen::Vector3d& v, Eigen::Quaterniond& q){
+    double a = v.x();
+    double b = v.y();
+    double c = v.z();
+    if (c == -1) {
+      return false;
+    }
+    double d = 1.0 / sqrt(2.0 * (1 + c));
+    q.w() = (1 + c) * d;
+    q.x() = -b * d;
+    q.y() = a * d;
+    q.z() = 0;
+    return true;
   }
 
   void Nodelet::planning_fsm(const ros::TimerEvent& event) // for moving platform
@@ -86,14 +96,9 @@ namespace planning {
     }
     
     /* ________________________________________ FSM ________________________________________________ */
-    double delta_from_last = ros::Time::now().toSec() - trajStamp;
-
-    /* debug */
-    if(abs(uav_p[2] - target_p[2]) <= 0.4|| 
-      sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
-      vision_stamp = 1; //test
-    else
-      vision_stamp = 0;
+    // double delta_from_last = ros::Time::now().toSec() - trajStamp;
+    double cur_time = ros::Time::now().toSec();
+    double delta_from_last = cur_time - trajStamp;
     
     switch(plan_state)
     {
@@ -121,7 +126,7 @@ namespace planning {
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
           if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
           {
-            land_first = true;
+            land_first = false;
             // generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::LAND;
             ROS_INFO("\033[32m[planning]:Change to LAND state!\033[32m");
@@ -138,13 +143,8 @@ namespace planning {
           ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
           return;
         }
-        // else if(generate_new_traj_success && delta_from_last < 0.2) // replan from last traj after 0.2s
-        // {
-        //   return;
-        // }
-        // else if(predict_success)
 
-        delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
+        // delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
         iniState.col(0) = traj.getPos(delta_from_last);
         iniState.col(1) = traj.getVel(delta_from_last);
         iniState.col(2) = traj.getAcc(delta_from_last);
@@ -157,14 +157,14 @@ namespace planning {
         {
           double T = traj.getTotalDuration();
           // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-          if(plan_type == 1 && ( (ros::Time::now().toSec() - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
+          if(plan_type == 1 && ( (cur_time - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
           {
             // generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::FOLLOW;
             ROS_INFO("\033[32m[planning]:Change to FOLLOW state!\033[32m");
             return;
           }
-          else if(delta_from_last > T + 0.05)
+          else if(delta_from_last > T)
           {
             plan_state = traj_opt::TrajOpt::HOVER;
             // generate_new_traj_success = false;
@@ -178,7 +178,7 @@ namespace planning {
           land_first = false;
         }
 
-        delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
+        // delta_from_last = ros::Time::now().toSec() - trajStamp; // get a future state as replan initial state
         iniState.col(0) = traj.getPos(delta_from_last);
         iniState.col(1) = traj.getVel(delta_from_last);
         iniState.col(2) = traj.getAcc(delta_from_last);
@@ -211,7 +211,7 @@ namespace planning {
 
     if (generate_new_traj) 
     {
-      trajStamp = ros::Time::now().toSec();
+      trajStamp = cur_time;
       // trajStamp = stamp_tmp;
       // target_v_last = target_p_tmp;
       // target_p_last = target_v_tmp;
@@ -249,13 +249,63 @@ namespace planning {
     return true;
   }
 
+  void Nodelet::debug_pub(const double& delta_from_start){
+    Eigen::Vector3d pos;
+    Eigen::Vector3d vel;
+    Eigen::Vector3d acc;
+    Eigen::Vector3d jer;
+
+    pos = traj.getPos(delta_from_start);
+    vel = traj.getVel(delta_from_start);
+    acc = traj.getAcc(delta_from_start);
+    jer = traj.getJer(delta_from_start);
+    Eigen::Vector3d g(0, 0, -9.8);
+    Eigen::Vector3d thrust = acc - g;
+
+    Eigen::Vector3d zb = thrust.normalized();
+
+    Eigen::Quaterniond q;
+    double t_cur = ros::Time::now().toSec();
+    bool no_singlarity = v2q(zb, q);
+    Eigen::MatrixXd R_dot = (q.toRotationMatrix() - q_last.toRotationMatrix()) / (t_cur - t_last);
+    Eigen::MatrixXd omega_M = q.toRotationMatrix().transpose() * R_dot;
+    // std::cout << "omega_M: \n" << omega_M << std::endl;
+    Eigen::Vector3d omega_real;
+    omega_real.x() = -omega_M(1, 2);
+    omega_real.y() = omega_M(0, 2);
+    omega_real.z() = -omega_M(0, 1);
+    q_last = q;
+    t_last = t_cur;
+
+    int colli = 0;
+    if (trajOptPtr_->check_collilsion(pos, acc, target_p)) {
+      colli = 1;
+    }
+
+    double vis = trajOptPtr_->check_visible(pos, acc, target_p);
+
+    quadrotor_msgs::OutputData debug_msg;
+    debug_msg.p.x = pos(0);
+    debug_msg.p.y = pos(1);
+    debug_msg.p.z = pos(2);
+    debug_msg.v.x = vel(0);
+    debug_msg.v.y = vel(1);
+    debug_msg.v.z = vel(2);
+    debug_msg.thrust = thrust.norm();
+    debug_msg.omega = omega_real.norm();
+    debug_msg.colli = colli;
+    debug_msg.vis_ang = vis;
+    debug_msg.header.stamp = ros::Time::now();
+    debug_pub_.publish(debug_msg);
+  }
+
   void Nodelet::cmd_pub(const ros::TimerEvent& event)
   {
     if(ctrl_ready_triger && triger_received_)
     {
       // abs(uav_v[0] - target_v[0]) < land_r_ && abs(uav_v[1] - target_v[1]) < land_r_ && 
       if(abs(uav_p[0] - target_p[0]) < land_r_ && abs(uav_p[1] - target_p[1]) < land_r_ && 
-        uav_p[2] - target_p[2] <= robot_l_) // set horizental restrictions if odom msg highly reliable
+        uav_p[2] - target_p[2] <= robot_l_ + 0.05) // set horizental restrictions if odom msg highly reliable
       {
         generate_new_traj_success = false;
         triger_received_ = false;
@@ -344,9 +394,6 @@ namespace planning {
             // }
           }
         }
-        // else if(delta_from_start >= traj.getTotalDuration())
-        // {
-        // }
       }
     }
 
@@ -440,7 +487,6 @@ namespace planning {
     vision_statu_sub_ = nh.subscribe<std_msgs::Float64>("/vision_received", 1, &Nodelet::vision_statu_callback, this, ros::TransportHints().tcpNoDelay());
     uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 1, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
     ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 1, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay()); // debug
-    // ctrl_start_tri_sub_ = nh.subscribe<quadrotor_msgs::TrajctrlTrigger>("/traj_follow_start_trigger", 10, &ctrl_start_tri_callback, this, ros::TransportHints().tcpNoDelay());
     triger_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("triger", 1, &Nodelet::triger_callback, this, ros::TransportHints().tcpNoDelay());
     
     if(ifanalyse)
@@ -448,12 +494,10 @@ namespace planning {
       des_pub_ = nh.advertise<quadrotor_msgs::TrajcurDesire>("/desire_pose_current_traj", 1); // debug
     }
     cmd_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("cmd", 1);
-    // hover_pub_ = nh.advertise<quadrotor_msgs::MotorlockTriger>("/locktriger", 1);
-    // land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 1);
+    debug_pub_ = nh.advertise<quadrotor_msgs::OutputData>("planner_debug", 1);
     FCU_command_srv = nh.serviceClient<mavros_msgs::CommandLong>("/mavros/cmd/command");
 
     plan_timer_ = nh.createTimer(ros::Duration(1.0 / plan_hz_), &Nodelet::planning_fsm, this);
-    // cmd_timer_ = nh.createTimer(ros::Duration(1.0 / (plan_hz_ * 10)), &Nodelet::cmd_pub, this);
     cmd_timer_ = nh.createTimer(ros::Duration(0.01), &Nodelet::cmd_pub, this);
     ROS_WARN("Planning node initialized!");
   }

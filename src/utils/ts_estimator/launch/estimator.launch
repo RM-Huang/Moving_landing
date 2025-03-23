@@ -2,15 +2,15 @@
 
     <node pkg="estimator" type="estimator" name="estimator" output="screen">
         <param name="time_iter" value="false"/>
-        <param name="sample_num" value="300"/>
+        <param name="sample_num" value="200"/>
         <param name="weight_decrese_rate" value="1.0"/>
         <param name="valid_rank" value="17"/>
         <param name="fliter_window" value="61"/>
 
         <remap from="~odom_topic" to="/estimator/sim_odom"/>
-        <remap from="~car_truth_topic" to="/estimator/car_truth"/>
+        <remap from="~vision_topic" to="/estimator/car_truth"/>
 
-        <rosparam command="load" file="$(find estimator)/config/odom_param.yaml" />
+        <rosparam command="load" file="$(find simulation_utils)/config/bias_param.yaml" />
 	</node> 
 
 </launch>

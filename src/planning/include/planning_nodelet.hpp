@@ -4,7 +4,7 @@
 #include <quadrotor_msgs/PositionCommand.h>
 #include <quadrotor_msgs/TrajcurDesire.h>
 #include <quadrotor_msgs/TakeoffLand.h>
-#include <quadrotor_msgs/MotorlockTriger.h>
+#include <quadrotor_msgs/OutputData.h>
 #include <nodelet/nodelet.h>
 #include <ros/package.h>
 #include <ros/ros.h>
@@ -89,6 +89,9 @@ namespace planning{
         // NOTE just for debug
         bool debug_replan_ = false;
         bool ifanalyse =false;
+        ros::Publisher debug_pub_;
+        Eigen::Quaterniond q_last;
+        double t_last;
 
         // double tracking_dur_, tracking_dist_, tolerance_d_;
         Eigen::Vector3d perching_p_, perching_v_, perching_axis_; // for simulation
@@ -112,6 +115,10 @@ namespace planning{
         void uav_odom_callback(const nav_msgs::OdometryConstPtr& msg);
 
         void target_odom_callback(const nav_msgs::OdometryConstPtr& msg);
+
+        bool v2q(const Eigen::Vector3d& v, Eigen::Quaterniond& q);
+
+        void debug_pub(const double& delta_from_start);
 
         void planning_fsm(const ros::TimerEvent& event);
 

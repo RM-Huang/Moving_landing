@@ -988,8 +988,8 @@ bool TrajOpt::grad_cost_visible_domain(const Eigen::Vector3d& pos,
   // cost = (1 - costheta) * (1 - costheta) + (1 - cosphi) * (1 - cosphi);
   double costheta_h = std::sqrt((costheta + 1) / 2);
   double cosphi_h = std::sqrt((cosphi + 1) / 2);
-  // double costheta_max = std::cos(visual_region_ / 2);
-  double costheta_max = 1;
+  double costheta_max = std::cos(visual_region_ / 2);
+  // double costheta_max = 1;
 
   double pen = costheta_max - costheta_h;
   double grad = 0.0;
@@ -1274,9 +1274,9 @@ double TrajOpt::check_visible(const Eigen::Vector3d& pos,
   
   Eigen::Vector3d thrust_f = acc - g_;
   Eigen::Vector3d zb = f_N(thrust_f);
-  // Eigen::Vector3d pc_norm = pc.normalized(); // normalize pc
+  Eigen::Vector3d pc_norm = pc.normalized(); // normalize pc
 
-  double costheta = tail_q_v_.dot(zb);
+  double costheta = pc_norm.dot(zb);
   // double theta = acos(costheta);
   return std::acos(costheta);
 }

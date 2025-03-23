@@ -36,7 +36,7 @@ link_directories("$ENV{COPT_HOME}/lib")
 # )
 # planning node
 add_library(sim_odom
-  src/estimator_odom_handler.cpp
+  src/add_traj_bias.cpp
 )
 
 target_link_libraries(sim_odom
@@ -52,7 +52,17 @@ add_executable(estimator
   src/estimator_test.cpp
 )
 
+add_executable(estimator_realflight
+  src/estimator.cpp
+  src/estimator_realflight.cpp
+)
+
 target_link_libraries(estimator
+  ${catkin_LIBRARIES}
+  copt_cpp
+)
+
+target_link_libraries(estimator_realflight
   ${catkin_LIBRARIES}
   copt_cpp
 )

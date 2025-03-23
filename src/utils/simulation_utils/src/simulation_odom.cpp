@@ -51,13 +51,31 @@ namespace odomSim{
         car_bias.t = biasMsg->time_bias;
     }
 
-    void odomRemap::car_odom_remap(const Eigen::Vector3d& uav_pos, Eigen::Vector3d& car_pos, Eigen::Vector3d& car_vel, Eigen::Quaterniond& car_qua){
+    void odomRemap::car_odom_remap(const Eigen::Vector3d& uav_pos, Eigen::Vector3d& car_pos, Eigen::Vector3d& car_vel, 
+                                    Eigen::Quaterniond& car_qua, std_msgs::Float64& odom_source){
 
         Eigen::Vector3d vis_pos(vision_odom.pose.pose.position.x, vision_odom.pose.pose.position.y, vision_odom.pose.pose.position.z);
 
         car_vel = car_bias.qua.inverse() * car_vel;
+        car_qua = car_bias.qua.inverse() * car_qua;
+        car_pos = car_bias.qua.inverse() * (car_pos + car_vel * car_bias.t) + car_bias.pos;
 
-        if(sqrt(pow(uav_pos[0] - vis_pos[0], 2) + pow(uav_pos[1] - vis_pos[1], 2)) < abs(uav_pos[2] - vis_pos[2]) * std::tan(M_PI / 4)){
+        nav_msgs::Odometry car_rec_msg;
+        car_rec_msg.pose.pose.position.x = car_pos(0);
+        car_rec_msg.pose.pose.position.y = car_pos(1);
+        car_rec_msg.pose.pose.position.z = car_pos(2);
+        car_rec_msg.pose.pose.orientation.w = car_qua.w();
+        car_rec_msg.pose.pose.orientation.x = car_qua.x();
+        car_rec_msg.pose.pose.orientation.y = car_qua.y();
+        car_rec_msg.pose.pose.orientation.z = car_qua.z();
+        car_rec_msg.twist.twist.linear.x = car_vel(0);
+        car_rec_msg.twist.twist.linear.y = car_vel(1);
+        car_rec_msg.twist.twist.linear.z = car_vel(2);
+        car_rec_msg.header.stamp = ros::Time::now();
+        car_rec_pub.publish(car_rec_msg);
+
+        if(abs(uav_pos[2] - vis_pos[2]) <= 1.0 ||
+           sqrt(pow(uav_pos[0] - vis_pos[0], 2) + pow(uav_pos[1] - vis_pos[1], 2)) < abs(uav_pos[2] - vis_pos[2]) * std::tan(M_PI / 4)){
             car_qua.w() = vision_odom.pose.pose.orientation.w;
             car_qua.x() = vision_odom.pose.pose.orientation.x;
             car_qua.y() = vision_odom.pose.pose.orientation.y;
@@ -65,30 +83,41 @@ namespace odomSim{
             car_pos.x() = vision_odom.pose.pose.position.x;
             car_pos.y() = vision_odom.pose.pose.position.y;
             car_pos.z() = vision_odom.pose.pose.position.z;
+            odom_source.data = 1;
         }else{
-            car_qua = car_bias.qua.inverse() * car_qua;
-            car_pos = car_bias.qua.inverse() * (car_pos + car_vel * car_bias.t) + car_bias.pos;
+            odom_source.data = 0;
         }   
+    }
+
+    void odomRemap::read_odom(const nav_msgs::Odometry& msg, Eigen::Vector3d& pos, Eigen::Vector3d& vel, Eigen::Quaterniond& qua){
+        pos(0) = msg.pose.pose.position.x;
+        pos(1) = msg.pose.pose.position.y;
+        pos(2) = msg.pose.pose.position.z;
+
+        vel(0) = msg.twist.twist.linear.x;
+        vel(1) = msg.twist.twist.linear.y;
+        vel(2) = msg.twist.twist.linear.z;
+
+        qua.w() = msg.pose.pose.orientation.w;
+        qua.x() = msg.pose.pose.orientation.x;
+        qua.y() = msg.pose.pose.orientation.y;
+        qua.z() = msg.pose.pose.orientation.z;
     }
 
     void odomRemap::odom_handler(const ros::TimerEvent& time_event){
         if(uav_sub_tri && car_sub_tri){
 
             nav_msgs::Odometry car_msg;
-            nav_msgs::Odometry uav_msg = uav_odom;
+            nav_msgs::Odometry uav_msg;
+            std_msgs::Float64 source_msg;
 
-            Eigen::Vector3d uav_pos(uav_msg.pose.pose.position.x, uav_msg.pose.pose.position.y, uav_msg.pose.pose.position.z);
-
-            Eigen::Vector3d car_pos(car_odom.pose.pose.position.x, car_odom.pose.pose.position.y, car_odom.pose.pose.position.z);
+            Eigen::Vector3d uav_pos, car_pos, uav_vel, car_vel;
+            Eigen::Quaterniond uav_qua, car_qua;
             
-            Eigen::Quaterniond car_qua(car_odom.pose.pose.orientation.w,
-                                        car_odom.pose.pose.orientation.x,
-                                        car_odom.pose.pose.orientation.y,
-                                        car_odom.pose.pose.orientation.z);
+            read_odom(uav_odom, uav_pos, uav_vel, uav_qua);
+            read_odom(car_odom, car_pos, car_vel, car_qua);
 
-            Eigen::Vector3d car_vel(car_odom.twist.twist.linear.x, car_odom.twist.twist.linear.y, car_odom.twist.twist.linear.z);
-
-            car_odom_remap(uav_pos, car_pos, car_vel, car_qua);
+            car_odom_remap(uav_pos, car_pos, car_vel, car_qua, source_msg);
 
             car_msg.pose.pose.position.x = car_pos(0);
             car_msg.pose.pose.position.y = car_pos(1);
@@ -100,9 +129,23 @@ namespace odomSim{
             car_msg.twist.twist.linear.x = car_vel(0);
             car_msg.twist.twist.linear.y = car_vel(1);
             car_msg.twist.twist.linear.z = car_vel(2);
+            car_msg.header.stamp = ros::Time::now();
             car_pub.publish(car_msg);
 
+            uav_msg.pose.pose.position.x = uav_pos(0);
+            uav_msg.pose.pose.position.y = uav_pos(1);
+            uav_msg.pose.pose.position.z = uav_pos(2);
+            uav_msg.pose.pose.orientation.w = uav_qua.w();
+            uav_msg.pose.pose.orientation.x = uav_qua.x();
+            uav_msg.pose.pose.orientation.y = uav_qua.y();
+            uav_msg.pose.pose.orientation.z = uav_qua.z();
+            uav_msg.twist.twist.linear.x = uav_vel(0);
+            uav_msg.twist.twist.linear.y = uav_vel(1);
+            uav_msg.twist.twist.linear.z = uav_vel(2);
+            uav_msg.header.stamp = ros::Time::now();
             uav_pub.publish(uav_msg);
+
+            vision_tri_pub.publish(source_msg);
 
         }else{
             while(!uav_sub_tri || !car_sub_tri)
@@ -131,6 +174,8 @@ namespace odomSim{
 
         uav_pub = nh.advertise<nav_msgs::Odometry>("/odom/remap", 5);
         car_pub = nh.advertise<nav_msgs::Odometry>("/odom/remap/car", 5);
+        car_rec_pub = nh.advertise<nav_msgs::Odometry>("/odom/car_recover", 1);
+        vision_tri_pub = nh.advertise<std_msgs::Float64>("/vision_received", 1);
 
         handler_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::odom_handler, this);
 

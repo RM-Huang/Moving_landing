@@ -4,9 +4,9 @@ time_delay: 0.0
 
 trans_x: 3.0
 
-trans_y: 0.0
+trans_y: 2.0
 
-trans_z: 0.0
+trans_z: 1.0
 
 rotat_roll: 0.0
 

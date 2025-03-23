@@ -35,27 +35,22 @@ namespace Filter{
         }
 
         double update(double new_val) {
-            if (buffer_.size() == window_size_) {// 移除偏差最大数据
-                if(abs(buffer_.front() - mediannum) > abs(buffer_.back() - mediannum))
-                    buffer_.erase(buffer_.begin());  
-                else
-                    buffer_.pop_back();
+            if (buffer_.size() == window_size_) {// 移除最早数据
+                buffer_.pop_front();
             }
             buffer_.emplace_back(new_val);  // 添加新数据
 
             // 复制数据并排序
-            // std::vector<double> sorted_buffer(buffer_.begin(), buffer_.end());
-            std::sort(buffer_.begin(), buffer_.end());
+            std::vector<double> sorted_buffer(buffer_.begin(), buffer_.end());
+            std::sort(sorted_buffer.begin(), sorted_buffer.end());
 
             // 返回中值
-            mediannum = buffer_[buffer_.size() / 2];
-            return mediannum;
+            return sorted_buffer[sorted_buffer.size() / 2];
         }
 
     private:
         size_t window_size_;
-        double mediannum = 0;
-        std::vector<double> buffer_;
+        std::deque<double> buffer_;
     };
 
     class MedianFilterBias {
@@ -75,8 +70,8 @@ namespace Filter{
             b_filt.position(1) = filter_p_y_.update(b_cur.position(1));
             b_filt.position(2) = filter_p_z_.update(b_cur.position(2));
             b_filt.euler(0) = filter_r_.update(b_cur.euler(0));
-            b_filt.euler(1) = filter_r_.update(b_cur.euler(1));
-            b_filt.euler(2) = filter_r_.update(b_cur.euler(2));
+            b_filt.euler(1) = filter_p_.update(b_cur.euler(1));
+            b_filt.euler(2) = filter_y_.update(b_cur.euler(2));
             b_filt.time = filter_t_.update(b_cur.time);
             return b_filt;
         }

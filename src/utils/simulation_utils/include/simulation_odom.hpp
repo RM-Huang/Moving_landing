@@ -2,6 +2,7 @@
 #include <ros/ros.h>
 #include <Eigen/Eigen>
 #include <nodelet/nodelet.h>
+#include <std_msgs/Float64.h>
 #include <nav_msgs/Odometry.h>
 #include <gazebo_msgs/ModelStates.h>
 #include <quadrotor_msgs/EstimatorOdom.h>
@@ -37,6 +38,8 @@ namespace odomSim{
 
         ros::Publisher uav_pub;
         ros::Publisher car_pub;
+        ros::Publisher car_rec_pub;
+        ros::Publisher vision_tri_pub;
 
         ros::Timer handler_timer;
 
@@ -50,7 +53,10 @@ namespace odomSim{
 
         void carbiasCallback(const quadrotor_msgs::EstimatorDebug::ConstPtr &biasMsg);
 
-        void car_odom_remap(const Eigen::Vector3d& uav_pos, Eigen::Vector3d& car_pos, Eigen::Vector3d& car_vel, Eigen::Quaterniond& car_qua);
+        void read_odom(const nav_msgs::Odometry& msg, Eigen::Vector3d& pos, Eigen::Vector3d& vel, Eigen::Quaterniond& qua);
+
+        void car_odom_remap(const Eigen::Vector3d& uav_pos, Eigen::Vector3d& car_pos, Eigen::Vector3d& car_vel, 
+                            Eigen::Quaterniond& car_qua, std_msgs::Float64& odom_source);
 
         void odom_handler(const ros::TimerEvent& time_event);
 

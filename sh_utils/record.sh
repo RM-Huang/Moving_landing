@@ -9,6 +9,7 @@ rosbag record --tcpnodelay \
 /mavros/imu/data \
 /odom/remap \
 /odom/remap/car \
+/odom/car_recover \
 /odom/remap/car/raw \
 /vision_received \
 /gazebo/model_states \

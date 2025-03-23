@@ -35,6 +35,7 @@
   <depend>nodelet</depend>
   <depend>traj_opt</depend>
   <depend>quadrotor_msgs</depend>
+  <depend>simulation_utils</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
