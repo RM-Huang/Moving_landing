@@ -2,6 +2,10 @@
 
 namespace odomSim{
 
+    void odomRemap::missiontriCallback(const geometry_msgs::PoseStamped::ConstPtr &triMsg){
+        mission_start_tri = true;
+    }
+
     void odomRemap::uavsimCallback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg){
         for(int i = 0; i < modelMsg->name.size(); i++){
             if(modelMsg->name[i] == "iris_0"){
@@ -51,6 +55,15 @@ namespace odomSim{
         car_bias.t = biasMsg->time_bias;
     }
 
+    // 用来检测视觉偏差估计是否符合要求
+    void odomRemap::check_vision_bias(const Eigen::Vector3d& remap_pos, const Eigen::Vector3d& vis_pos){
+        if((remap_pos - vis_pos).norm() < 0.2){
+            std_msgs::Float64 tri;
+            tri.data = 1;
+            land_tri_pub.publish(tri);
+        }
+    }
+
     void odomRemap::car_odom_remap(const Eigen::Vector3d& uav_pos, Eigen::Vector3d& car_pos, Eigen::Vector3d& car_vel, 
                                     Eigen::Quaterniond& car_qua, std_msgs::Float64& odom_source){
 
@@ -58,7 +71,7 @@ namespace odomSim{
 
         car_vel = car_bias.qua.inverse() * car_vel;
         car_qua = car_bias.qua.inverse() * car_qua;
-        car_pos = car_bias.qua.inverse() * (car_pos + car_vel * car_bias.t) + car_bias.pos;
+        car_pos = car_bias.qua.inverse() * (car_pos + car_bias.pos) + car_vel * car_bias.t;
 
         nav_msgs::Odometry car_rec_msg;
         car_rec_msg.pose.pose.position.x = car_pos(0);
@@ -74,8 +87,10 @@ namespace odomSim{
         car_rec_msg.header.stamp = ros::Time::now();
         car_rec_pub.publish(car_rec_msg);
 
-        if(abs(uav_pos[2] - vis_pos[2]) <= 1.0 ||
-           sqrt(pow(uav_pos[0] - vis_pos[0], 2) + pow(uav_pos[1] - vis_pos[1], 2)) < abs(uav_pos[2] - vis_pos[2]) * std::tan(M_PI / 4)){
+        if(mission_start_tri && (abs(uav_pos[2] - vis_pos[2]) <= 0.5 ||
+           sqrt(pow(uav_pos[0] - vis_pos[0], 2) + pow(uav_pos[1] - vis_pos[1], 2)) < abs(uav_pos[2] - vis_pos[2]) * std::tan(M_PI / 4))){
+            
+            check_vision_bias(car_pos, vis_pos);
             car_qua.w() = vision_odom.pose.pose.orientation.w;
             car_qua.x() = vision_odom.pose.pose.orientation.x;
             car_qua.y() = vision_odom.pose.pose.orientation.y;
@@ -171,11 +186,14 @@ namespace odomSim{
         car_sub = nh.subscribe("carTopic", 1, &odomRemap::carsimCallback, this, ros::TransportHints().tcpNoDelay());
         vision_sub = nh.subscribe("visTopic", 1, &odomRemap::visionsimCallback, this, ros::TransportHints().tcpNoDelay());
         car_bias_sub = nh.subscribe("carbiasTopic", 1, &odomRemap::carbiasCallback, this, ros::TransportHints().tcpNoDelay());
+        mission_tri_sub = nh.subscribe("/landing_triger", 1, &odomRemap::missiontriCallback, this, ros::TransportHints().tcpNoDelay());
 
         uav_pub = nh.advertise<nav_msgs::Odometry>("/odom/remap", 5);
         car_pub = nh.advertise<nav_msgs::Odometry>("/odom/remap/car", 5);
         car_rec_pub = nh.advertise<nav_msgs::Odometry>("/odom/car_recover", 1);
         vision_tri_pub = nh.advertise<std_msgs::Float64>("/vision_received", 1);
+        land_tri_pub = nh.advertise<std_msgs::Float64>("/land_state_triger", 1);
+
 
         handler_timer = nh.createTimer(ros::Duration(0.005), &odomRemap::odom_handler, this);
 

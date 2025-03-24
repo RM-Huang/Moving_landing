@@ -9,6 +9,7 @@ find_package(Eigen3 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   nodelet
+  message_filters
   quadrotor_msgs
 )
 

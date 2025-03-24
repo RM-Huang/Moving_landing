@@ -1,5 +1,14 @@
 #include "estimator.hpp"
 
+template <typename T>
+static void print_vector(const char* name, const std::vector<T>& vec){
+    std::cout << name << ": " << std::endl;
+    for(auto &elem : vec){
+        std::cout << elem << ", " << std::endl;
+    }
+    std::cout << std::endl;
+}
+
 namespace estimate
 {
     void Solver::init_constrains(){
@@ -87,11 +96,37 @@ namespace estimate
         model.AddPsdConstr(Q_12 * Z == 0, "Cons_12");
 
         // tmp: t_bias = 0
-        // rows = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
-        // cols = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
-        // vals = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-        // SymMatrix Q_tmp_1 = model.AddSparseMat(20, 10, rows.data(), cols.data(), vals.data());
-        // model.AddPsdConstr(Q_tmp_1 * Z == 0, "tmp_Cons_1");
+        rows = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
+        cols = {9, 10, 11, 12, 13, 14, 15, 16, 17, 19};
+        vals = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        SymMatrix Q_tmp_1 = model.AddSparseMat(20, 10, rows.data(), cols.data(), vals.data());
+        model.AddPsdConstr(Q_tmp_1 * Z == 0, "tmp_Cons_1");
+
+        // tmp: roll, pitch = 0
+        // rows = {2, 5, 6, 7};
+        // cols = {2, 5, 6, 7};
+        // vals = {1, 1, 1, 1};
+        // SymMatrix Q_tmp_2 = model.AddSparseMat(20, 4, rows.data(), cols.data(), vals.data());
+        // model.AddPsdConstr(Q_tmp_2 * Z == 0, "tmp_Cons_2");
+
+        // rows = {11, 14, 15, 16};
+        // cols = {11, 14, 15, 16};
+        // vals = {1, 1, 1, 1};
+        // SymMatrix Q_tmp_3 = model.AddSparseMat(20, 4, rows.data(), cols.data(), vals.data());
+        // model.AddPsdConstr(Q_tmp_3 * Z == 0, "tmp_Cons_3");
+
+        // tmp: yaw = 0
+        // rows = {1, 3};
+        // cols = {1, 3};
+        // vals = {1, 1};
+        // SymMatrix Q_tmp_4 = model.AddSparseMat(20, 2, rows.data(), cols.data(), vals.data());
+        // model.AddPsdConstr(Q_tmp_4 * Z == 0, "tmp_Cons_4");
+
+        // rows = {10, 12};
+        // cols = {10, 12};
+        // vals = {1, 1};
+        // SymMatrix Q_tmp_5 = model.AddSparseMat(20, 2, rows.data(), cols.data(), vals.data());
+        // model.AddPsdConstr(Q_tmp_5 * Z == 0, "tmp_Cons_5");
     }
 
     int Solver::init(const bool if_iter, const int N, const double R){
@@ -172,6 +207,11 @@ namespace estimate
         // std::cout << name << "_independent_row_idx : " << pivot_rows.transpose() << std::endl;
 
         return rank;
+    }
+
+    Eigen::MatrixXd Solver::get_inverse_Matrix(const Eigen::MatrixXd& mat){
+        Eigen::PartialPivLU<Eigen::MatrixXd> lu(mat);
+        return lu.inverse();
     }
 
     Eigen::MatrixXd Solver::psdVector_2_MatrixXd(const std::vector<double>& vec, const int dim){
@@ -259,7 +299,7 @@ namespace estimate
         // A_s.col(3 + n) = q_uu.toRotationMatrix() * b;
         A_s.col(3 + n) = b;
         
-        Eigen::Vector3d err_p = A_s.col(3 + n) * (p_uu - p_cc).norm() + p_uu - p_cc;
+        // Eigen::Vector3d err_p = A_s.col(3 + n) * (p_uu - p_cc).norm() + p_uu - p_cc;
         // std::cout << "err_p = " << err_p.transpose() << std::endl;
         return A_tk;
     }
@@ -337,15 +377,18 @@ namespace estimate
 
         int n = At_bar.size();
         Eigen::MatrixXd A_latest;
+        A_latest = get_At_bar_matrix(p_uv, p_cc, v_cc);
+        Eigen::Block<Eigen::MatrixXd> A_lx = A_latest.block(0, 0, 3, 19);
+        if(A_lx.isZero()){
+            return 0;
+        }
 
         if(n < N_){
-            A_latest = get_At_bar_matrix(p_uv, p_cc, v_cc);
             At_bar.emplace_back(A_latest);
             return 0;
         }else{
             At_bar.erase(At_bar.begin());
             n -= 1;
-            A_latest = get_At_bar_matrix(p_uv, p_cc, v_cc);
             At_bar.emplace_back(A_latest);
         }
 
@@ -359,8 +402,8 @@ namespace estimate
 
         Eigen::Block<Eigen::MatrixXd> Q_a = Q.block(0, 0, 19, 19);
         Eigen::Block<Eigen::MatrixXd> Q_b = Q.block(0, 19, 19, 3);
-        Eigen::Block<Eigen::MatrixXd> Q_c = Q.block(19, 19, 3, 3);
-        Eigen::MatrixXd Q_c_inv = Q_c.inverse();
+        Eigen::MatrixXd Q_c = Q.block(19, 19, 3, 3);
+        Eigen::MatrixXd Q_c_inv = get_inverse_Matrix(Q_c);
         // print_DenseMatrix_asSym(Q_a, "Q_a"); //debug
         // print_DenseMatrix_asSym(Q_b, "Q_b"); //debug
         // std::cout << "Q_a.det = " << Q_a.determinant() << std::endl;
@@ -377,6 +420,9 @@ namespace estimate
         std::vector<int> cols;
         std::vector<double> vals;
         get_nonZero_vals(Q_0_x, rows, cols, vals);
+        // print_vector("rows", rows);
+        // print_vector("cols", cols);
+        // print_vector("vals", vals); // debug
         SymMatrix Q_0 = model.AddSparseMat(20, vals.size(), rows.data(), cols.data(), vals.data());
 
         model.SetPsdObjective(Q_0 * Z, COPT_MINIMIZE);
@@ -387,8 +433,8 @@ namespace estimate
 
         // Output solution
         if(model.GetIntAttr(COPT_INTATTR_LPSTATUS) == COPT_LPSTATUS_OPTIMAL){
-        // std::cout << "\nOptimal objective value: " << model.GetDblAttr(COPT_DBLATTR_LPOBJVAL) << std::endl; // 目标函数最优值
-        // std::cout << std::endl;
+        std::cout << "\nOptimal objective value: " << model.GetDblAttr(COPT_DBLATTR_LPOBJVAL) << std::endl; // 目标函数最优值
+        std::cout << std::endl;
 
         PsdVarArray psdvars = model.GetPsdVars();
         PsdVar psdvar = psdvars.GetPsdVar(0);
@@ -444,7 +490,7 @@ namespace estimate
 
         int n = At.size();
         Eigen::MatrixXd A_latest;
-
+        
         if(n < N_){
             A_latest = get_At_matrix(p_uu, p_cc, q_uu, v_cc, b, n);
             At.emplace_back(A_latest);
@@ -468,6 +514,7 @@ namespace estimate
         Eigen::Block<Eigen::MatrixXd> Q_b = Q.block(0, 19, 19, 3 + N_);
         Eigen::Block<Eigen::MatrixXd> Q_c = Q.block(19, 19, 3 + N_, 3 + N_);
         Eigen::MatrixXd Q_c_inv = Q_c.inverse();
+        // Eigen::MatrixXd Q_c_inv = get_inverse_Matrix(Q_c);
         // print_DenseMatrix_asSym(Q_a, "Q_a"); //debug
         // print_DenseMatrix_asSym(Q_b, "Q_b"); //debug
         // std::cout << "Q_a.det = " << Q_a.determinant() << std::endl;

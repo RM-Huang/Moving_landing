@@ -6,6 +6,7 @@ rosbag record --tcpnodelay \
 /mavros/local_position/velocity_local \
 /mavros/global_position/raw/fix \
 /drone0/planning/cmd \
+/drone0/planning/planner_debug \
 /mavros/imu/data \
 /odom/remap \
 /odom/remap/car \
@@ -14,6 +15,7 @@ rosbag record --tcpnodelay \
 /vision_received \
 /gazebo/model_states \
 /estimator_debug \
+/estimator/sim_odom \
 /smart/odom \
 # /drone0/planning/traj \
 # /drone0/odom_visualization/robot \

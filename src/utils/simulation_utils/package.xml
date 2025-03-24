@@ -19,6 +19,7 @@
   <depend>roscpp</depend>
   <depend>nodelet</depend>
   <depend>quadrotor_msgs</depend>
+  <depend>message_filters</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

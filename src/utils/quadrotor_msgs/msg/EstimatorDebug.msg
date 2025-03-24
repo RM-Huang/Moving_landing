@@ -4,9 +4,5 @@ geometry_msgs/PoseStamped pose_bias
 float64 time_bias
 float64 time_bias_total
 int64 rank
-geometry_msgs/PoseStamped pose_bias_cur_vis
-float64 time_bias_cur_vis
-geometry_msgs/PoseStamped pose_bias_vis
-float64 time_bias_vis
-int64 rank_vis
+int64 vis_solved
 float64 solving_t

@@ -240,27 +240,27 @@ void handler()
         }
         auto toc = std::chrono::steady_clock::now();
 
-        debug_msg->pose_bias_cur_vis.pose.position.x = res(4);
-        debug_msg->pose_bias_cur_vis.pose.position.y = res(5);
-        debug_msg->pose_bias_cur_vis.pose.position.z = res(6);
-        debug_msg->pose_bias_cur_vis.pose.orientation.w = res(0);
-        debug_msg->pose_bias_cur_vis.pose.orientation.x = res(1);
-        debug_msg->pose_bias_cur_vis.pose.orientation.y = res(2);
-        debug_msg->pose_bias_cur_vis.pose.orientation.z = res(3);
-        debug_msg->time_bias_cur_vis = res(7);
-        debug_msg->pose_bias_vis.pose.position.x = pos_b_v(0);
-        debug_msg->pose_bias_vis.pose.position.y = pos_b_v(1);
-        debug_msg->pose_bias_vis.pose.position.z = pos_b_v(2);
-        debug_msg->pose_bias_vis.pose.orientation.w = q_b_v.w();
-        debug_msg->pose_bias_vis.pose.orientation.x = q_b_v.x();
-        debug_msg->pose_bias_vis.pose.orientation.y = q_b_v.y();
-        debug_msg->pose_bias_vis.pose.orientation.z = q_b_v.z();
-        debug_msg->time_bias_vis = t_b_v;
-        debug_msg->time_bias_total = t_b_total;
-        debug_msg->rank_vis = res(8);
-        debug_msg->solving_t = (toc - tic).count() * 1e-6;
-        debug_msg->pose_bias.header.stamp = stamp;
-        debug_pub.publish(debug_msg);
+        // debug_msg->pose_bias_cur_vis.pose.position.x = res(4);
+        // debug_msg->pose_bias_cur_vis.pose.position.y = res(5);
+        // debug_msg->pose_bias_cur_vis.pose.position.z = res(6);
+        // debug_msg->pose_bias_cur_vis.pose.orientation.w = res(0);
+        // debug_msg->pose_bias_cur_vis.pose.orientation.x = res(1);
+        // debug_msg->pose_bias_cur_vis.pose.orientation.y = res(2);
+        // debug_msg->pose_bias_cur_vis.pose.orientation.z = res(3);
+        // debug_msg->time_bias_cur_vis = res(7);
+        // debug_msg->pose_bias_vis.pose.position.x = pos_b_v(0);
+        // debug_msg->pose_bias_vis.pose.position.y = pos_b_v(1);
+        // debug_msg->pose_bias_vis.pose.position.z = pos_b_v(2);
+        // debug_msg->pose_bias_vis.pose.orientation.w = q_b_v.w();
+        // debug_msg->pose_bias_vis.pose.orientation.x = q_b_v.x();
+        // debug_msg->pose_bias_vis.pose.orientation.y = q_b_v.y();
+        // debug_msg->pose_bias_vis.pose.orientation.z = q_b_v.z();
+        // debug_msg->time_bias_vis = t_b_v;
+        // debug_msg->time_bias_total = t_b_total;
+        // debug_msg->rank_vis = res(8);
+        // debug_msg->solving_t = (toc - tic).count() * 1e-6;
+        // debug_msg->pose_bias.header.stamp = stamp;
+        // debug_pub.publish(debug_msg);
 
         
         read_odom(p_uu, p_cc, v_cc, q_uu, q_cc, b, stamp);

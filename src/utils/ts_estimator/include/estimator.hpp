@@ -34,6 +34,8 @@ namespace estimate
 
         int rank_count(const Eigen::MatrixXd& Mat, const std::string& name);
 
+        Eigen::MatrixXd get_inverse_Matrix(const Eigen::MatrixXd& mat);
+
         Eigen::MatrixXd psdVector_2_MatrixXd(const std::vector<double>& vec, const int dim);
 
         Eigen::VectorXd revert_z_from_Z(const std::vector<double>& vec, const int dim, int& rank);

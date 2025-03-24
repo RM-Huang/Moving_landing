@@ -105,15 +105,15 @@
       <param name="rhoOmega" value="100000.0"/>
       <param name="rhoVisibleDomain" value="50000.0"/>
       <param name="rhoPerchingCollision" value="500000.0"/> -->
-      <param name="rhoT" value="50000.0"/>
+      <param name="rhoT" value="30000.0"/>
       <param name="rhoPf" value="100000.0"/>
       <param name="rhoPt" value="10000.0"/>
       <param name="rhoV" value="20000.0"/>
-      <param name="rhoVZ" value="5000.0"/>
+      <param name="rhoVZ" value="15000.0"/>
       <param name="rhoVt" value="60000.0"/>
-      <param name="rhoThrust" value="15000.0"/>
-      <param name="rhoOmega" value="10000.0"/>
-      <param name="rhoVisibleDomain" value="40000.0"/>
+      <param name="rhoThrust" value="40000.0"/>
+      <param name="rhoOmega" value="50000.0"/>
+      <param name="rhoVisibleDomain" value="60000.0"/>
       <param name="rhoPerchingCollision" value="800000.0"/>
 
       <param name="perching_px" value="0.0"/>

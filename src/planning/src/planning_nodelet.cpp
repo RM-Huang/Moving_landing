@@ -157,7 +157,8 @@ namespace planning {
         {
           double T = traj.getTotalDuration();
           // Eigen::Vector3d delta_p = target_p + target_v * (T - delta_from_last) - traj.getPos(T);
-          if(plan_type == 1 && ( (cur_time - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
+          // if(plan_type == 1 && ( (cur_time - target_odom_time > 0.1) || !vision_stamp ) ) // if target msg dosen't refresh
+          if(plan_type == 1 && ( (cur_time - target_odom_time > 0.1)) ) // debug
           {
             // generate_new_traj_success = false;
             plan_state = traj_opt::TrajOpt::FOLLOW;
@@ -366,6 +367,8 @@ namespace planning {
 
           cmd_pub_.publish(cmdMsg);
 
+          debug_pub(delta_from_start);
+
           if(ifanalyse)
           {
             /* for traj analyse */
@@ -484,7 +487,7 @@ namespace planning {
     trajOptPtr_ = std::make_shared<traj_opt::TrajOpt>(nh);
 
     target_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("target_odom", 1, &Nodelet::target_odom_callback, this, ros::TransportHints().tcpNoDelay());
-    vision_statu_sub_ = nh.subscribe<std_msgs::Float64>("/vision_received", 1, &Nodelet::vision_statu_callback, this, ros::TransportHints().tcpNoDelay());
+    vision_statu_sub_ = nh.subscribe<std_msgs::Float64>("/land_state_triger", 1, &Nodelet::vision_statu_callback, this, ros::TransportHints().tcpNoDelay());
     uav_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("uav_odom", 1, &Nodelet::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
     ctrl_ready_tri_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("ctrl_triger", 1, &Nodelet::ctrl_ready_tri_callback, this, ros::TransportHints().tcpNoDelay()); // debug
     triger_sub_ = nh.subscribe<geometry_msgs::PoseStamped>("triger", 1, &Nodelet::triger_callback, this, ros::TransportHints().tcpNoDelay());

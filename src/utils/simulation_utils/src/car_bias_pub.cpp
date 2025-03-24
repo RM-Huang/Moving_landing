@@ -2,6 +2,9 @@
 #include <quadrotor_msgs/EstimatorOdom.h>
 #include <nav_msgs/Odometry.h>
 #include <gazebo_msgs/ModelStates.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
 #include <nodelet/nodelet.h>
 #include <ros/ros.h>
 #include <Eigen/Core>
@@ -33,6 +36,12 @@ private:
     Eigen::Vector3d pos_bias;
     Eigen::Quaterniond q_bias;
 
+    // time syn setup
+    // message_filters::Subscriber<nav_msgs::Odometry> uav_sub;
+    // message_filters::Subscriber<nav_msgs::Odometry> car_sub;
+    // typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, nav_msgs::Odometry> SyncPolicy;
+    // std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync;
+
     // void uav_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
     //   uav_sub_msg = *msg;
     //   if(!uav_sub_tri){
@@ -40,30 +49,38 @@ private:
     //     ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
     //   }
     // }
-    void uav_odom_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
-      uav_sub_msg.header = msg->header;
-      uav_sub_msg.pose.pose = msg->pose;
-      if(!uav_sub_tri){
-        uav_sub_tri = true;
-        ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
-      }
-    }
-
-    // void uav_odom_callback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg){
-    //   for(int i = 0; i < modelMsg->name.size(); i++){
-    //     if(modelMsg->name[i] == "iris_0"){
-    //       std::lock_guard<std::mutex> lock(uav_odom_mutex);
-    //       uav_sub_msg.header.stamp = ros::Time::now();
-    //       uav_sub_msg.pose.pose = modelMsg->pose[i];
-    //       uav_sub_msg.twist.twist = modelMsg->twist[i];
-    //       uav_sub_tri = true;
-    //     }
+    // void uav_odom_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
+    //   uav_sub_msg.header = msg->header;
+    //   uav_sub_msg.pose.pose = msg->pose;
+    //   if(!uav_sub_tri){
+    //     uav_sub_tri = true;
+    //     ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
     //   }
     // }
 
+    void uav_odom_callback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg){
+      for(int i = 0; i < modelMsg->name.size(); i++){
+        if(modelMsg->name[i] == "iris_0"){
+          // std::lock_guard<std::mutex> lock(uav_odom_mutex);
+          uav_sub_msg.header.stamp = ros::Time::now();
+          uav_sub_msg.pose.pose = modelMsg->pose[i];
+          uav_sub_msg.twist.twist = modelMsg->twist[i];
+          uav_sub_tri = true;
+          return;
+        }
+      }
+    }
+
     void car_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
-      std::lock_guard<std::mutex> lock(car_odom_mutex);
+      // std::lock_guard<std::mutex> lock(car_odom_mutex);
       car_sub_msg = *msg;
+      car_sub_tri = true;
+    }
+
+    void syncCallback(const nav_msgs::Odometry::ConstPtr& uav_msg, const nav_msgs::OdometryConstPtr& car_msg) {
+      uav_sub_msg = *uav_msg;
+      car_sub_msg = *car_msg;
+      uav_sub_tri = true;
       car_sub_tri = true;
     }
 
@@ -94,17 +111,23 @@ private:
       car_odom.header.stamp = ros::Time::now();
     }
 
-    void read_odom(nav_msgs::Odometry& uav_cur, nav_msgs::Odometry& car_cur){
-      std::lock_guard<std::mutex> lock_uav(uav_odom_mutex);
-      std::lock_guard<std::mutex> lock_car(car_odom_mutex);
+    bool read_odom(nav_msgs::Odometry& uav_cur, nav_msgs::Odometry& car_cur){
+      // std::lock_guard<std::mutex> lock_uav(uav_odom_mutex);
+      // std::lock_guard<std::mutex> lock_car(car_odom_mutex);
+      // double t_uav = uav_sub_msg.header.stamp.toSec();
+      // double t_car = car_sub_msg.header.stamp.toSec();
+      // if(abs(t_uav - t_car) > 0.005){
+      //   return false;
+      // }
       uav_cur = uav_sub_msg;
       car_cur = car_sub_msg;
       car_odom_list.push_back(car_cur);
 
-      double t_cur = car_cur.header.stamp.toSec();
-      while(car_odom_list.size() > 1 && t_cur - car_odom_list[0].header.stamp.toSec() > time_delay){
+      double car_t_cur = car_cur.header.stamp.toSec();
+      while(car_odom_list.size() > 1 && car_t_cur - car_odom_list[0].header.stamp.toSec() > time_delay){
         car_odom_list.erase(car_odom_list.begin());
       }
+      return true;
     }
 
     void timer_callback(const ros::TimerEvent& event){
@@ -112,8 +135,11 @@ private:
         quadrotor_msgs::EstimatorOdomPtr odom_msg(new quadrotor_msgs::EstimatorOdom);
         // Eigen::Quaterniond uav_q;
         nav_msgs::Odometry uav_cur, car_cur;
-        read_odom(uav_cur, car_cur);
+        if(!read_odom(uav_cur, car_cur)){
+          return;
+        }
 
+        odom_msg->vis_odom = car_cur; // test
         Eigen::Vector3d uav_p(car_cur.pose.pose.position.x, car_cur.pose.pose.position.y, car_cur.pose.pose.position.z);
         Eigen::Vector3d car_p(uav_cur.pose.pose.position.x, uav_cur.pose.pose.position.y, uav_cur.pose.pose.position.z);
         get_car_odom(car_cur, odom_msg->car_odom);
@@ -127,7 +153,6 @@ private:
         odom_msg->dir_uc.z = dir(2);
         // std::cout << "err = " << (dir * (car_p - uav_p).norm() + uav_p - car_p).transpose() << std::endl;
         odom_pub.publish(odom_msg);
-        car_truth_pub.publish(car_cur);
       }else{
         while(!car_sub_tri || !uav_sub_tri)
         {
@@ -164,11 +189,16 @@ private:
         Eigen::AngleAxisd yawAngle(rotat_yaw, Eigen::Vector3d::UnitZ());
         q_bias = yawAngle * pitchAngle * rollAngle;
 
-        uav_sub = nh.subscribe("uav_odom_topic", 5, &AddBias::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
-        car_sub = nh.subscribe("car_odom_topic", 5, &AddBias::car_odom_callback, this, ros::TransportHints().tcpNoDelay());
+        uav_sub = nh.subscribe("uav_odom_topic", 1, &AddBias::uav_odom_callback, this, ros::TransportHints().tcpNoDelay());
+        car_sub = nh.subscribe("car_odom_topic", 1, &AddBias::car_odom_callback, this, ros::TransportHints().tcpNoDelay());
+
+        // uav_sub.subscribe(nh, "uav_odom_topic", 1);
+        // car_sub.subscribe(nh, "car_odom_topic", 1);
+        // sync = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), uav_sub, car_sub);
+        // sync->registerCallback(boost::bind(&AddBias::syncCallback, this, _1, _2));
         
         odom_pub = nh.advertise<quadrotor_msgs::EstimatorOdom>("/estimator/sim_odom", 1);
-        car_truth_pub = nh.advertise<nav_msgs::Odometry>("/estimator/car_truth", 1);
+        // car_truth_pub = nh.advertise<nav_msgs::Odometry>("/estimator/car_truth", 1);
 
         timer_ = nh.createTimer(ros::Duration(1.0 / pub_hz_), &AddBias::timer_callback, this);
 
