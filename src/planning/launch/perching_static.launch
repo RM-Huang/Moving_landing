@@ -149,9 +149,9 @@
       <param name="perching_axis_z" value="0.0"/>
       <!-- <param name="perching_theta" value="-0.0"/> -->
       <!-- <param name="perching_theta" value="0.5"/> -->
-      <!-- <param name="perching_theta" value="-0.27"/> -->
+      <param name="perching_theta" value="-0.27"/>
       <!-- <param name="perching_theta" value="-0.785"/> -->
-      <param name="perching_theta" value="0"/>
+      <!-- <param name="perching_theta" value="0"/> -->
 
       <param name="replan" value="false"/>
       <param name="pause_debug" value="false"/>

@@ -27,8 +27,8 @@ class CmdVel2Gazebo:
         self.odom = Odometry()
         self.odom.header.frame_id = "world"
         self.odom.header.stamp = rospy.Time.now()
-        self.odom.pose.pose.position.x = 0
-        self.odom.pose.pose.position.y = 0
+        self.odom.pose.pose.position.x = -3.0
+        self.odom.pose.pose.position.y = 0.0
         self.odom.pose.pose.position.z = 0
         self.odom.pose.pose.orientation.w = 1
         self.odom.pose.pose.orientation.x = 0
@@ -206,7 +206,7 @@ class CmdVel2Gazebo:
         self.odom.twist.twist.linear.x = self.x / 3
 
         # pose cal
-        qua = tf.transformations.quaternion_from_euler(0,0,self.z)
+        qua = tf.transformations.quaternion_from_euler(0,-0.27,self.z)
         self.odom.pose.pose.orientation.w = qua[3]
         self.odom.pose.pose.orientation.x = qua[0]
         self.odom.pose.pose.orientation.y = qua[1]

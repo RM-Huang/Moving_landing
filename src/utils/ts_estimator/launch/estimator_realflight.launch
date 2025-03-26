@@ -2,8 +2,8 @@
 
     <node pkg="estimator" type="estimator_realflight" name="estimator_realflight" output="screen">
         <param name="time_iter" value="false"/>
-        <param name="sample_num" value="300"/>
-        <param name="weight_decrese_rate" value="1.0"/>
+        <param name="sample_num" value="200"/>
+        <param name="weight" value="1.0"/>
         <param name="valid_rank" value="8"/>
         <param name="fliter_window" value="61"/>
 

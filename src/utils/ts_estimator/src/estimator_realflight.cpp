@@ -138,12 +138,12 @@ int check_valid_vis(const Eigen::VectorXd& res, Eigen::VectorXd& b_valid){
         // median filter
         Filter::bias_data b_filt = median_filter_vis.update(b_cur);
 
-        // Eigen::Quaterniond q_valid = Eigen::AngleAxisd(b_filt.euler(2),Eigen::Vector3d::UnitZ())
-        //                             * Eigen::AngleAxisd(b_filt.euler(1),Eigen::Vector3d::UnitY())
-        //                             * Eigen::AngleAxisd(b_filt.euler(0),Eigen::Vector3d::UnitX());
         Eigen::Quaterniond q_valid = Eigen::AngleAxisd(b_filt.euler(2),Eigen::Vector3d::UnitZ())
-                                    * Eigen::AngleAxisd(0.0 ,Eigen::Vector3d::UnitY())
-                                    * Eigen::AngleAxisd(0.0 ,Eigen::Vector3d::UnitX()); // debug
+                                    * Eigen::AngleAxisd(b_filt.euler(1),Eigen::Vector3d::UnitY())
+                                    * Eigen::AngleAxisd(b_filt.euler(0),Eigen::Vector3d::UnitX());
+        // Eigen::Quaterniond q_valid = Eigen::AngleAxisd(b_filt.euler(2),Eigen::Vector3d::UnitZ())
+        //                             * Eigen::AngleAxisd(0.0 ,Eigen::Vector3d::UnitY())
+        //                             * Eigen::AngleAxisd(0.0 ,Eigen::Vector3d::UnitX()); // debug
 
         b_valid << q_valid.w(), q_valid.x(), q_valid.y(), q_valid.z(), b_filt.position(0), b_filt.position(1), b_filt.position(2), b_filt.time;
 
@@ -249,12 +249,12 @@ int main(int argc, char *argv[])
 
     bool time_iter;
     int sample_num;
-    double weight_decrese_rate;
+    double weight;
     nh.param("time_iter", time_iter, false);
     nh.param("sample_num", sample_num, 100);
     nh.param("valid_rank", valid_rank, 9);
     nh.param("fliter_window", flit_win, 21);
-    nh.param("weight_decrese_rate", weight_decrese_rate, 0.8);
+    nh.param("weight", weight, 0.8);
 
     double trans_x, trans_y, trans_z, rotat_roll, rotat_pitch, rotat_yaw;
     nh.param("time_delay", t_b, 0.0);
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
     // pos_b_v = pos_b;
     // t_b_v = t_b;
 
-    int init_flag = solver.init(time_iter, sample_num, weight_decrese_rate);
+    int init_flag = solver.init(time_iter, sample_num, weight);
     if(init_flag == 1) 
         ROS_INFO("\033[32m[estimator]:solver initiated!\033[32m");
     else

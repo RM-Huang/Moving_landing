@@ -69,9 +69,9 @@ namespace odomSim{
 
         Eigen::Vector3d vis_pos(vision_odom.pose.pose.position.x, vision_odom.pose.pose.position.y, vision_odom.pose.pose.position.z);
 
-        car_vel = car_bias.qua.inverse() * car_vel;
-        car_qua = car_bias.qua.inverse() * car_qua;
-        car_pos = car_bias.qua.inverse() * (car_pos + car_bias.pos) + car_vel * car_bias.t;
+        car_vel = car_bias.qua * car_vel;
+        car_qua = car_bias.qua * car_qua;
+        car_pos = car_bias.qua * (car_pos + car_vel * car_bias.t) + car_bias.pos;
 
         nav_msgs::Odometry car_rec_msg;
         car_rec_msg.pose.pose.position.x = car_pos(0);
@@ -84,12 +84,20 @@ namespace odomSim{
         car_rec_msg.twist.twist.linear.x = car_vel(0);
         car_rec_msg.twist.twist.linear.y = car_vel(1);
         car_rec_msg.twist.twist.linear.z = car_vel(2);
+
+        if(sqrt(pow(uav_pos[0] - vis_pos[0], 2) + pow(uav_pos[1] - vis_pos[1], 2)) <= abs(uav_pos[2] - vis_pos[2]) * std::tan(M_PI / 4)){
+            car_rec_msg.pose.pose.position.y = vision_odom.pose.pose.position.y;
+            car_rec_msg.pose.pose.position.z = vision_odom.pose.pose.position.z;
+            car_pos.y() = vision_odom.pose.pose.position.y;
+            car_pos.z() = vision_odom.pose.pose.position.z;
+        } // debug
         car_rec_msg.header.stamp = ros::Time::now();
         car_rec_pub.publish(car_rec_msg);
 
-        if(mission_start_tri && (abs(uav_pos[2] - vis_pos[2]) <= 0.5 ||
-           sqrt(pow(uav_pos[0] - vis_pos[0], 2) + pow(uav_pos[1] - vis_pos[1], 2)) < abs(uav_pos[2] - vis_pos[2]) * std::tan(M_PI / 4))){
-            
+        if(abs(uav_pos[2] - vis_pos[2]) < 1.5 && abs(uav_pos[2] - vis_pos[2]) > 1.0){
+            odom_source.data = 0;
+        }else if(mission_start_tri && (abs(uav_pos[2] - vis_pos[2]) <= 0.5 ||
+                sqrt(pow(uav_pos[0] - vis_pos[0], 2) + pow(uav_pos[1] - vis_pos[1], 2)) < abs(uav_pos[2] - vis_pos[2]) * std::tan(M_PI / 4))){
             check_vision_bias(car_pos, vis_pos);
             car_qua.w() = vision_odom.pose.pose.orientation.w;
             car_qua.x() = vision_odom.pose.pose.orientation.x;
@@ -99,9 +107,7 @@ namespace odomSim{
             car_pos.y() = vision_odom.pose.pose.position.y;
             car_pos.z() = vision_odom.pose.pose.position.z;
             odom_source.data = 1;
-        }else{
-            odom_source.data = 0;
-        }   
+        }
     }
 
     void odomRemap::read_odom(const nav_msgs::Odometry& msg, Eigen::Vector3d& pos, Eigen::Vector3d& vel, Eigen::Quaterniond& qua){

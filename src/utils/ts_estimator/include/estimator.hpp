@@ -15,7 +15,7 @@ namespace estimate
         private:
         bool CONTINUES_ESTIMATE_ = 0; // 是否使用迭代估计
         int N_ = 10; // 观测状态数
-        double weight_decrese_rate = 1.0; // 权重下降比例
+        double weight = 1.0; // 权重下降比例
         
         double T_total = 0; // 总时间偏移
         std::vector<Eigen::MatrixXd> At;
@@ -34,7 +34,9 @@ namespace estimate
 
         int rank_count(const Eigen::MatrixXd& Mat, const std::string& name);
 
-        Eigen::MatrixXd get_inverse_Matrix(const Eigen::MatrixXd& mat);
+        int get_inverse_Matrix(const Eigen::MatrixXd& mat, Eigen::MatrixXd& inv);
+
+        Eigen::Matrix3d recoverRotation_from_vector(const Eigen::VectorXd& vec);
 
         Eigen::MatrixXd psdVector_2_MatrixXd(const std::vector<double>& vec, const int dim);
 

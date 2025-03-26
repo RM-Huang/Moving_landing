@@ -132,7 +132,7 @@ namespace estimate
     int Solver::init(const bool if_iter, const int N, const double R){
         CONTINUES_ESTIMATE_ = if_iter;
         N_ = N;
-        weight_decrese_rate = R;
+        weight = R;
         omp_set_num_threads(10);
         
         T_total = 0;
@@ -209,9 +209,28 @@ namespace estimate
         return rank;
     }
 
-    Eigen::MatrixXd Solver::get_inverse_Matrix(const Eigen::MatrixXd& mat){
-        Eigen::PartialPivLU<Eigen::MatrixXd> lu(mat);
-        return lu.inverse();
+    Eigen::Matrix3d Solver::recoverRotation_from_vector(const Eigen::VectorXd& vec){
+        Eigen::Matrix3d rot;
+        rot.col(0) = vec.segment(0, 3);
+        rot.col(1) = vec.segment(3, 3);
+        rot.col(2) = vec.segment(6, 3);
+        return rot;
+    }
+
+    int Solver::get_inverse_Matrix(const Eigen::MatrixXd& mat, Eigen::MatrixXd& inv){
+        Eigen::JacobiSVD<Eigen::MatrixXd> svd(mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
+        double tolerance = 1e-15; // 设置奇异值阈值
+        Eigen::VectorXd singular_values = svd.singularValues();
+
+        if (singular_values.minCoeff() < tolerance * singular_values.maxCoeff()) {
+            std::cerr << "Matrix is singular or ill-conditioned!\n";
+            return 0;
+        }
+
+        // 计算逆矩阵
+        inv = svd.matrixV() * (singular_values.array().inverse().matrix().asDiagonal()) * 
+                                svd.matrixU().adjoint();
+        return 1;
     }
 
     Eigen::MatrixXd Solver::psdVector_2_MatrixXd(const std::vector<double>& vec, const int dim){
@@ -325,7 +344,7 @@ namespace estimate
         //     // std::cout << "+++++++++++++++i = "<<i<<"+++++++++++++++++++"<<std::endl;
         //     update_At_vector(i, At[i]);
         //     // print_DenseMatrix_asSym(At[i], "At[i]"); //debug
-        //     Eigen::MatrixXd tmp = At[i].transpose() * At[i] * pow(weight_decrese_rate, (N_ - 1 - i));
+        //     Eigen::MatrixXd tmp = At[i].transpose() * At[i] * pow(weight, (N_ - 1 - i));
         //     Q += tmp;
         // }
         #pragma omp parallel
@@ -336,7 +355,7 @@ namespace estimate
             #pragma omp for
             for (int i = 0; i < size; i++) {
                 update_At_vector(i, At[i]);
-                Eigen::MatrixXd tmp = At[i].transpose() * At[i] * pow(weight_decrese_rate, (N_ - 1 - i));
+                Eigen::MatrixXd tmp = At[i].transpose() * At[i] * weight;
 
                 local_Q += tmp;
             }
@@ -358,7 +377,7 @@ namespace estimate
             // 并行累加
             #pragma omp for
             for (int i = 0; i < size; i++) {
-                Eigen::MatrixXd tmp = At_bar[i].transpose() * At_bar[i] * pow(weight_decrese_rate, (N_ - 1 - i));
+                Eigen::MatrixXd tmp = At_bar[i].transpose() * At_bar[i] * weight;
 
                 local_Q += tmp;
             }
@@ -403,14 +422,19 @@ namespace estimate
         Eigen::Block<Eigen::MatrixXd> Q_a = Q.block(0, 0, 19, 19);
         Eigen::Block<Eigen::MatrixXd> Q_b = Q.block(0, 19, 19, 3);
         Eigen::MatrixXd Q_c = Q.block(19, 19, 3, 3);
-        Eigen::MatrixXd Q_c_inv = get_inverse_Matrix(Q_c);
+        Eigen::MatrixXd Q_c_inv;
+        if(!get_inverse_Matrix(Q_c, Q_c_inv)){
+            return -2;
+        }
+
         // print_DenseMatrix_asSym(Q_a, "Q_a"); //debug
         // print_DenseMatrix_asSym(Q_b, "Q_b"); //debug
         // std::cout << "Q_a.det = " << Q_a.determinant() << std::endl;
         // rank_count(Q_a,"Q_a"); // debug
         // rank_count(Q_b,"Q_b"); // debug
 
-        Eigen::MatrixXd Q_0_x = Q_a - Q_b * Q_c_inv * Q_b.transpose();
+        Eigen::MatrixXd Q_0_x = Q_a;
+        Q_0_x = Q_0_x - Q_b * Q_c_inv * Q_b.transpose();
         // rank_count(Q_0_x,"Q_0_x"); // debug
         // print_DenseMatrix_asSym(Q_0_x, "Q_0_x"); //debug
         Q_0_x.triangularView<Eigen::StrictlyUpper>().setZero();
@@ -456,15 +480,45 @@ namespace estimate
         // std::cout << "R:" << R.transpose() << std::endl;
         Eigen::VectorXd tR(9);
         tR << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
-        Eigen::Matrix3d Rot, tRot;
-        Rot << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
-        tRot << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
+        Eigen::Matrix3d Rot = recoverRotation_from_vector(R);
+        Eigen::Matrix3d tRot = recoverRotation_from_vector(tR);
 
         double t_d = std::cbrt(tRot.determinant());
         // double t_d = z[19];
         if(CONTINUES_ESTIMATE_){
             T_total += t_d;
         }
+        
+
+        std::cout << "Rot: " << std::endl;
+        std::cout << Rot << std::endl;
+        std::cout << "tRot: " << std::endl;
+        std::cout << tRot << std::endl;
+        /* check constrains */
+        double t_2 = z[19] * z[19];
+        Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3,3);
+        Eigen::Vector3d R_c1 = Rot.col(0);
+        Eigen::Vector3d R_c2 = Rot.col(1);
+        Eigen::Vector3d R_c3 = Rot.col(2);
+        Eigen::Vector3d tR_c1 = tRot.col(0);
+        Eigen::Vector3d tR_c2 = tRot.col(1);
+        Eigen::Vector3d tR_c3 = tRot.col(2);
+        std::cout << "cons_1: " << std::endl;
+        std::cout << Rot.transpose() * Rot - I << std::endl;
+        std::cout << "cons_2: " << std::endl;
+        std::cout << tRot.transpose() * tRot - t_2 * I << std::endl;
+        std::cout << "cons_3: " << std::endl;
+        std::cout << Rot * Rot.transpose() - I << std::endl;
+        std::cout << "cons_4: " << std::endl;
+        std::cout << tRot * tRot.transpose() - t_2 * I << std::endl;
+        std::cout << "cons_5: " << (R_c1.cross(R_c2) - R_c3).transpose() << std::endl;
+        std::cout << "cons_6: " << (R_c2.cross(R_c3) - R_c1).transpose() << std::endl;
+        std::cout << "cons_7: " << (R_c3.cross(R_c1) - R_c2).transpose() << std::endl;
+        std::cout << "cons_8: " << (tR_c1.cross(tR_c2) - z[19] * tR_c3).transpose() << std::endl;
+        std::cout << "cons_9: " << (tR_c2.cross(tR_c3) - z[19] * tR_c1).transpose() << std::endl;
+        std::cout << "cons_10: " << (tR_c3.cross(tR_c1) - z[19] * tR_c2).transpose() << std::endl;
+
+
         Eigen::Quaterniond q_cu(Rot);
         q_cu.normalize();
 
@@ -513,7 +567,13 @@ namespace estimate
         Eigen::Block<Eigen::MatrixXd> Q_a = Q.block(0, 0, 19, 19);
         Eigen::Block<Eigen::MatrixXd> Q_b = Q.block(0, 19, 19, 3 + N_);
         Eigen::Block<Eigen::MatrixXd> Q_c = Q.block(19, 19, 3 + N_, 3 + N_);
-        Eigen::MatrixXd Q_c_inv = Q_c.inverse();
+        Eigen::MatrixXd Q_c_inv;
+        if(!get_inverse_Matrix(Q_c, Q_c_inv)){
+            return -2;
+        }
+
+        // std::cout << "Q_c * Q_c_inv :" << std::endl;
+        // std::cout << Q_c * Q_c_inv << std::endl;
         // Eigen::MatrixXd Q_c_inv = get_inverse_Matrix(Q_c);
         // print_DenseMatrix_asSym(Q_a, "Q_a"); //debug
         // print_DenseMatrix_asSym(Q_b, "Q_b"); //debug
@@ -564,9 +624,8 @@ namespace estimate
                 // std::cout << "R:" << R.transpose() << std::endl;
                 Eigen::VectorXd tR(9);
                 tR << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
-                Eigen::Matrix3d Rot, tRot;
-                Rot << z(0), z(1), z(2), z(3), z(4), z(5), z(6), z(7), z(8);
-                tRot << z[9], z[10], z[11], z[12], z[13], z[14], z[15], z[16], z[17];
+                Eigen::Matrix3d Rot = recoverRotation_from_vector(R);
+                Eigen::Matrix3d tRot = recoverRotation_from_vector(tR);
 
                 double t_d = std::cbrt(tRot.determinant());
                 // double t_d = z[19];

@@ -3,7 +3,7 @@
     <node pkg="estimator" type="estimator" name="estimator" output="screen">
         <param name="time_iter" value="false"/>
         <param name="sample_num" value="300"/>
-        <param name="weight_decrese_rate" value="1.0"/>
+        <param name="weight" value="100.0"/>
         <param name="valid_rank" value="17"/>
         <param name="fliter_window" value="61"/>
 

@@ -99,6 +99,9 @@ namespace planning {
     // double delta_from_last = ros::Time::now().toSec() - trajStamp;
     double cur_time = ros::Time::now().toSec();
     double delta_from_last = cur_time - trajStamp;
+
+    if(sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) <= abs(uav_p[2] - target_p[2]) * std::tan(M_PI / 4))
+      vision_stamp = 1; // debug
     
     switch(plan_state)
     {
