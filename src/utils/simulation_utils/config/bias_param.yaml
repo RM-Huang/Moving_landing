@@ -2,7 +2,7 @@ pub_hz_: 200
 
 time_delay: 0.0
 
-trans_x: 3.0
+trans_x: 0.0
 
 trans_y: 0.0
 
@@ -12,4 +12,4 @@ rotat_roll: 0.0
 
 rotat_pitch: 0.0
 
-rotat_yaw: 0.3
+rotat_yaw: 0.0

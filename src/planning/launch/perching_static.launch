@@ -72,7 +72,7 @@
 
       <param name="robot_l" value="0.08"/>
       <param name="robot_r" value="0.2"/>
-      <param name="platform_r" value="0.5"/>
+      <param name="platform_r" value="0.55"/>
       <param name="platform_l" value="0.0"/>
       <param name="visual_region" value="0.785"/>
       <param name="v_plus" value="0.3"/>
@@ -97,16 +97,7 @@
       <param name="rhoThrust" value="8000.0"/>
       <param name="rhoOmega" value="6000.0"/> -->
 
-      <!-- <param name="rhoPf" value="10000.0"/>
-      <param name="rhoPt" value="7500.0"/>
-      <param name="rhoV" value="20000.0"/>
-      <param name="rhoVZ" value="6000.0"/>
-      <param name="rhoVt" value="60000.0"/>
-      <param name="rhoThrust" value="8000.0"/>
-      <param name="rhoOmega" value="6000.0"/>
-      <param name="rhoVisibleDomain" value="30000.0"/>
-      <param name="rhoPerchingCollision" value="100000.0"/> -->
-      <param name="rhoT" value="50000.0"/>
+      <!-- <param name="rhoT" value="50000.0"/>
       <param name="rhoPf" value="100000.0"/>
       <param name="rhoPt" value="10000.0"/>
       <param name="rhoV" value="20000.0"/>
@@ -114,27 +105,38 @@
       <param name="rhoVt" value="60000.0"/>
       <param name="rhoThrust" value="15000.0"/>
       <param name="rhoOmega" value="10000.0"/>
-      <param name="rhoVisibleDomain" value="40000.0"/>
+      <param name="rhoVisibleDomain" value="100000.0"/>
+      <param name="rhoPerchingCollision" value="800000.0"/> -->
+
+      <param name="rhoT" value="50000.0"/>
+      <param name="rhoPf" value="100000.0"/>
+      <param name="rhoPt" value="3000.0"/>
+      <param name="rhoV" value="8000.0"/>
+      <param name="rhoVZ" value="6000.0"/>
+      <param name="rhoVt" value="60000.0"/>
+      <param name="rhoThrust" value="15000.0"/>
+      <param name="rhoOmega" value="10000.0"/>
+      <param name="rhoVisibleDomain" value="100000.0"/>
       <param name="rhoPerchingCollision" value="800000.0"/>
 
-      <param name="perching_px" value="17.3203"/>
-      <param name="perching_py" value="0.554165"/>
-      <param name="perching_pz" value="-0.0022057"/>
-      <param name="perching_vx" value="0.916667"/>
+      <param name="perching_px" value="110.202"/>
+      <param name="perching_py" value="3.52595"/>
+      <param name="perching_pz" value="-0.0135969"/>
+      <param name="perching_vx" value="3.05"/>
       <param name="perching_vy" value="0.0"/>
       <param name="perching_vz" value="0.0"/>
-      <param name="uav_p_x" value="17.4081"/>
-      <param name="uav_p_y" value="0.472717"/>
-      <param name="uav_p_z" value="2.83048"/>
-      <param name="uav_v_x" value="1.18955"/>
-      <param name="uav_v_y" value="0.11983"/>
-      <param name="uav_v_z" value="0.346634"/>
-      <param name="uav_a_x" value="-1.5784"/>
-      <param name="uav_a_y" value="0.0716176"/>
-      <param name="uav_a_z" value="0.186498"/>
-      <param name="uav_j_x" value="2.47732"/>
-      <param name="uav_j_y" value="0.265252"/>
-      <param name="uav_j_z" value="-0.10281"/>
+      <param name="uav_p_x" value="115.435"/>
+      <param name="uav_p_y" value="0.442259"/>
+      <param name="uav_p_z" value="2.95665"/>
+      <param name="uav_v_x" value="2.97646"/>
+      <param name="uav_v_y" value="0.0201358"/>
+      <param name="uav_v_z" value="0.0506089"/>
+      <param name="uav_a_x" value="-2.0606"/>
+      <param name="uav_a_y" value="0.476675"/>
+      <param name="uav_a_z" value="0.00667789"/>
+      <param name="uav_j_x" value="-2.16752"/>
+      <param name="uav_j_y" value="0.97192"/>
+      <param name="uav_j_z" value="-0.0588687"/>
       <param name="uav_q_x" value="0.0"/>
       <param name="uav_q_y" value="0.0"/>
       <param name="uav_q_z" value="0.0"/>

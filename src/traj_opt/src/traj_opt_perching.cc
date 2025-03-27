@@ -566,7 +566,8 @@ bool TrajOpt::generate_traj(const Eigen::MatrixXd& iniState,
     traj_tail_alt = car_p_[2];
   }
   std::cout<< "traj_tail_alt = " << traj_opt::traj_tail_alt <<std::endl;
-  q2v(land_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
+  q2v(car_q, tail_q_v_); // 得到平台机体坐标系z轴在原坐标系中的投影向量
+  std::cout << "tail_q_v_: " << tail_q_v_.transpose() << std::endl;
   // // tail_q_v_ << 0,0,1; // 泛函修改，将末端姿态改为定值
   thrust_middle_ = (thrust_max_ + thrust_min_) / 2; // 中位
   thrust_half_ = (thrust_max_ - thrust_min_) / 2; // 半增值
@@ -817,15 +818,18 @@ void TrajOpt::addTimeIntPenalty(double& cost) {
       //   grad_j += grad_tmp2;
       //   cost_inner += cost_tmp;
       // }
-      if(grad_cost_visible_domain(pos, acc, car_p,
-                                  grad_tmp, grad_tmp2, grad_tmp3,
-                                  cost_tmp)){
-        grad_p += grad_tmp;
-        grad_a += grad_tmp2;
-        grad_car_p += grad_tmp3;
-        cost_inner += cost_tmp;
-        // grad_car_t += grad_tmp3.dot(car_v);
-      }
+      // if(*plan_state_ == LAND){
+        if(grad_cost_visible_domain(pos, acc, car_p,
+                                    grad_tmp, grad_tmp2, grad_tmp3,
+                                    cost_tmp)){
+          grad_p += grad_tmp;
+          grad_a += grad_tmp2;
+          grad_car_p += grad_tmp3;
+          cost_inner += cost_tmp;
+          // grad_car_t += grad_tmp3.dot(car_v);
+        }
+      // }
+      
 
       // Eigen::Vector3d car_p = car_p_ + car_v_ * dur2now; // 预测，predict
       if (grad_cost_perching_collision(pos, acc, car_p,
@@ -966,55 +970,66 @@ bool TrajOpt::grad_cost_visible_domain(const Eigen::Vector3d& pos,
   double dist_sqr = pc.squaredNorm();
   // double safe_r = platform_r_;
   // double safe_r_sqr = platform_r_ * platform_r_;
-  double vis_r_sqr = traking_height * traking_height * 100;
-  double pen_dist = vis_r_sqr - dist_sqr;
-  //pen_dist /= safe_r_sqr;
-  double grad_dist = 0;
-  double var01 = smoothed01(pen_dist, grad_dist);
-
-  if (var01 == 0) {
+  double vis_max_sqr = traking_height * traking_height * 9;
+  double pen_max = vis_max_sqr - dist_sqr;
+  double grad_max = 0;
+  double var_max = smoothed01(pen_max, grad_max);
+  if (var_max == 0) {
     return false;
   }
+
+  double vis_min_sqr = platform_r_ + robot_r_;
+  vis_min_sqr *=vis_min_sqr;
+  double pen_min = dist_sqr - vis_min_sqr;
+  double grad_min = 0;
+  double var_min = smoothed01(pen_min, grad_min);
+  if(var_min == 0) {
+    return false;
+  }
+
+  double var_dist = var_max * var_min;
+  Eigen::Vector3d grad_dist = var_max * grad_min * 2 * pc - var_min * grad_max * 2 * pc;
   
   Eigen::Vector3d thrust_f = acc - g_;
   Eigen::Vector3d zb = f_N(thrust_f);
-  // Eigen::Vector3d zb(0,0,1);
-  // Eigen::Vector3d zc(0,0,1);
   Eigen::Vector3d zc = tail_q_v_;
-  Eigen::Vector3d pc_norm = pc.normalized(); // normalize pc
+  Eigen::Vector3d pc_norm = f_N(pc); // normalize pc
 
   double costheta = pc_norm.dot(zc);
   double cosphi = zb.dot(zc);
-  // cost = (1 - costheta) * (1 - costheta) + (1 - cosphi) * (1 - cosphi);
   double costheta_h = std::sqrt((costheta + 1) / 2);
   double cosphi_h = std::sqrt((cosphi + 1) / 2);
   double costheta_max = std::cos(visual_region_ / 2);
   // double costheta_max = 1;
 
   double pen = costheta_max - costheta_h;
+  // double pen = 0;
+  double cost1 = 0;
   double grad = 0.0;
-  double cost1 = smoothedL1(pen, grad);
+  gradp = Eigen::Vector3d::Zero();
+  grad_car_p = Eigen::Vector3d::Zero();
+  grada = Eigen::Vector3d::Zero();
+
+  if(pen > 0){
+    cost1 = smoothedL1(pen, grad);
+    gradp = - grad * (1 / (4 * costheta_h)) * f_DN(pc).transpose() * zc;
+    grad_car_p = grad * (1 / (4 * costheta_h)) * f_DN(pc).transpose() * zc;
+  }
+
   double cost2 = (1 - cosphi_h);
+  // double cost2 = 0;
+  if(cost2 > 0){
+    grada = - 1 * (1 / (4 * cosphi_h)) * f_DN(thrust_f).transpose() * zc;
+  }
+
   cost = cost1 + cost2;
-  // std::cout << "costheta = " << costheta << ", pen = " << pen << ", cost1 = " << cost1 << ", cost2 = " << cost2 << ", cost = " << cost<< std::endl;
+  // std::cout << "theta = " << std::acos(costheta) << ", pen = " << pen << ", cost1 = " << cost1 << ", cost2 = " << cost2 << ", cost = " << cost<< std::endl;
   // cost = smoothedL1(pen, grad);
   if(cost > 0){
-    if(cost1 > 0){
-      // gradp = - 2 * (1 - costheta) * f_DN(pc).transpose() * zc;
-      // grad_car_p = 2 * (1 - costheta) * f_DN(pc).transpose() * zc;
-      gradp = - grad * (1 / (4 * costheta_h)) * f_DN(pc).transpose() * zc;
-      grad_car_p = grad * (1 / (4 * costheta_h)) * f_DN(pc).transpose() * zc;
-    }else{
-      gradp = Eigen::Vector3d::Zero();
-      grad_car_p = Eigen::Vector3d::Zero();
-    }
-    // grada = - 2 * (1 - cosphi) * f_DN(thrust_f).transpose() * zc;
-    grada = - 1 * (1 / (4 * cosphi_h)) * f_DN(thrust_f).transpose() * zc;
-    
-    cost *= var01;
-    gradp = - grad_dist * 2 * pc * cost + var01 * gradp;
-    grad_car_p = grad_dist * 2 * pc * cost + var01 * grad_car_p;
-    grada *= var01;
+    cost *= var_dist;
+    gradp = grad_dist * cost1 + var_dist * gradp;
+    grad_car_p = - grad_dist * cost1 + var_dist * grad_car_p;
+    grada *= var_dist;
     // cost += var01;
     cost *= rhoVisibleDomain_;
     gradp *= rhoVisibleDomain_;
@@ -1265,7 +1280,7 @@ double TrajOpt::check_visible(const Eigen::Vector3d& pos,
   double dist_sqr = pc.squaredNorm();
   // double safe_r = platform_r_;
   // double safe_r_sqr = platform_r_ * platform_r_;
-  double vis_r_sqr = traking_height * traking_height;
+  double vis_r_sqr = 4.3 * 4.3;
   double pen_dist = vis_r_sqr - dist_sqr;
   // std::cout << "pen_dist = " << pen_dist << std::endl;
   if (pen_dist < 0) {

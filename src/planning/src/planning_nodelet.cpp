@@ -45,6 +45,10 @@ namespace planning {
     {
       target_odom_recrived = true;
     }
+
+    if(target_p(0) > 20){
+      triger_received_ = true;
+    }
   }
 
   bool Nodelet::v2q(const Eigen::Vector3d& v, Eigen::Quaterniond& q){
@@ -127,7 +131,7 @@ namespace planning {
         {
           // std::cout<<"dist_ = "<<sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2))<<std::endl;
           // if((sqrt(pow(uav_p[0] - target_p[0], 2) + pow(uav_p[1] - target_p[1], 2)) < 1.0) && (abs(uav_v[0] - target_v[0]) < 0.5) && (abs(uav_v[1] - target_v[1]) < 0.5))
-          if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.5 && abs(uav_v[1] - target_v[1]) < 0.5)
+          if(ekf_error[0] <= 0.1 && ekf_error[1] <= 0.1 && ekf_error[2] <= 0.1 && abs(uav_v[0] - target_v[0]) < 0.2 && abs(uav_v[1] - target_v[1]) < 0.2)
           {
             land_first = false;
             // generate_new_traj_success = false;
@@ -173,6 +177,9 @@ namespace planning {
             plan_state = traj_opt::TrajOpt::HOVER;
             // generate_new_traj_success = false;
             ROS_INFO("\033[32m[planning]:Change to HOVER state!\033[32m");
+            return;
+          }
+          else if(uav_p(2) <= 1.0){
             return;
           }
         }

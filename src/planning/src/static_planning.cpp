@@ -39,7 +39,7 @@ class StaticNodelet : public nodelet::Nodelet {
   Eigen::Vector3d perching_p_, perching_v_, perching_axis_;
   Eigen::Vector3d uav_p_, uav_v_, uav_a_, uav_j_;
   Eigen::Quaterniond uav_q_;
-  traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::LAND;
+  traj_opt::TrajOpt::plan_s plan_state = traj_opt::TrajOpt::FOLLOW;
   double perching_theta_;
 
   Trajectory traj_poly_;
