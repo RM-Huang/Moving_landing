@@ -50,7 +50,8 @@ namespace odomSim{
 
         void missiontriCallback(const geometry_msgs::PoseStamped::ConstPtr &triMsg);
 
-        void uavsimCallback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg);
+        // void uavsimCallback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg);
+        void uavsimCallback(const nav_msgs::Odometry::ConstPtr &uavMsg);
 
         void carsimCallback(const quadrotor_msgs::EstimatorOdom::ConstPtr &carMsg);
 

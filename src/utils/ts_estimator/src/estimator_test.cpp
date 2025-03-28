@@ -266,9 +266,9 @@ void handler()
         read_odom(p_uu, p_cc, v_cc, q_uu, q_cc, b, stamp);
         Eigen::Vector3d p_rec, v_rec;
         Eigen::Quaterniond q_rec;
-        p_rec = q_b_l.inverse() * (p_cc + v_cc * t_b_l) + pos_b_l;
-        v_rec = q_b_l.inverse() * v_cc;
-        q_rec = q_b_l.inverse() * q_cc;
+        p_rec = q_b_l * (p_cc + v_cc * t_b_l) + pos_b_l;
+        v_rec = q_b_l * v_cc;
+        q_rec = q_b_l * q_cc;
         re_car_msg.pose.pose.position.x = p_rec(0);
         re_car_msg.pose.pose.position.y = p_rec(1);
         re_car_msg.pose.pose.position.z = p_rec(2);
@@ -282,9 +282,9 @@ void handler()
         re_car_msg.header.stamp = stamp;
         car_pub.publish(re_car_msg);
 
-        p_rec = q_b_v.inverse() * (p_cc + v_cc * t_b_v) + pos_b_v;
-        v_rec = q_b_v.inverse() * v_cc;
-        q_rec = q_b_v.inverse() * q_cc;
+        p_rec = q_b_v * (p_cc + v_cc * t_b_v) + pos_b_v;
+        v_rec = q_b_v * v_cc;
+        q_rec = q_b_v * q_cc;
         re_car_msg.pose.pose.position.x = p_rec(0);
         re_car_msg.pose.pose.position.y = p_rec(1);
         re_car_msg.pose.pose.position.z = p_rec(2);

@@ -7,10 +7,10 @@
     <node pkg="nodelet" type="nodelet" name="odomSim" args="load odomSim/odomRemap manager" output="screen">
         <param name="use_vis" value="1"/>
 
-        <remap from="~uavTopic" to="/gazebo/model_states"/>
+        <remap from="~uavTopic" to="/odom/remap"/>
         <remap from="~carTopic" to="/estimator/sim_odom"/>
         <remap from="~carbiasTopic" to="/estimator_debug"/>
-        <remap from="~visTopic" to="/smart/odom"/>
+        <remap from="~visTopic" to="/odom_kalman_car"/>
     </node>   
   </group>
 

@@ -11,12 +11,14 @@ rosbag record --tcpnodelay \
 /odom/remap \
 /odom/remap/car \
 /odom/car_recover \
+/car_recovery \
 /odom/remap/car/raw \
 /vision_received \
 /gazebo/model_states \
 /estimator_debug \
 /estimator/sim_odom \
 /smart/odom \
+/odom_kalman/car \
 # /drone0/planning/traj \
 # /drone0/odom_visualization/robot \
 # /drone0/planning/target_odom \

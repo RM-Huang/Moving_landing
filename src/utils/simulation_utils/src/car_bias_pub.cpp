@@ -42,13 +42,13 @@ private:
     // typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, nav_msgs::Odometry> SyncPolicy;
     // std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync;
 
-    // void uav_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
-    //   uav_sub_msg = *msg;
-    //   if(!uav_sub_tri){
-    //     uav_sub_tri = true;
-    //     ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
-    //   }
-    // }
+    void uav_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
+      uav_sub_msg = *msg;
+      if(!uav_sub_tri){
+        uav_sub_tri = true;
+        ROS_INFO("\033[32m[estimator_odom_handler]:uav odom received!\033[32m");
+      }
+    }
     // void uav_odom_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
     //   uav_sub_msg.header = msg->header;
     //   uav_sub_msg.pose.pose = msg->pose;
@@ -58,18 +58,18 @@ private:
     //   }
     // }
 
-    void uav_odom_callback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg){
-      for(int i = 0; i < modelMsg->name.size(); i++){
-        if(modelMsg->name[i] == "iris_0"){
-          // std::lock_guard<std::mutex> lock(uav_odom_mutex);
-          uav_sub_msg.header.stamp = ros::Time::now();
-          uav_sub_msg.pose.pose = modelMsg->pose[i];
-          uav_sub_msg.twist.twist = modelMsg->twist[i];
-          uav_sub_tri = true;
-          return;
-        }
-      }
-    }
+    // void uav_odom_callback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg){
+    //   for(int i = 0; i < modelMsg->name.size(); i++){
+    //     if(modelMsg->name[i] == "iris_0"){
+    //       // std::lock_guard<std::mutex> lock(uav_odom_mutex);
+    //       uav_sub_msg.header.stamp = ros::Time::now();
+    //       uav_sub_msg.pose.pose = modelMsg->pose[i];
+    //       uav_sub_msg.twist.twist = modelMsg->twist[i];
+    //       uav_sub_tri = true;
+    //       return;
+    //     }
+    //   }
+    // }
 
     void car_odom_callback(const nav_msgs::Odometry::ConstPtr& msg){
       // std::lock_guard<std::mutex> lock(car_odom_mutex);

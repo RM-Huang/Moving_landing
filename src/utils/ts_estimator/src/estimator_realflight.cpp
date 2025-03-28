@@ -232,6 +232,25 @@ void handler()
         debug_msg.solving_t = (toc - tic).count() * 1e-6;
         debug_msg.pose_bias.header.stamp = stamp;
         debug_pub.publish(debug_msg);
+
+        read_odom(p_uu, p_uv, p_cc, v_cc, q_uu, q_cc, b, stamp);
+        Eigen::Vector3d p_rec, v_rec;
+        Eigen::Quaterniond q_rec;
+        p_rec = q_b_l * (p_cc + v_cc * t_b_l) + pos_b_l;
+        v_rec = q_b_l * v_cc;
+        q_rec = q_b_l * q_cc;
+        re_car_msg.pose.pose.position.x = p_rec(0);
+        re_car_msg.pose.pose.position.y = p_rec(1);
+        re_car_msg.pose.pose.position.z = p_rec(2);
+        re_car_msg.pose.pose.orientation.w = q_rec.w();
+        re_car_msg.pose.pose.orientation.x = q_rec.x();
+        re_car_msg.pose.pose.orientation.y = q_rec.y();
+        re_car_msg.pose.pose.orientation.z = q_rec.z();
+        re_car_msg.twist.twist.linear.x = v_rec(0);
+        re_car_msg.twist.twist.linear.y = v_rec(1);
+        re_car_msg.twist.twist.linear.z = v_rec(2);
+        re_car_msg.header.stamp = stamp;
+        car_pub.publish(re_car_msg);
     }
 }
 

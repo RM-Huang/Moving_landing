@@ -6,24 +6,38 @@ namespace odomSim{
         mission_start_tri = true;
     }
 
-    void odomRemap::uavsimCallback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg){
-        for(int i = 0; i < modelMsg->name.size(); i++){
-            if(modelMsg->name[i] == "iris_0"){
-                uav_odom.header.stamp = ros::Time::now();
-                uav_odom.pose.pose = modelMsg->pose[i];
-                uav_odom.twist.twist = modelMsg->twist[i];
+    // void odomRemap::uavsimCallback(const gazebo_msgs::ModelStates::ConstPtr &modelMsg){
+    //     for(int i = 0; i < modelMsg->name.size(); i++){
+    //         if(modelMsg->name[i] == "iris_0"){
+    //             uav_odom.header.stamp = ros::Time::now();
+    //             uav_odom.pose.pose = modelMsg->pose[i];
+    //             uav_odom.twist.twist = modelMsg->twist[i];
 
-                if(uav_sub_tri){
-                    double uav_dur = abs(uav_odom.header.stamp.toSec() - uav_time_l);
-                    if( uav_dur > DELAY_DUR_MAX ){
-                        ROS_WARN("[odom_remap]:uav odom data update rate is too low! Update Dur: %f", uav_dur);
-                    }
-                }else{
-                    uav_sub_tri = true;
-                }
-                uav_time_l = uav_odom.header.stamp.toSec();
+    //             if(uav_sub_tri){
+    //                 double uav_dur = abs(uav_odom.header.stamp.toSec() - uav_time_l);
+    //                 if( uav_dur > DELAY_DUR_MAX ){
+    //                     ROS_WARN("[odom_remap]:uav odom data update rate is too low! Update Dur: %f", uav_dur);
+    //                 }
+    //             }else{
+    //                 uav_sub_tri = true;
+    //             }
+    //             uav_time_l = uav_odom.header.stamp.toSec();
+    //         }
+    //     }
+    // }
+
+    void odomRemap::uavsimCallback(const nav_msgs::Odometry::ConstPtr &uavMsg){
+        uav_odom = *uavMsg;
+
+        if(uav_sub_tri){
+            double uav_dur = abs(uav_odom.header.stamp.toSec() - uav_time_l);
+            if( uav_dur > DELAY_DUR_MAX ){
+                ROS_WARN("[odom_remap]:uav odom data update rate is too low! Update Dur: %f", uav_dur);
             }
+        }else{
+            uav_sub_tri = true;
         }
+        uav_time_l = uav_odom.header.stamp.toSec();
     }
 
     void odomRemap::carsimCallback(const quadrotor_msgs::EstimatorOdom::ConstPtr &carMsg){
