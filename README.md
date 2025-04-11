@@ -29,11 +29,17 @@ catkin_make
 
 ## Simulation
 You need to install gazebo and rviz with correct ros version.
-Run the following script to start simulation.
+You can run the following script to start simulation without bias correction.
 ```
 ./sim_traj_follow.sh
 ```
-You can use ***WSAD*** in the second terminator to adjust velocity and attitude of the car.
+
+Or using the following script to start simulation with biases correction. Biases value are given in "simulation_utils/config/bias_param.yaml".
+```
+./bias_traj_follow.sh
+```
+
+Use ***WSAD*** in the second terminator to adjust velocity and attitude of the car.
 <p align = "center">
 <img src="pic/car-control-terminator.png" width = "640" border="5" />
 </p>
@@ -45,6 +51,7 @@ And nodelet status would be publised on the following terminator.
 
 Then use the following script to takeoff UAV.
 ```
+./set_offboard.sh
 ./takeoff.sh
 ```
 After vehicle stablized, run the following script to start planning:
